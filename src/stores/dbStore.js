@@ -1,8 +1,10 @@
 // stores/dbStore.js
-import { localDB } from '../api/database';
+import { localDB, configureReplication } from '../api/database';
+
+configureReplication();
 
 const dbStore = {
-  // Função para ler dados com base em um query (ex.: { selector: { clientId: '123' } })
+  // Método que usa o 'find' para leitura
   async readData(query) {
     try {
       const result = await localDB.find(query);
@@ -14,14 +16,26 @@ const dbStore = {
     }
   },
 
-  // Função para salvar (ou atualizar) um documento
+  // Método usando put (requere _id manual)
   async saveData(doc) {
     try {
       const response = await localDB.put(doc);
-      console.log("Documento salvo:", response);
+      console.log("Documento salvo (put):", response);
       return response;
     } catch (err) {
       console.error("Erro ao salvar documento:", err);
+      throw err;
+    }
+  },
+
+  // Novo método usando post (gera _id automaticamente)
+  async postData(doc) {
+    try {
+      const response = await localDB.post(doc);
+      console.log("Documento salvo (post):", response);
+      return response;
+    } catch (err) {
+      console.error("Erro ao salvar documento via post:", err);
       throw err;
     }
   }
