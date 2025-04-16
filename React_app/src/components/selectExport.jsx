@@ -1,9 +1,36 @@
-import React, { useState } from "react";
+// components/SelectExport.jsx
+import React, { useState, useEffect } from "react";
 import { IoMdDownload } from "react-icons/io"; // Ícone de download
 import { FaChevronDown } from "react-icons/fa"; // Ícone de seta para dropdown
+import { useNavigate } from "react-router-dom"; // Para redirecionamento
 
-export default function SelectExport({ onclick_details, onClose_details }) {
-  const [selectedMachine, setSelectedMachine] = useState("IRRIGADOR 01");
+export default function SelectExport({ 
+  machines = [], 
+  onclick_details, 
+  onClose_details, 
+  onMachineChange, 
+  redirectBase = "/maquina" // valor padrão, pode ser sobrescrito
+}) {
+  const navigate = useNavigate();
+  const [selectedMachine, setSelectedMachine] = useState(machines[0] || "");
+
+  useEffect(() => {
+    if (machines && machines.length > 0 && !machines.includes(selectedMachine)) {
+      setSelectedMachine(machines[0]);
+    }
+  }, [machines, selectedMachine]);
+
+  const handleChange = (e) => {
+    const newMachine = e.target.value;
+    setSelectedMachine(newMachine);
+
+    if (onMachineChange) {
+      onMachineChange(newMachine);
+    }
+
+    // Redireciona para a rota baseada na prop redirectBase
+    navigate(`${redirectBase}/${newMachine}`);
+  };
 
   return (
     <div className="w-full h-auto px-8 py-2 flex justify-between items-center">
@@ -12,11 +39,13 @@ export default function SelectExport({ onclick_details, onClose_details }) {
         <select
           className="bg-transparent text-white text-sm font-medium appearance-none pr-6 pl-2 cursor-pointer outline-none"
           value={selectedMachine}
-          onChange={(e) => setSelectedMachine(e.target.value)}
+          onChange={handleChange}
         >
-          <option value="IRRIGADOR 01" className="text-black">IRRIGADOR 01</option>
-          <option value="IRRIGADOR 02" className="text-black">IRRIGADOR 02</option>
-          <option value="IRRIGADOR 03" className="text-black">IRRIGADOR 03</option>
+          {machines.map((machine) => (
+            <option key={machine} value={machine} className="text-black">
+              {machine}
+            </option>
+          ))}
         </select>
         <FaChevronDown className="absolute right-2 text-white text-xs pointer-events-none" />
       </div>

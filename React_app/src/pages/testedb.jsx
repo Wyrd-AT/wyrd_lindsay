@@ -1,41 +1,12 @@
-// pages/testedb.jsx
-import React, { useEffect, useState } from 'react';
+// pages/DebugPage.jsx
+import React, { useState } from 'react';
 import dbStore from '../stores/dbStore';
+import { useParsedMessages } from '../hooks/useParsedMessages';
 
-const Teste = () => {
-  const [docs, setDocs] = useState([]);
+const DebugPage = () => {
+  const messages = useParsedMessages();
   const [topic, setTopic] = useState('');
   const [payload, setPayload] = useState('');
-
-  // Função para atualizar os dados usando fetchData do dbStore
-  const updateData = async () => {
-    try {
-      const data = await dbStore.fetchData();
-      console.log("Documentos atualizados:", data);
-      setDocs(data);
-    } catch (err) {
-      console.error("Erro ao carregar documentos:", err);
-    }
-  };
-
-  useEffect(() => {
-    // Leitura inicial dos dados
-    updateData();
-
-    // Configura o listener do changes feed para atualização em "tempo real"
-    const changes = dbStore.localDB.changes({
-      since: 'now',
-      live: true,
-      include_docs: true
-    })
-      .on('change', () => {
-        updateData();
-      })
-      .on('error', (err) => console.error("Erro no listener de mudanças:", err));
-
-    // Cancela o listener ao desmontar o componente
-    return () => changes.cancel();
-  }, []);
 
   const handleAddDocument = async (e) => {
     e.preventDefault();
@@ -43,7 +14,7 @@ const Teste = () => {
       topic,
       payload,
       origin: "app",
-      qos: 0
+      qos: 0,
     };
 
     try {
@@ -57,7 +28,7 @@ const Teste = () => {
 
   return (
     <div>
-      <h1>Página de Teste do dbStore</h1>
+      <h1>Página de Debug do dbStore</h1>
       <form onSubmit={handleAddDocument}>
         <div>
           <label htmlFor="topic">Topic:</label>
@@ -82,22 +53,20 @@ const Teste = () => {
         <button type="submit">Adicionar Documento</button>
       </form>
 
-      <h2>Documentos:</h2>
-      {docs.length > 0 ? (
+      <h2>Mensagens Parseadas:</h2>
+      {messages.length > 0 ? (
         <ul>
-          {docs.map(doc => (
-            <li key={doc._id}>
-              <strong>ID:</strong> {doc._id} <br />
-              <strong>Topic:</strong> {doc.topic} <br />
-              <strong>Payload:</strong> {doc.payload}
+          {messages.map((msg, index) => (
+            <li key={index}>
+              <pre>{JSON.stringify(msg, null, 2)}</pre>
             </li>
           ))}
         </ul>
       ) : (
-        <p>Nenhum documento encontrado.</p>
+        <p>Nenhuma mensagem parseada encontrada.</p>
       )}
     </div>
   );
 };
 
-export default Teste;
+export default DebugPage;
