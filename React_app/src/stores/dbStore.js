@@ -1,59 +1,58 @@
-// stores/dbStore.js
-import { localDB, configureReplication } from '../api/database';
-
-// Chama a configuração, se for necessário
-configureReplication();
+// src/stores/dbStore.js
+import { localDB } from '../api/database';
 
 const dbStore = {
-  // Função que busca todos os documentos usando allDocs
+  // Busca todos os documentos
   fetchData: async () => {
     try {
-      const docs = await localDB.allDocs({ include_docs: true });
-      const data = docs.rows.map(row => row.doc); // Retorna somente a propriedade 'doc'
-      return data;
+      const result = await localDB.allDocs({ include_docs: true });
+      const docs = result.rows.map(row => row.doc);
+      console.log('[dbStore] fetchData encontrou docs:', docs);
+      return docs;
     } catch (err) {
-      console.error("Erro no fetchData:", err);
+      console.error('[dbStore] Erro no fetchData:', err);
       throw err;
     }
   },
 
-  // Método que usa o 'find' para leitura
-  async readData(query) {
+  // Busca por query (PouchDB find)
+  readData: async (query) => {
     try {
       const result = await localDB.find(query);
-      console.log("Dados lidos:", result.docs);
+      console.log('[dbStore] readData resultado:', result.docs);
       return result.docs;
     } catch (err) {
-      console.error("Erro ao ler dados:", err);
+      console.error('[dbStore] Erro no readData:', err);
       throw err;
     }
   },
 
-  // Método usando put (requere _id manual)
-  async saveData(doc) {
+  // Atualiza via PUT
+  saveData: async (doc) => {
     try {
       const response = await localDB.put(doc);
-      console.log("Documento salvo (put):", response);
+      console.log('[dbStore] saveData (put):', response);
       return response;
     } catch (err) {
-      console.error("Erro ao salvar documento:", err);
+      console.error('[dbStore] Erro no saveData:', err);
       throw err;
     }
   },
 
-  // Novo método usando post (gera _id automaticamente)
-  async postData(doc) {
+  // Insere via POST apenas no localDB
+  postData: async (doc) => {
+    console.log('[dbStore] postData chamado com doc:', doc);
     try {
       const response = await localDB.post(doc);
-      console.log("Documento salvo (post):", response);
+      console.log('[dbStore] localDB.post ok:', response);
       return response;
     } catch (err) {
-      console.error("Erro ao salvar documento via post:", err);
+      console.error('[dbStore] ERRO localDB.post:', err);
       throw err;
     }
   },
 
-  // Expondo a instância localDB para acesso direto (necessário para o changes feed)
+  // Expondo a instância localDB para uso direto (changes feed, etc)
   localDB,
 };
 

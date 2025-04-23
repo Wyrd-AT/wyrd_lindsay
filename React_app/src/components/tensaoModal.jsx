@@ -1,137 +1,150 @@
 // components/TensaoModal.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { IoClose } from "react-icons/io5";
 import { useParsedMessages } from "../hooks/useParsedMessages";
-import TensionGraph from "./TensionGraph"; // ou use seu GraficoValores
+import TensionGraph from "./TensionGraph";
 
 export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
-  const [showGraph, setShowGraph] = useState(false);
   const parsed = useParsedMessages();
+  const machineId = selectedMachine.replace("IRRIGADOR ", "");
+  const [showGraph, setShowGraph] = useState(false);
 
-  // 1) Filtra só as mensagens de tensão da máquina
-  const msgs = parsed.filter(
-    (m) =>
-      m.type === "mtTension" &&
-      m.irrigadorId === selectedMachine.replace("IRRIGADOR ", "")
-  );
-
-  // 2) “Desenrola” cada leitura individual (supondo que cada msg.mtReadings seja array)
-  const allReadings = msgs.flatMap((m) =>
-    (m.mtReadings || []).map((r) => ({
-      ...r,
-      timestamp: m.timestamp,
-    }))
-  );
-
-  // Ordena por tempo
-  allReadings.sort(
-    (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
-  );
-
-  // Última tensão
-  const last = allReadings[0] || null;
-
-  // Períodos base
-  const now = Date.now();
-  const oneHourAgo = now - 1000 * 60 * 60;
-  const oneDayAgo = now - 1000 * 60 * 60 * 24;
-
-  // Filtra por período
-  const lastHourReadings = allReadings.filter(
-    (r) => new Date(r.timestamp).getTime() >= oneHourAgo
-  );
-  const lastDayReadings = allReadings.filter(
-    (r) => new Date(r.timestamp).getTime() >= oneDayAgo
-  );
-
-  // Cálculo de média
-  const avg = (arr) =>
-    arr.length
-      ? (arr.reduce((sum, r) => sum + parseFloat(r.voltage || 0), 0) /
-          arr.length
-        ).toFixed(2)
-      : "–";
-
-  const avgHour = avg(lastHourReadings);
-  const avgDay = avg(lastDayReadings);
-
+  // Reset view ao abrir ou trocar máquina
   useEffect(() => {
-    const esc = (e) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", esc);
-    return () => document.removeEventListener("keydown", esc);
+    if (isOpen) setShowGraph(false);
+  }, [isOpen, machineId]);
+
+  // Raw readings para o gráfico
+  const rawReadings = useMemo(() => {
+    return parsed
+      .filter((m) => m.type === "mtTension" && m.irrigadorId === machineId)
+      .flatMap((m) =>
+        (m.mtReadings || []).map((r) => ({
+          mt: r.mt,
+          voltage: parseFloat(r.voltage) || 0,
+          timestamp: new Date(m.timestamp),
+          status: r.status,
+        }))
+      )
+      .sort((a, b) => a.mt - b.mt || a.timestamp - b.timestamp);
+  }, [parsed, machineId]);
+
+  // Estatísticas para cada MT
+  const mtStats = useMemo(() => {
+    const now = Date.now();
+    const hAgo = now - 1000 * 60 * 60;
+    const dAgo = now - 1000 * 60 * 60 * 24;
+    const groups = {};
+
+    rawReadings.forEach((r) => {
+      groups[r.mt] = groups[r.mt] || [];
+      groups[r.mt].push(r);
+    });
+
+    const stats = [];
+    for (let i = 1; i <= 18; i++) {
+      const arr = (groups[i] || []).sort((a, b) => b.timestamp - a.timestamp);
+      const last = arr[0];
+      const avgCalc = (ary) =>
+        ary.length
+          ? (ary.reduce((sum, x) => sum + x.voltage, 0) / ary.length).toFixed(3)
+          : "–";
+      stats.push({
+        mt: i,
+        last: last ? last.voltage.toFixed(3) : "–",
+        avgHour: avgCalc(arr.filter((x) => x.timestamp.getTime() >= hAgo)),
+        avgDay: avgCalc(arr.filter((x) => x.timestamp.getTime() >= dAgo)),
+        status: last ? last.status : "OFF",
+      });
+    }
+    return stats;
+  }, [rawReadings]);
+
+  // Fecha com ESC
+  useEffect(() => {
+    const handleEsc = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
   if (!isOpen) return null;
 
-  const backdrop = () => onClose();
-  const stop = (e) => e.stopPropagation();
-
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50"
-      onClick={backdrop}
+      onClick={onClose}
     >
       <div className="absolute inset-0 bg-black opacity-60" />
-
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 bg-[#222] p-6 rounded-lg w-[70vw] h-[80vh] overflow-auto text-white"
-        onClick={stop}
+        className="relative z-10 bg-[#222] p-6 rounded-lg w-[80vw] h-[80vh] overflow-auto text-white flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-white text-2xl hover:text-gray-400"
-          aria-label="Fechar"
         >
           <IoClose />
         </button>
 
+        <h2 className="text-2xl mb-4 text-center">
+          Tensão – {selectedMachine}
+        </h2>
+
         {!showGraph ? (
           <>
-            <h2 className="text-2xl mb-4">Tensão – {selectedMachine}</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="bg-[#1f2b36] p-4 rounded shadow">
-                <p className="text-sm text-gray-400">Última Leitura</p>
-                <p className="text-xl font-semibold">
-                  {last ? `${last.voltage}` : "–"}
-                </p>
-              </div>
-              <div className="bg-[#1f2b36] p-4 rounded shadow">
-                <p className="text-sm text-gray-400">Média Última Hora</p>
-                <p className="text-xl font-semibold">{avgHour}</p>
-              </div>
-              <div className="bg-[#1f2b36] p-4 rounded shadow">
-                <p className="text-sm text-gray-400">Média Último Dia</p>
-                <p className="text-xl font-semibold">{avgDay}</p>
-              </div>
+            {/* Grid de cards para cada MT */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 flex-1">
+              {mtStats.map(({ mt, last, avgHour, avgDay, status }) => (
+                <div
+                  key={mt}
+                  className="bg-[#2b2b2b] p-6 rounded shadow flex flex-col items-center"
+                >
+                  <span className="font-medium mb-1">MT {mt}</span>
+                  <span className="text-2xl font-semibold mb-1">
+                    {last} V
+                  </span>
+                  <div className="text-xs text-gray-400 text-center">
+                    <div>Média 1h: {avgHour} V</div>
+                    <div>Média 24h: {avgDay} V</div>
+                  </div>
+                  <span
+                    className={`mt-2 px-2.5 py-0.5 text-xs rounded-full ${
+                      status === "ON" ? "bg-green-600" : "bg-red-600"
+                    }`}
+                  >
+                    {status}
+                  </span>
+                </div>
+              ))}
             </div>
 
-            <button
-              onClick={() => setShowGraph(true)}
-              className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Ver Gráfico de Tensão
-            </button>
+            {/* Botão para exibir o gráfico */}
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowGraph(true)}
+                className="px-6 py-2 rounded bg-green-600 hover:bg-green-700"
+              >
+                Visualizar Gráfico
+              </button>
+            </div>
           </>
         ) : (
-          <>
-            <h2 className="text-2xl mb-4">Gráfico – {selectedMachine}</h2>
-            <div className="bg-[#1f2b36] p-4 rounded shadow mb-4">
-              <TensionGraph data={allReadings} />
-              {/*
-                Se preferir usar o seu GraficoValores, troque para:
-                <GraficoValores selectedMachine={selectedMachine} />
-              */}
+          <div className="flex-1 flex flex-col">
+            {/* Gráfico de todos os MTs ou apenas tempo? Aqui todos */}
+            <div className="flex-1">
+              <TensionGraph data={rawReadings} />
             </div>
-            <button
-              onClick={() => setShowGraph(false)}
-              className="bg-green-600 px-4 py-2 rounded hover:bg-green-700"
-            >
-              Voltar
-            </button>
-          </>
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowGraph(false)}
+                className="px-6 py-2 rounded bg-green-600 hover:bg-green-700"
+              >
+                Voltar aos Cards
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

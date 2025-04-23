@@ -6,99 +6,115 @@
 SoftwareSerial mySerial(RX_PIN, TX_PIN);
 
 // Variáveis de controle de tempo
-unsigned long lastMinuteEventTime = 0;
+unsigned long lastMinuteEventTime  = 0;
 unsigned long lastGenericEventTime = 0;
 
-// Variáveis de simulação
-int eventCounter = 0;
-int activationKey = 1;  // Inicializa com valor inválido (-1), para garantir que a chave de ativação não seja 0 até ser configurada
+// Variável de simulação
+int activationKey = 3;  // 0 = mantém, 1 ou 2 ativa o envio a cada 5 s
 
-String generateRandomHex() {
-  String hexString = "";
-  for (int i = 0; i < 6; i++) {
-    int randomValue = random(0, 16);
-    hexString += String(randomValue, HEX);
-  }
-  hexString.toUpperCase();
-  return hexString;
+// --- Padrões fixos de sufixo de 5 dígitos ---
+const char* suffixes[] = {
+  "A0A0A",
+  "B1B1B",
+  "C2C2C",
+  "D3D3D",
+  "E4E4E",
+  "F5F5F"
+};
+const int NUM_SUFFIXES = sizeof(suffixes) / sizeof(suffixes[0]);
+
+// Dígitos hex possíveis para o prefixo
+const char* hexDigits = "0123456789ABCDEF";
+
+// Gera um código de 6 caracteres: 1 hex aleatório + 5 de um padrão fixo
+String generatePatternHex() {
+  char prefix = hexDigits[random(0, 16)];
+  const char* suffix = suffixes[random(0, NUM_SUFFIXES)];
+  return String(prefix) + String(suffix);
 }
 
 void setup() {
   mySerial.begin(9600);
   Serial.begin(9600);
-  randomSeed(analogRead(0)); // Garante aleatoriedade melhor
+  randomSeed(analogRead(0));
+
   Serial.println("Iniciando o ciclo de comunicação...");
-  Serial.println("Digite 1 ou 2 para ativar a chave de ativação. Digite 0 para manter o valor atual.");
-  
-  // Define o timeout da leitura serial para 100 ms
-  Serial.setTimeout(100); // Timeout de 100ms para a leitura serial
+  Serial.setTimeout(100); // Timeout de 100 ms para parseInt()
 }
 
 void loop() {
-  unsigned long currentMillis = millis();
+  unsigned long now = millis();
 
-  // Lê o comando de ativação via terminal (chave de ativação) com timeout
+  // 1) Leitura da chave de ativação via USB-Serial
   if (Serial.available()) {
-    int tempKey = Serial.parseInt();  // Lê o número inteiro do terminal
-
-    // Se a entrada for 1 ou 2, a chave é atualizada. Se for 0, o valor atual é mantido.
-    if (tempKey == 0) {
-      Serial.print("Valor da chave de ativação mantido como: ");
+    int cmd = Serial.parseInt();
+    if (cmd == 0) {
+      Serial.print("Mantendo chave em: ");
       Serial.println(activationKey);
-    } else if (tempKey == 1 || tempKey == 2) {
-      activationKey = tempKey;  // Atualiza a chave de ativação com 1 ou 2
-      Serial.print("Chave de ativação definida para: ");
+    } else if (cmd == 1 || cmd == 2 || cmd == 3) {
+      activationKey = cmd;
+      Serial.print("Chave alterada para: ");
       Serial.println(activationKey);
     } else {
-      Serial.println("Comando inválido. Digite 1 ou 2 para definir a chave, ou 0 para mantê-la.");
+      Serial.println("Comando inválido. Use 1, 2 ou 3.");
+    }
+    Serial.flush();
+  }
+
+  // 2) Evento a cada 1 minuto (sempre ativo) — agora com 18 infos
+  if ((activationKey == 1 || activationKey == 2) && (now - lastMinuteEventTime >= 60000)) {
+    lastMinuteEventTime = now;
+
+    String code = generatePatternHex();
+    String payload = code;
+
+    // gera 18 valores aleatórios no formato "NNN.NND" e separa por ';'
+    for (int i = 0; i < 18; i++) {
+      int intPart = random(100, 1000);      // de 100 a 999
+      int fracPart = random(10, 100);       // de 10 a 99
+      int dPart    = random(0, 2);          // 0 ou 1
+      payload += ";" + String(intPart) + "." + String(fracPart) + String(dPart);
     }
 
-    Serial.flush();  // Limpa o buffer para garantir que não restem valores errados
+    payload += "&";  // marcando fim de mensagem
+    mySerial.println(payload);
+    Serial.println("Enviado (1 min): " + payload);
   }
 
-  // --- Envio a cada 1 minuto ---
-  if (currentMillis - lastMinuteEventTime >= 60000) {
-    lastMinuteEventTime = currentMillis;
+  // 3) Evento a cada 5 s (só se activationKey for 1 ou 2) — sem alteração aqui
+  if ((activationKey == 1) && (now - lastGenericEventTime >= 5000)) {
+    lastGenericEventTime = now;
 
-    String hexCode = generateRandomHex();
-    eventCounter++;
-    String eventData = hexCode + ";" + String(random(100, 999)) + "." + String(random(10, 99)) + String(random(0, 2)) + ";&";
+    String code = generatePatternHex();
+    char xChar = (random(0, 2) == 0) ? 'A' : 'E';
+    int  nnnn  = random(1000, 10000);
 
-    mySerial.println(eventData);
-    Serial.println("Enviado para a ESP32 (evento 1 min): " + eventData);
+    String payload = code + ";" + xChar + String(nnnn) + "&";
+    mySerial.println(payload);
+    Serial.println("Enviado (5 s): " + payload);
   }
 
-  // --- Envio a cada 5 segundos com o formato HHHHHH;XNNNN --- (somente se a chave for 1 ou 2)
-  if (activationKey == 1 && currentMillis - lastGenericEventTime >= 5000) {
-    lastGenericEventTime = currentMillis;
-
-    String hexCode = generateRandomHex();
-    char xChar = (random(0, 2) == 0) ? 'A' : 'E';  // Aleatório entre 'A' ou 'E'
-    int nnnn = random(1000, 10000); // 4 dígitos aleatórios
-
-    String formatted = hexCode + ";" + xChar + String(nnnn) + "&";
-    mySerial.println(formatted);
-    Serial.println("Enviado para a ESP32 (evento 5s): " + formatted);
-  }
-
-  // --- Leitura da resposta da ESP32 (caso venha algo) ---
+  // 4) Leitura de eventual resposta da ESP32 e resposta de alarme — agora com 18 números
   if (mySerial.available()) {
     String response = mySerial.readString();
+    response.trim();
     if (response.length() > 0) {
-      Serial.println("Resposta recebida da ESP32: " + response);
+      Serial.println("Resposta da ESP32: " + response);
 
-      // Verifica se o texto após o primeiro ';' tem a palavra "alarme" na oitava posição
-      int semicolonPos = response.indexOf(';');
-      if (semicolonPos != -1 && response.substring(semicolonPos + 1, semicolonPos + 7) == "alarme") {
-        // Se encontrar "alarme", envia a resposta com os números aleatórios
-        String randomNumbers = "";
-        for (int i = 0; i < 6; i++) {
-          randomNumbers += String(random(0, 9)) + ";";  // Gera 6 números aleatórios de 0 a 8
+      int sc = response.indexOf(';');
+      if (sc != -1 && response.substring(sc + 1, sc + 7) == "alarme") {
+        String code = response.substring(0, 6);
+        String nums = "";
+
+        // gera 18 números (0–9) separados por ';'
+        for (int i = 0; i < 18; i++) {
+          nums += String(random(0, 10));
+          if (i < 17) nums += ";";
         }
-        String hexCode = generateRandomHex();
-        String alarmResponse = hexCode + ";" + randomNumbers + "&";  // Cria a resposta no formato solicitado
-        mySerial.println(alarmResponse);
-        Serial.println("Enviado para a ESP32 (alarme): " + alarmResponse);
+
+        String alarmResp = code + ";" + nums + "&";
+        mySerial.println(alarmResp);
+        Serial.println("Enviado (alarme): " + alarmResp);
       }
     }
   }

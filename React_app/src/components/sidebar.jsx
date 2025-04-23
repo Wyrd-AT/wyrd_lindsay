@@ -25,35 +25,7 @@ function SideBar() {
         <BiHomeAlt size={40} />
       </NavLink>
 
-      {/* Link para página Máquina (alertas e histórico) */}
-      <NavLink
-        to="/maquina"
-        className={({ isActive }) =>
-          `mb-4 ${isActive ? "text-blue-400" : "text-white"}`
-        }
-      >
-        <MdOutlineWarning size={40} />
-      </NavLink>
-
-      {/* Link para página Tensão */}
-      <NavLink
-        to="/tensao"
-        className={({ isActive }) =>
-          `mb-4 ${isActive ? "text-blue-400" : "text-white"}`
-        }
-      >
-        <MdOutlineSensors size={40} />
-      </NavLink>
-
-      {/* Link para página Mensagem */}
-      <NavLink
-        to="/mensagem"
-        className={({ isActive }) =>
-          `mb-4 ${isActive ? "text-blue-400" : "text-white"}`
-        }
-      >
-        <FiSend size={40} />
-      </NavLink>
+      
     </div>
   );
 }

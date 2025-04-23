@@ -41,7 +41,7 @@ export default function Login() {
 
           {/* Botão de Sign In */}
           <a
-            href="/homeRevenda"
+            href="/home"
             className="block w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition"
           >
             SIGN IN

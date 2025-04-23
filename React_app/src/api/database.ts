@@ -1,45 +1,51 @@
+// src/api/database.ts
 import PouchDB from 'pouchdb';
 import PouchDBFind from 'pouchdb-find';
 PouchDB.plugin(PouchDBFind);
 
-// Cria o banco de dados local
+// 1) Banco local (IndexedDB no navegador)
 export const localDB = new PouchDB('lindsay');
 
-// Instancia o banco remoto (adicione a URL que preferir)
-// Exemplo usando a URL remota:
-export const cloudDB = new PouchDB("http://admin:wyrd@54.211.31.145:5984/mqtt_data");
+// 2) Banco remoto (CouchDB em HTTPS)
+//    - skip_setup impede tentativa de criar o DB remoto se ele já existir
+export const remoteDB = new PouchDB(
+  'https://admin:wyrd@db.vpn.ind.br/mqtt_data',
+  { skip_setup: true }
+);
 
-localDB.changes({
-  since: 'now',
-  live: true,
-  include_docs: true
-}).on('change', change => {
-    localDB.replicate.to(cloudDB, { live: false, retry: true })
-      .then(() => console.log("Mudanças replicadas para o remoto"))
-      .catch(err => console.error("Erro ao replicar mudança:", err));
-  }).on('error', err => console.error("Erro no changes listener:", err));
+// 3) Sincronização bidirecional e ao vivo
+localDB
+  .sync(remoteDB, { live: true, retry: true })
+  .on('change', info => {
+    console.log('[PouchDB Sync] change', info);
+  })
+  .on('paused', err => {
+    console.log('[PouchDB Sync] paused (offline ou sem mudanças)', err);
+  })
+  .on('active', () => {
+    console.log('[PouchDB Sync] retomada');
+  })
+  .on('denied', err => {
+    console.error('[PouchDB Sync] acesso negado:', err);
+  })
+  .on('complete', info => {
+    console.log('[PouchDB Sync] completa', info);
+  })
+  .on('error', err => {
+    console.error('[PouchDB Sync] erro geral:', err);
+  });
 
-// Função para configurar índices e iniciar a replicação
-export async function configureReplication() {
+// 4) Índices necessários para consultas rápidas
+export async function configureIndexes() {
   try {
-    // Cria índice para os campos necessários
     await localDB.createIndex({
-      index: {
-        fields: ['topic', 'payload']
-      }
+      index: { fields: ['topic', 'payload'] }
     });
-    console.log("Índices criados");
+    console.log('[Database] índices criados');
   } catch (err) {
-    console.error("Erro ao criar índices:", err);
+    console.error('[Database] erro ao criar índices:', err);
   }
-
-  // Replicação do remoto para o local
-  localDB.replicate.from(cloudDB, { live: true, retry: true })
-    .on('complete', info => console.log("Replicação do remoto para local concluída"))
-    .on('error', err => console.error("Erro na replicação from:", err));
-
-  // Replicação do local para o remoto
-  localDB.replicate.to(cloudDB, { live: true, retry: true })
-    .on('complete', info => console.log("Replicação do local para remoto concluída"))
-    .on('error', err => console.error("Erro na replicação to:", err));
 }
+
+// 5) Invoca a criação de índices na inicialização
+configureIndexes();

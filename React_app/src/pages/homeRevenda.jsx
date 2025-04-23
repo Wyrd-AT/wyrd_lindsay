@@ -1,5 +1,5 @@
 // pages/HomePageRevenda.jsx
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 import BodyContent from "../components/body";
 import Header from "../components/header";
@@ -9,15 +9,14 @@ import IrrigadorCard from "../components/irrigadorCard";
 
 export default function HomePageRevenda() {
   const parsed = useParsedMessages();
-  const [machines, setMachines] = useState([]);
 
-  useEffect(() => {
-    // Agrupa IDs únicos
-    const ids = Array.from(new Set(parsed.map((m) => m.irrigadorId)));
-    setMachines(ids);
-  }, [parsed]);
+  // Derive a lista de IDs únicos sempre que `parsed` mudar
+  const machines = useMemo(
+    () => Array.from(new Set(parsed.map((m) => m.irrigadorId))),
+    [parsed]
+  );
 
-  // Função auxiliar para data do último alerta
+  // Data do último alerta
   const getLastAlertDate = (id) => {
     const events = parsed
       .filter((m) => m.type === "event" && m.irrigadorId === id)
@@ -26,6 +25,7 @@ export default function HomePageRevenda() {
     return new Date(events[0].datetime).toLocaleDateString();
   };
 
+  // Contagem de alertas
   const getAlertCount = (id) =>
     parsed.filter((m) => m.type === "event" && m.irrigadorId === id)
       .length;
@@ -35,7 +35,7 @@ export default function HomePageRevenda() {
       <Sidebar />
 
       <BodyContent>
-        <Header page="" />
+        <Header page="home" />
 
         <div
           className="
