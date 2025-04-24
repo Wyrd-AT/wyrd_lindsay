@@ -1,26 +1,29 @@
-// pages/Maquina.jsx
+// src/pages/Maquina.jsx
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
-import ClientEditContainer from "../components/clientEditContainer";
 import SelectExport from "../components/SelectExport";
 import AlertHistory from "../components/alertHistory";
 import TensaoModal from "../components/TensaoModal";
 import MensagemModal from "../components/MensagemModal";
-import StatusAlarmModal from "../components/StatusAlarmModal";  // <–– import novo
-import { useParsedMessages } from "../hooks/useParsedMessages";
+import StatusAlarmModal from "../components/StatusAlarmModal";
+import DetalhesMaquina from "../components/DetalhesMaquina";
+import StatsRow from "../components/statsRow";
+import useParsedMessages from "../hooks/useParsedMessages";
 
 export default function Maquina() {
   const { machineId } = useParams();
   const navigate = useNavigate();
   const parsed = useParsedMessages();
 
-  const machines = Array.from(
-    new Set(parsed.map((m) => m.irrigadorId))
-  ).map((id) => `IRRIGADOR ${id}`);
+  // monta lista única de irrigadores
+  const machines = Array.from(new Set(parsed.map((m) => m.irrigadorId))).map(
+    (id) => `IRRIGADOR ${id}`
+  );
 
+  // valor inicial
   const defaultMachine = machineId
     ? `IRRIGADOR ${machineId}`
     : machines[0] || "";
@@ -28,12 +31,18 @@ export default function Maquina() {
   const [selectedMachine, setSelectedMachine] = useState(defaultMachine);
   const [isTensaoOpen, setIsTensaoOpen] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
-  const [isStatusOpen, setIsStatusOpen] = useState(false);  // <–– estado novo
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [flash, setFlash] = useState(false);
 
+  // sincroniza com a URL
   useEffect(() => {
-    if (machineId) setSelectedMachine(`IRRIGADOR ${machineId}`);
+    if (machineId) {
+      setSelectedMachine(`IRRIGADOR ${machineId}`);
+    }
   }, [machineId]);
 
+  // se não vier param, escolhe o primeiro
   useEffect(() => {
     if (!machineId && machines.length > 0) {
       setSelectedMachine(machines[0]);
@@ -44,43 +53,42 @@ export default function Maquina() {
     setSelectedMachine(machine);
     const id = machine.replace("IRRIGADOR ", "");
     navigate(`/maquina/${id}`);
+
+    // flash effect
+    setFlash(true);
+    setTimeout(() => setFlash(false), 200);
+  };
+
+  const handleExport = () => {
+    // coloque aqui sua lógica de export (download CSV, etc)
+    console.log("Exportando dados de", selectedMachine);
   };
 
   return (
-    <div className="w-full h-full text-white flex bg-[#313131]">
+    <div
+      className={`
+        w-full h-full text-white flex bg-[#313131]
+        transition-opacity duration-200 ${
+          flash ? "opacity-50" : "opacity-100"
+        }
+      `}
+      key={selectedMachine}
+    >
       <SideBar />
 
       <BodyContent>
         <Header page="perfilClient" />
-        <ClientEditContainer page="perfilClient" />
 
         <SelectExport
           machines={machines}
           redirectBase="/maquina"
           onMachineChange={handleMachineChange}
-          onclick_details={() => {}}
+          onclick_details={() => setIsDetailsOpen(true)}
+          onAlarm={() => setIsStatusOpen(true)}
+          onTension={() => setIsTensaoOpen(true)}
+          onMessage={() => setIsMensagemOpen(true)}
+          onExport={handleExport}
         />
-
-        <div className="flex gap-4 px-6 my-4">
-          <button
-            onClick={() => setIsTensaoOpen(true)}
-            className="bg-green-600 px-3 py-1 rounded hover:bg-green-700"
-          >
-            Ver Tensão
-          </button>
-          <button
-            onClick={() => setIsMensagemOpen(true)}
-            className="bg-gray-500 px-3 py-1 rounded hover:bg-gray-600"
-          >
-            Enviar Mensagem
-          </button>
-          <button
-            onClick={() => setIsStatusOpen(true)}
-            className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
-          >
-            Status Alarme
-          </button>
-        </div>
 
         <div className="w-full flex justify-center px-6 mb-8">
           <img
@@ -90,24 +98,32 @@ export default function Maquina() {
           />
         </div>
 
+        <StatsRow />
+
+        {/* Agora não há mais botões aqui */}
+
         <AlertHistory machineId={selectedMachine} />
       </BodyContent>
 
+      {/* Modais acionados pelos botões no SelectExport */}
       <TensaoModal
         isOpen={isTensaoOpen}
         onClose={() => setIsTensaoOpen(false)}
         selectedMachine={selectedMachine}
       />
-
       <MensagemModal
         isOpen={isMensagemOpen}
         onClose={() => setIsMensagemOpen(false)}
         selectedMachine={selectedMachine}
       />
-
-      <StatusAlarmModal                        // <–– inclusão do modal
+      <StatusAlarmModal
         isOpen={isStatusOpen}
         onClose={() => setIsStatusOpen(false)}
+        selectedMachine={selectedMachine}
+      />
+      <DetalhesMaquina
+        isOpen={isDetailsOpen}
+        onClose={() => setIsDetailsOpen(false)}
         selectedMachine={selectedMachine}
       />
     </div>

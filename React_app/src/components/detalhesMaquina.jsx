@@ -1,130 +1,112 @@
+// src/components/DetalhesMaquina.jsx
 import React, { useEffect } from "react";
-import { IoClose, IoSearch, IoSearchOutline } from "react-icons/io5";
+import { IoClose, IoSearchOutline, IoSearchSharp } from "react-icons/io5";
 
-export default function DetalhesMaquina({ isOpen, onClose }) {
+export default function DetalhesMaquina({ isOpen, onClose, selectedMachine }) {
+  // Fecha com Esc
   useEffect(() => {
-    const handleEsc = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
+    const handleEsc = (e) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", handleEsc);
-    return () => {
-      document.removeEventListener("keydown", handleEsc);
-    };
+    return () => document.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
   if (!isOpen) return null;
 
-  const handleBackdropClick = () => {
-    onClose();
-  };
-
-  const handleModalClick = (e) => {
-    e.stopPropagation();
-  };
-
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-50"
-      onClick={handleBackdropClick}
+      className="fixed inset-0 flex items-center justify-center z-50 px-4"
+      onClick={onClose}
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black opacity-60"></div>
+      {/* overlay */}
+      <div className="absolute inset-0 bg-black/60" />
+
+      {/* modal */}
       <div
         role="dialog"
         aria-modal="true"
-        className="bg-[#222] text-white p-6 rounded-lg w-[70vw] h-[80vh] relative z-10"
-        onClick={handleModalClick}
+        onClick={(e) => e.stopPropagation()}
+        className="
+          relative bg-[#393939] rounded-lg
+          w-full max-w-4xl h-[80vh] overflow-hidden
+          flex flex-col
+        "
       >
-        {/* Botão de Fechar */}
+        {/* close */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-white text-2xl hover:text-gray-400"
           aria-label="Fechar"
+          className="absolute top-3 right-3 text-white hover:text-gray-300"
         >
-          <IoClose />
+          <IoClose size={24} />
         </button>
 
-        {/* Nome da máquina */}
-        <div className="px-2">
-          <h3 className="w-fit border-b border-gray-500 flex">
-            IRRIGADOR 01
+        {/* cabeçalho */}
+        <div className="pt-4 pb-2 px-4 text-center">
+          <h3 className="text-white font-semibold text-lg sm:text-xl">
+            {selectedMachine}
           </h3>
+          <div className="mt-1 mx-auto w-8 h-0 border-t border-white" />
         </div>
 
-        {/* Imagem */}
-        <div className="w-full flex justify-center">
-          <img
-            src="/details.png" // Substitua com a imagem correta
-            alt="Detalhes da máquina"
-            className="w-full h-auto"
-          />
+        {/* imagem */}
+        <div className="px-8">
+          <div className="w-full bg-white rounded-md overflow-hidden shadow-md aspect-[30/13]">
+            <img
+              src="/details.png"
+              alt="Detalhes da máquina"
+              className="w-full h-full object-cover"
+            />
+          </div>
         </div>
 
-        <div className="w-full pr-2 flex">
-          <div className="w-1/2 flex justify-between items-center">
-            <span className="text-[12px]">ÚLTIMO ALERTA</span>
-            <a href="#" className="text-blue-400 text-sm hover:underline">
+        {/* estatísticas + zoom */}
+        <div className="mt-4 px-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+          {/* grid de stats */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1">
+            {[
+              ["DATA DE INSTALAÇÃO", "21 de maio de 2024"],
+              ["DATA DE AQUISIÇÃO", "10 de maio de 2024"],
+              ["ÚLTIMA MANUTENÇÃO", "08 de janeiro de 2025"],
+            ].map(([label, value]) => (
+              <div key={label} className="flex flex-col gap-0.5">
+                <span className="text-xs text-white">{label}</span>
+                <span className="text-base font-bold text-white">{value}</span>
+              </div>
+            ))}
+          </div>
+          {/* zoom */}
+          <div className="flex gap-2 self-center md:self-start">
+            {[IoSearchOutline, IoSearchSharp].map((Icon, i) => (
+              <div
+                key={i}
+                className="w-8 h-8 flex items-center justify-center border-2 border-gray-700 rounded-full"
+              >
+                <Icon size={16} className="text-white" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* último alerta */}
+        <div className="mt-4 px-4 pb-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-white text-base">ÚLTIMO ALERTA</h4>
+            <button className="text-sm text-white/90 hover:underline">
               visualizar todos
-            </a>
-          </div>
-          <div className="w-1/2 flex justify-end gap-3">
-            <button
-              className="text-white hover:text-gray-400"
-              aria-label="Zoom Out"
-            >
-              <IoSearchOutline size={20} />
-            </button>
-            <button
-              className="text-white hover:text-gray-400"
-              aria-label="Zoom In"
-            >
-              <IoSearch size={20} />
             </button>
           </div>
-        </div>
-
-        {/* Informações da máquina */}
-        <div className="w-full mt-6 text-sm flex justify-between items-center">
-          <div className="border-r p-2 w-1/2 flex flex-col justify-between items-center">
-            <div className="w-full flex justify-between items-center">
-              <div>
-                <p className="text-gray-400 text-[12px]">DATA</p>
-                <p className="text-[12px]">21 de maio de 2024</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-[12px]">HORA</p>
-                <p className="text-[12px]">16h41</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-[12px]">TIPO DE ALERTA</p>
-                <p className="text-[12px]">Alerta 1</p>
-              </div>
-              <div>
-                <p className="text-gray-400 text-[12px]">LEMBRETE</p>
-                <p className="text-[12px]">adiado em 15min</p>
-              </div>
-              <span className="bg-[#FFE0E5] text-[#E83838] border border-[#E83838] px-2 py-1 rounded-full text-center">
-                Não resolvido
-              </span>
+          <div className="bg-[#222] p-3 rounded-lg flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex flex-wrap gap-3 sm:gap-6 items-center flex-1">
+              {["18/03/2025", "16h41", "Alerta 1", "adiado em 15min"].map(
+                (txt, i) => (
+                  <span key={i} className="text-sm text-white">
+                    {txt}
+                  </span>
+                )
+              )}
             </div>
-          </div>
-
-          <div className="w-1/2 flex flex-col justify-between items-center p-2">
-            <div></div>
-            <div>
-              <p className="text-gray-400 text-[12px]">DATA DE INSTALAÇÃO</p>
-              <p className="text-[12px]">21 de maio de 2024</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-[12px]">DATA DE AQUISIÇÃO</p>
-              <p className="text-[12px]">10 de maio de 2024</p>
-            </div>
-            <div>
-              <p className="text-gray-400 text-[12px]">ÚLTIMA MANUTENÇÃO</p>
-              <p className="text-[12px]">08 de janeiro de 2025</p>
+            <div className="flex items-center justify-center px-2 py-1 bg-[#FFE0E5] border border-[#E83838] rounded-lg">
+              <span className="text-sm text-[#E83838]">Não resolvido</span>
             </div>
           </div>
         </div>

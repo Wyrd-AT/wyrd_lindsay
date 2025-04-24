@@ -1,17 +1,25 @@
+// src/components/Header.jsx
 import React, { useState } from "react";
 import { HiOutlineUserAdd } from "react-icons/hi";
 import { GoChevronLeft } from "react-icons/go";
+import { useNavigate } from "react-router-dom";
 
 export default function Header({ page }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const navigate = useNavigate();
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
   const renderHeaderContent = () => {
+    const commonClasses = "flex flex-row items-center cursor-pointer";
+
     if (page === "perfilClient") {
       return (
-        <div className="flex flex-row items-center">
+        <div
+          className={commonClasses}
+          onClick={() => navigate("/home")}
+        >
           <GoChevronLeft size={20} />
           <h1 className="text-lg md:text-xl font-semibold pl-2">
             Perfil do Cliente
@@ -20,16 +28,23 @@ export default function Header({ page }) {
       );
     } else if (page === "maquina") {
       return (
-        <div className="flex flex-row items-center">
+        <div
+          className={commonClasses}
+          onClick={() => navigate("/home")}
+        >
           <GoChevronLeft size={20} />
-          <h1 className="text-lg md:text-xl font-semibold pl-2">Máquina</h1>
+          <h1 className="text-lg md:text-xl font-semibold pl-2">
+            Máquina
+          </h1>
         </div>
       );
     } else {
       return (
         <div className="flex items-center justify-between w-full">
           <div className="flex flex-col">
-            <h1 className="text-lg md:text-xl font-semibold">Olá, Revenda!</h1>
+            <h1 className="text-lg md:text-xl font-semibold">
+              Olá, Cliente!
+            </h1>
             <a
               href="#"
               className="text-xs md:text-sm underline hover:no-underline opacity-90 hover:opacity-100"
@@ -37,6 +52,7 @@ export default function Header({ page }) {
               ver tutorial
             </a>
           </div>
+          {/*
           <button
             className="flex items-center gap-2 bg-green-500 text-black font-medium px-3 md:px-4 py-2 rounded-full hover:bg-green-600 transition-colors"
             onClick={openModal}
@@ -44,6 +60,7 @@ export default function Header({ page }) {
             adicionar cliente
             <HiOutlineUserAdd size={20} />
           </button>
+          */}
         </div>
       );
     }

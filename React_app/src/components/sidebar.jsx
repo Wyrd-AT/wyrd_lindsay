@@ -1,33 +1,62 @@
+// src/components/SideBar.jsx
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { BiHomeAlt } from "react-icons/bi";
-import { MdOutlineWarning, MdOutlineSensors } from "react-icons/md";
-import { FiSend } from "react-icons/fi";
+import { BiHomeAlt, BiUser } from "react-icons/bi";
+import { FiLogOut } from "react-icons/fi";
 
-function SideBar() {
+export default function SideBar() {
   return (
-    <div className="w-[100px] md:w-[100px] bg-[#444444] py-8 px-4 flex flex-col items-center">
-      <img 
-        src="/FieldNetLogo.png" 
-        alt="FieldNet Logo" 
-        width="150" 
-        height="150" 
+    <div
+      className="
+        sticky top-0 left-0
+        w-[100px] bg-[#444444]
+        py-8 flex flex-col items-center
+        h-screen
+        z-10
+      "
+    >
+      <img
+        src="/FieldNetLogo.png"
+        alt="FieldNet Logo"
+        width="100"
+        height="100"
         className="mb-8"
       />
 
-      {/* Link para Home ou Dashboard */}
+      {/* Home */}
       <NavLink
         to="/home"
         className={({ isActive }) =>
-          `mb-4 ${isActive ? "text-blue-400" : "text-white"}`
+          `mb-4 ${isActive ? "text-green-500" : "text-white"}`
         }
       >
         <BiHomeAlt size={40} />
       </NavLink>
 
-      
+      {/* Perfil */}
+      <button
+        onClick={() => {
+          // lógica de logout aqui
+          console.log("Perfil");
+        }}
+        className="text-white hover:text-green-500 mb-4"
+      >
+        <BiUser size={40} />
+      </button>
+
+      {/* Espaço flexível para empurrar o logout pro final */}
+      <div className="flex-grow" />
+
+      {/* Logout */}
+      <button
+        onClick={() => {
+          // lógica de logout aqui
+          console.log("Logout!");
+        }}
+        className="text-white hover:text-green-500 mb-4"
+      >
+        <FiLogOut size={40} />
+      </button>
     </div>
   );
 }
-
-export default SideBar;

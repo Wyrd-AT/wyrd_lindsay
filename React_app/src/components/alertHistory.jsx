@@ -1,5 +1,5 @@
-// components/alertHistory.jsx
-import React, { useState } from "react";
+// src/components/alertHistory.jsx
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { FiAlertOctagon, FiEdit2 } from "react-icons/fi";
 import { FaChevronDown } from "react-icons/fa";
 import AlertEdit from "./alertEdit.jsx";
@@ -33,59 +33,97 @@ function getStatusBadge(status) {
 export default function AlertHistory({ machineId }) {
   const parsed = useParsedMessages();
 
-  // filtra só eventos "event" da máquina selecionada
-  const alertsFromDB = parsed.filter(
-    (msg) =>
-      msg.type === "event" &&
-      msg.irrigadorId === machineId.replace("IRRIGADOR ", "")
+  // Só os eventos da máquina atual
+  const alertsFromDB = useMemo(
+    () =>
+      parsed.filter(
+        (msg) =>
+          msg.type === "event" &&
+          msg.irrigadorId === machineId.replace("IRRIGADOR ", "")
+      ),
+    [parsed, machineId]
   );
 
-  // transforma no formato interno
-  const realAlerts = alertsFromDB.map((msg, i) => {
-    const dt = new Date(msg.datetime);
-    return {
-      id: `${msg.irrigadorId}-${i}`,
-      date: dt.toLocaleDateString(),
-      time: dt.toLocaleTimeString(),
-      machine: `IRRIGADOR ${msg.irrigadorId}`,
-      description: `Tipo: ${msg.eventType} | Código: ${msg.eventCode}`,
-      status: "Não resolvido",
-    };
-  });
+  // Possíveis statuses
+  const STATUSES = ["Não resolvido", "Em progresso", "Resolvido"];
+  // Map pra manter cada id com seu status fixo
+  const statusMapRef = useRef({});
 
-  // estado só para filtro por status
+  // Sempre que mudamos de máquina, reiniciamos o map
+  useEffect(() => {
+    statusMapRef.current = {};
+  }, [machineId]);
+
+  // Monta o realAlerts só em função de alertsFromDB
+  const realAlerts = useMemo(() => {
+    return alertsFromDB.map((msg, i) => {
+      const id = `${msg.irrigadorId}-${i}`;
+      // Se ainda não sorteamos, sorteia e guarda
+      if (!statusMapRef.current[id]) {
+        const rnd =
+          STATUSES[Math.floor(Math.random() * STATUSES.length)];
+        statusMapRef.current[id] = rnd;
+      }
+      const dt = new Date(msg.datetime);
+      return {
+        id,
+        date: dt.toLocaleDateString(),
+        time: dt.toLocaleTimeString(),
+        machine: `IRRIGADOR ${msg.irrigadorId}`,
+        description: `Tipo: ${msg.eventType} | Código: ${msg.eventCode}`,
+        status: statusMapRef.current[id],
+      };
+    });
+  }, [alertsFromDB]);
+
+  // Filtro por status
   const [selectedStatus, setSelectedStatus] = useState("Todos");
-  // estado para os checkboxes (opcional)
-  const [checkedMap, setCheckedMap] = useState({});
-
-  const handleCheck = (id) =>
-    setCheckedMap((prev) => ({ ...prev, [id]: !prev[id] }));
-
-  // aplica o filtro por status
   const filteredAlerts = realAlerts.filter((a) =>
     selectedStatus === "Todos" ? true : a.status === selectedStatus
   );
+
+  // Checkboxes
+  const [checkedMap, setCheckedMap] = useState({});
+  const handleCheck = (id) =>
+    setCheckedMap((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // Modal de edição
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingAlert, setEditingAlert] = useState(null);
+  const handleOpenEdit = () => {
+    const sel = Object.keys(checkedMap).filter((id) => checkedMap[id]);
+    if (sel.length === 0) {
+      alert("Selecione um alerta para editar");
+      return;
+    }
+    const alerta = realAlerts.find((a) => a.id === sel[0]);
+    setEditingAlert(alerta);
+    setIsEditOpen(true);
+  };
+  const handleCloseEdit = () => {
+    setIsEditOpen(false);
+    setEditingAlert(null);
+  };
 
   return (
     <div className="bg-[#313131] text-white p-8 rounded-md w-full mt-8">
       <div className="flex items-center pb-4">
         <FiAlertOctagon />
-        <h2 className="text-xl font-semibold pl-4">HISTÓRICO DE ALERTAS</h2>
+        <h2 className="text-xl font-semibold pl-4">
+          HISTÓRICO DE ALERTAS
+        </h2>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {["Todos", "Não resolvido", "Em progresso", "Resolvido"].map((st) => (
+        {["Todos", ...STATUSES].map((st) => (
           <button
             key={st}
             onClick={() => setSelectedStatus(st)}
-            className={`
-              px-3 py-1 rounded-lg 
-              ${
-                selectedStatus === st
-                  ? "bg-white text-[#444444]"
-                  : "bg-[#616061]"
-              }
-            `}
+            className={`px-3 py-1 rounded-lg ${
+              selectedStatus === st
+                ? "bg-white text-[#444444]"
+                : "bg-[#616061]"
+            }`}
           >
             {st}
           </button>
@@ -95,7 +133,10 @@ export default function AlertHistory({ machineId }) {
           Irrigador <FaChevronDown className="text-sm" />
         </button>
 
-        <button className="border border-white px-3 py-1 rounded-full inline-flex items-center gap-1 hover:bg-gray-600">
+        <button
+          onClick={handleOpenEdit}
+          className="border border-white px-3 py-1 rounded-full inline-flex items-center gap-1 hover:bg-gray-600"
+        >
           <div className="px-4">editar alerta</div>
           <FiEdit2 size={20} />
         </button>
@@ -132,14 +173,20 @@ export default function AlertHistory({ machineId }) {
                 <td className="px-4 py-3">{alert.time}</td>
                 <td className="px-4 py-3">{alert.machine}</td>
                 <td className="px-4 py-3">{alert.description}</td>
-                <td className="px-4 py-3">{getStatusBadge(alert.status)}</td>
+                <td className="px-4 py-3">
+                  {getStatusBadge(alert.status)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <AlertEdit onClose={() => {}} isOpen={false} />
+      <AlertEdit
+        isOpen={isEditOpen}
+        onClose={handleCloseEdit}
+        alert={editingAlert}
+      />
     </div>
   );
 }
