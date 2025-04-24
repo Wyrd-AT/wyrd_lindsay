@@ -1,11 +1,14 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+
 import Login from "./pages/login";
-import HomePageRevenda from "./pages/homeRevenda";
-import Maquina from "./pages/maquina";
 import ResetPass from "./pages/resetPass";
-import DebugPage from "./pages/testedb";
+import HomePageRevenda from "./pages/homeRevenda";
 import ClientesPage from "./pages/clientesPage";
+import ClienteDetailPage from "./pages/clienteDetailPage";
+import Maquina from "./pages/maquina";
+import ClienteMaquinaPage from "./pages/clienteMaquinaPage.jsx";
+import DebugPage from "./pages/testedb";
 
 function App() {
   return (
@@ -13,10 +16,24 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/resetPass" element={<ResetPass />} />
+
+        {/* Revenda */}
         <Route path="/home" element={<HomePageRevenda />} />
-        <Route path="/maquina/:machineId" element={<Maquina />} />
-        <Route path="/debug" element={<DebugPage />} />
+
+        {/* Clientes */}
         <Route path="/clientes" element={<ClientesPage />} />
+        <Route path="/clientes/:clientTag" element={<ClienteDetailPage />} />
+
+        {/* Máquina global (revenda) */}
+        <Route path="/maquina/:machineId" element={<Maquina />} />
+
+        {/* Máquina específica de cliente */}
+        <Route
+          path="/clientes/:clientTag/maquina/:machineId"
+          element={<ClienteMaquinaPage />}
+        />
+
+        <Route path="/debug" element={<DebugPage />} />
       </Routes>
     </Router>
   );

@@ -1,6 +1,6 @@
-// src/pages/Maquina.jsx
+// src/pages/ClienteMaquinaPage.jsx
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
@@ -11,57 +11,51 @@ import TensaoModal from "../components/TensaoModal";
 import MensagemModal from "../components/MensagemModal";
 import StatusAlarmModal from "../components/StatusAlarmModal";
 import { useParsedMessages } from "../hooks/useParsedMessages";
+import { FiChevronLeft } from "react-icons/fi";
 
-export default function Maquina() {
-  const { machineId } = useParams();
+export default function ClienteMaquinaPage() {
+  const { clientTag, machineId } = useParams();
   const navigate = useNavigate();
   const parsed = useParsedMessages();
 
-  // monta lista de irrigadores únicos ["01","02",...]
-  const machines = Array.from(new Set(parsed.map((m) => m.irrigadorId)));
+  // Mapeia prefixos para cada cliente
+  const clientMap = {
+    "01": ["0","1"],
+    "23": ["2","3"],
+    "45": ["4","5"],
+    "67": ["6","7"],
+    "89": ["8","9"],
+    EF: ["A","B","C","D","E","F"],
+  };
 
-  // valor inicial (se veio na URL, usa; senão, primeiro)
-  const defaultMachine = machineId || machines[0] || "";
-
-  const [selectedMachine, setSelectedMachine] = useState(
-    `IRRIGADOR ${defaultMachine}`
+  // Lista só dos irrigadores deste cliente
+  const allIds = Array.from(new Set(parsed.map(m => m.irrigadorId)));
+  const myMachines = allIds.filter(id =>
+    (clientMap[clientTag] || []).includes(id.charAt(0).toUpperCase())
   );
-  const [isTensaoOpen, setIsTensaoOpen]     = useState(false);
+
+  // Estado de seleção + flash
+  const [selectedMachine, setSelectedMachine] = useState(machineId || myMachines[0] || "");
+  const [isTensaoOpen, setIsTensaoOpen] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen]     = useState(false);
+  const [flash, setFlash]                   = useState(false);
 
-  // controle do flash
-  const [flash, setFlash] = useState(false);
-
-  // quando o param muda (URL), atualiza o estado de seleção
+  // Sincroniza URL → state
   useEffect(() => {
-    if (machineId) {
-      setSelectedMachine(`IRRIGADOR ${machineId}`);
-    }
+    if (machineId) setSelectedMachine(machineId);
   }, [machineId]);
 
-  // quando a lista de máquinas carrega, garante um default
-  useEffect(() => {
-    if (!machineId && machines.length > 0) {
-      setSelectedMachine(`IRRIGADOR ${machines[0]}`);
-    }
-  }, [machines, machineId]);
-
-  // troca de máquina pelo dropdown
-  const handleMachineChange = (machine) => {
-    setSelectedMachine(machine);
-
-    // dispara o flash
+  // Dropdown → navega e dá flash
+  const handleMachineChange = (full) => {
+    const id = full.replace("IRRIGADOR ", "");
+    setSelectedMachine(id);
     setFlash(true);
     setTimeout(() => setFlash(false), 50);
-
-    // extrai o código e navega
-    const id = machine.replace("IRRIGADOR ", "");
-    navigate(`/maquina/${id}`);
+    navigate(`/clientes/${clientTag}/maquina/${id}`);
   };
 
   return (
-    // Aplica o flash no container inteiro
     <div
       className={`
         w-full h-full text-white flex
@@ -72,12 +66,19 @@ export default function Maquina() {
       <SideBar />
 
       <BodyContent>
+        {/* Botão de voltar para detalhes do cliente */}
+        <div className="flex items-center gap-2 mb-4">
+          <Link to={`/clientes/${clientTag}`} className="text-white hover:text-gray-300">
+            <FiChevronLeft size={20} /> Voltar
+          </Link>
+        </div>
+
         <Header page="perfilClient" />
         <ClientEditContainer page="perfilClient" />
 
         <SelectExport
-          machines={machines.map((id) => `IRRIGADOR ${id}`)}
-          redirectBase="/maquina"
+          machines={myMachines.map(i => `IRRIGADOR ${i}`)}
+          redirectBase={`/clientes/${clientTag}/maquina`}
           onMachineChange={handleMachineChange}
         />
 
@@ -110,25 +111,25 @@ export default function Maquina() {
           />
         </div>
 
-        <AlertHistory machineId={selectedMachine} />
+        <AlertHistory machineId={`IRRIGADOR ${selectedMachine}`} />
       </BodyContent>
 
       <TensaoModal
         isOpen={isTensaoOpen}
         onClose={() => setIsTensaoOpen(false)}
-        selectedMachine={selectedMachine}
+        selectedMachine={`IRRIGADOR ${selectedMachine}`}
       />
 
       <MensagemModal
         isOpen={isMensagemOpen}
         onClose={() => setIsMensagemOpen(false)}
-        selectedMachine={selectedMachine}
+        selectedMachine={`IRRIGADOR ${selectedMachine}`}
       />
 
       <StatusAlarmModal
         isOpen={isStatusOpen}
         onClose={() => setIsStatusOpen(false)}
-        selectedMachine={selectedMachine}
+        selectedMachine={`IRRIGADOR ${selectedMachine}`}
       />
     </div>
   );
