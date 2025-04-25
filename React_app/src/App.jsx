@@ -1,11 +1,11 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Login from "./pages/login";
-import HomePageRevenda from "./pages/homeRevenda";
-import Maquina from "./pages/maquina";
+import HomePageRevenda from "./pages/homeClient";
+import Maquina from "./pages/machine";
 import ResetPass from "./pages/resetPass";
 import DebugPage from "./pages/testedb";
-import ClientesPage from "./pages/clientesPage";
+import ClientesPage from "./pages/pageClients";
 
 function App() {
   return (

@@ -6,10 +6,10 @@ import BodyContent from "../components/body";
 import Header from "../components/header";
 import SelectExport from "../components/SelectExport";
 import AlertHistory from "../components/alertHistory";
-import TensaoModal from "../components/TensaoModal";
-import MensagemModal from "../components/MensagemModal";
+import TensaoModal from "../components/tensionModal";
+import MensagemModal from "../components/messageModal";
 import StatusAlarmModal from "../components/StatusAlarmModal";
-import DetalhesMaquina from "../components/DetalhesMaquina";
+import DetalhesMaquina from "../components/machineDetails";
 import StatsRow from "../components/statsRow";
 import useParsedMessages from "../hooks/useParsedMessages";
 
