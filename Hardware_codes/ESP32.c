@@ -34,17 +34,68 @@ bool horaValida() {
   return (timeinfo.tm_year + 1900 >= 2023);  // Aceita apenas anos válidos
 }
 
+// Função para obter data/hora formatada
+String getFormattedDateTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("Falha ao obter hora.");
+    return "";
+  }
+  char buf[20];
+  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(buf);
+}
+
+// Enfileiramento seguro
+void enqueueSeguro(const String &msg) {
+  if (messageQueue.isFull()) {
+    messageQueue.dequeue();
+    Serial.println("Fila cheia! Removendo mensagem mais antiga.");
+  }
+  messageQueue.enqueue(msg);
+}
+
+// Callback MQTT
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Mensagem recebida em ");
+  Serial.print(topic);
+  Serial.print(": ");
+  String msg;
+  for (unsigned int i = 0; i < length; i++) {
+    msg += char(payload[i]);
+  }
+  Serial.println(msg);
+  mySerial.println(msg);
+}
+
+// Reconexão MQTT não‑bloqueante
+void mqttReconnect() {
+  unsigned long now = millis();
+  if (client.connected() || now - lastMqttReconnectAttempt < mqttReconnectInterval) {
+    return;
+  }
+  lastMqttReconnectAttempt = now;
+  Serial.println("Tentando reconectar ao MQTT...");
+  if (client.connect("esp32Client")) {
+    Serial.println("Reconectado ao MQTT");
+    client.subscribe(topicSub);
+  } else {
+    Serial.print("Falha MQTT rc=");
+    Serial.println(client.state());
+  }
+}
+
 void setup() {
-  Serial.begin(115200);             
-  mySerial.begin(9600);              
+  Serial.begin(115200);
+  mySerial.begin(9600);
 
-  WiFi.begin(ssid, password);        
-  Serial.println("Inicializando Wi-Fi...");
+  WiFi.begin(ssid, password);
+  Serial.println("Inicializando Wi‑Fi...");
 
-  client.setServer(mqttServer, mqttPort); 
-  client.setCallback(callback);           
+  client.setServer(mqttServer, mqttPort);
+  client.setCallback(callback);
 
-  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");  
+  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 }
 
 void loop() {
