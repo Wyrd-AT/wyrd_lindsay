@@ -32,13 +32,19 @@ bool horaValida() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) return false;
   return (timeinfo.tm_year + 1900 >= 2023);  // Aceita apenas anos válidos
-  WiFi.begin(ssid, password);
-  Serial.println("Inicializando Wi‑Fi...");
+}
 
-  client.setServer(mqttServer, mqttPort);
-  client.setCallback(callback);
+void setup() {
+  Serial.begin(115200);             
+  mySerial.begin(9600);              
 
-  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  WiFi.begin(ssid, password);        
+  Serial.println("Inicializando Wi-Fi...");
+
+  client.setServer(mqttServer, mqttPort); 
+  client.setCallback(callback);           
+
+  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");  
 }
 
 void loop() {
