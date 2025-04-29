@@ -1,5 +1,7 @@
-// pages/ClientesPage.jsx
+// React_app/src/pages/pageClients.jsx
+
 import React, { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import Sidebar from '../components/sidebar';
 import BodyContent from '../components/body';
 import Header from '../components/header';
@@ -8,10 +10,9 @@ import { useParsedMessages } from '../hooks/useParsedMessages';
 import { FaRegImage } from 'react-icons/fa';
 import { FiAlertOctagon } from 'react-icons/fi';
 
-// Card de cliente no formato Figma (368x132)
 function ClientCard({ clientName, email, alertCount }) {
   return (
-    <div className="w-[368px] h-[132px] bg-[#39393a] rounded-sm relative flex">
+    <div className="w-[368px] h-[132px] bg-[#39393a] rounded-sm relative flex cursor-pointer">
       {/* Badge de alertas */}
       <div className="absolute top-4 right-4 bg-[#FF3B30] shadow-md rounded-full px-4 py-1">
         <div className="flex items-center gap-1 text-xs text-black">
@@ -27,7 +28,7 @@ function ClientCard({ clientName, email, alertCount }) {
       {/* Conteúdo texto */}
       <div className="flex flex-col ml-4 m-5">
         <div className="text-xs font-extrabold uppercase text-white truncate">
-          Cliente Fulano {clientName}
+          Cliente {clientName}
         </div>
         <div className="text-xs font-normal text-white truncate">
           {email}
@@ -69,6 +70,17 @@ export default function ClientesPage() {
       <Sidebar />
       <BodyContent>
         <Header page="clientes" />
+
+        {/* Link para a nova página de máquinas da Revenda */}
+        <div className="mb-4">
+          <Link
+            to="/revenda/maquinas"
+            className="text-blue-400 hover:text-blue-200 underline"
+          >
+            Ver todas as máquinas
+          </Link>
+        </div>
+
         <div className="
           flex flex-wrap p-4 gap-x-24 gap-y-10 justify-center
           max-h-[80vh] overflow-auto
@@ -78,12 +90,13 @@ export default function ClientesPage() {
             const clientName = tag;
             const email = `fulano${tag.toLowerCase()}@email.com`;
             return (
-              <ClientCard
-                key={tag}
-                clientName={clientName}
-                email={email}
-                alertCount={ids.length}
-              />
+              <Link to={`/clientes/${tag}/machines`} key={tag}>
+                <ClientCard
+                  clientName={clientName}
+                  email={email}
+                  alertCount={ids.length}
+                />
+              </Link>
             );
           })}
         </div>
