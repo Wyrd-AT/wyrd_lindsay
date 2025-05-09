@@ -92,10 +92,10 @@ void setup() {
   WiFi.begin(ssid, password);
   Serial.println("Inicializando Wi‑Fi...");
 
-  client.setServer(mqttServer, mqttPort);
-  client.setCallback(callback);
+  client.setServer(mqttServer, mqttPort); 
+  client.setCallback(callback);           
 
-  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");  
 }
 
 void loop() {

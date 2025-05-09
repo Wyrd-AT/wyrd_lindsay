@@ -1,20 +1,22 @@
-// src/pages/Maquina.jsx
+// src/pages/machineRevenda.jsx
+
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
 import SelectExport from "../components/SelectExport";
 import AlertHistory from "../components/alertHistory";
-import TensaoModal from "../components/TensaoModal";
-import MensagemModal from "../components/MensagemModal";
+import TensaoModal from "../components/tensionModal";
+import MensagemModal from "../components/messageModal";
 import StatusAlarmModal from "../components/StatusAlarmModal";
-import DetalhesMaquina from "../components/DetalhesMaquina";
+import DetalhesMaquina from "../components/machineDetails";
 import StatsRow from "../components/statsRow";
 import useParsedMessages from "../hooks/useParsedMessages";
 
-export default function Maquina() {
-  const { machineId } = useParams();
+export default function MaquinaRevenda() {
+  const { clientId, machineId } = useParams();
   const navigate = useNavigate();
   const parsed = useParsedMessages();
 
@@ -52,7 +54,7 @@ export default function Maquina() {
   const handleMachineChange = (machine) => {
     setSelectedMachine(machine);
     const id = machine.replace("IRRIGADOR ", "");
-    navigate(`/maquina/${id}`);
+    navigate(`/clientes/${clientId}/machines/${id}`);
 
     // flash effect
     setFlash(true);
@@ -60,7 +62,6 @@ export default function Maquina() {
   };
 
   const handleExport = () => {
-    // coloque aqui sua lógica de export (download CSV, etc)
     console.log("Exportando dados de", selectedMachine);
   };
 
@@ -75,13 +76,13 @@ export default function Maquina() {
       key={selectedMachine}
     >
       <SideBar />
-
       <BodyContent>
-        <Header page="perfilClient" />
+        {/* header customizado para Revenda */}
+        <Header page="perfilRevenda" />
 
         <SelectExport
           machines={machines}
-          redirectBase="/maquina"
+          redirectBase={`/clientes/${clientId}/machines`}
           onMachineChange={handleMachineChange}
           onclick_details={() => setIsDetailsOpen(true)}
           onAlarm={() => setIsStatusOpen(true)}
@@ -99,13 +100,10 @@ export default function Maquina() {
         </div>
 
         <StatsRow />
-
-        {/* Agora não há mais botões aqui */}
-
         <AlertHistory machineId={selectedMachine} />
       </BodyContent>
 
-      {/* Modais acionados pelos botões no SelectExport */}
+      {/* Modais acionados pelos botões */}
       <TensaoModal
         isOpen={isTensaoOpen}
         onClose={() => setIsTensaoOpen(false)}
