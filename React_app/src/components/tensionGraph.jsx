@@ -1,8 +1,9 @@
-// components/tensionGraph.jsx
+// src/components/TensionGraph.jsx
 import React, { useState, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import 'chart.js/auto';
-import 'chartjs-adapter-date-fns'; // para escala de tempo
+import 'chartjs-adapter-date-fns'; // pra escala de tempo
+import CustomDatePicker from './customDatePicker'; // seu componente já estilizado
 
 /**
  * TensionGraph exibe leituras de tensão ao longo do tempo,
@@ -11,7 +12,7 @@ import 'chartjs-adapter-date-fns'; // para escala de tempo
  *   data: Array<{ mt: number, voltage: number, timestamp: Date }>
  */
 export default function TensionGraph({ data }) {
-  // Extração de MTs únicos
+  // Extrai MTs únicos
   const mts = useMemo(
     () => Array.from(new Set(data.map((d) => d.mt))).sort((a, b) => a - b),
     [data]
@@ -20,13 +21,14 @@ export default function TensionGraph({ data }) {
   // Estados de seleção
   const [selectedMt, setSelectedMt] = useState(mts[0] || 1);
   const [filterType, setFilterType] = useState('1h'); // '1h','24h','7d','all','custom'
-  const [customRange, setCustomRange] = useState({ start: '', end: '' });
+  const [customRange, setCustomRange] = useState({ start: null, end: null });
 
   // Calcula início e fim do filtro
   const { startTime, endTime } = useMemo(() => {
     const now = Date.now();
     let start = null;
     let end = now;
+
     switch (filterType) {
       case '1h':
         start = now - 1000 * 60 * 60;
@@ -42,12 +44,13 @@ export default function TensionGraph({ data }) {
         end = null;
         break;
       case 'custom':
-        start = customRange.start ? new Date(customRange.start).getTime() : null;
-        end = customRange.end ? new Date(customRange.end).getTime() : null;
+        start = customRange.start ? customRange.start.getTime() : null;
+        end = customRange.end ? customRange.end.getTime() : null;
         break;
       default:
         start = now - 1000 * 60 * 60;
     }
+
     return { startTime: start, endTime: end };
   }, [filterType, customRange]);
 
@@ -148,35 +151,27 @@ export default function TensionGraph({ data }) {
               ? '7 dias'
               : opt === 'all'
               ? 'Todos'
-              : 'Custom'}
+              : 'Customizado'}
           </button>
         ))}
 
         {/* Inputs para intervalo customizado */}
         {filterType === 'custom' && (
-          <div className="flex items-center gap-2 bg-gray-200 p-2 rounded">
-            <div>
-              <label className="text-sm">Início:</label>
-              <input
-                type="datetime-local"
-                className="ml-2 p-1 rounded bg-gray-100 text-gray-900 border border-green-500 focus:border-green-600 focus:outline-none"
-                value={customRange.start}
-                onChange={(e) =>
-                  setCustomRange((prev) => ({ ...prev, start: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <label className="text-sm">Fim:</label>
-              <input
-                type="datetime-local"
-                className="ml-2 p-1 rounded bg-gray-100 text-gray-900 border border-green-500 focus:border-green-600 focus:outline-none"
-                value={customRange.end}
-                onChange={(e) =>
-                  setCustomRange((prev) => ({ ...prev, end: e.target.value }))
-                }
-              />
-            </div>
+          <div className="flex items-center gap-4 p-2 rounded bg-transparent">
+            <CustomDatePicker
+              label="Início:"
+              value={customRange.start}
+              onChange={(date) =>
+                setCustomRange((prev) => ({ ...prev, start: date }))
+              }
+            />
+            <CustomDatePicker
+              label="Fim:"
+              value={customRange.end}
+              onChange={(date) =>
+                setCustomRange((prev) => ({ ...prev, end: date }))
+              }
+            />
           </div>
         )}
       </div>
