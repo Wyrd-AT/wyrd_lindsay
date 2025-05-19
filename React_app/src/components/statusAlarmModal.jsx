@@ -27,28 +27,38 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
 
   if (!isOpen) return null;
 
-  // envia o alarme
-  const handleSendAlarm = async () => {
+  // helper genérico para enviar comandos
+  const sendCommand = async (command, successText) => {
     setLoading(true);
     setResponseMsg("");
     try {
-      const payload = `${machineId};alarme`;
+      const payload = `${machineId};${command}`;
       const doc = {
-        topic: `lindsay/comandos`,
+        topic: "lindsay/comandos",
         payload,
         origin: "app",
         qos: 0,
         timestamp: new Date().toISOString(),
       };
       await dbStore.postData(doc);
-      setResponseMsg("✅ Alarme enviado com sucesso!");
+      setResponseMsg(`✅ ${successText}`);
       setShowDetails(false);
     } catch {
-      setResponseMsg("❌ Falha ao enviar alarme.");
+      setResponseMsg(`❌ Falha ao ${successText.toLowerCase()}.`);
     } finally {
       setLoading(false);
     }
   };
+
+  // handlers específicos
+  const handleSendStatus = () =>
+    sendCommand("alarme", "Status solicitado com sucesso!");
+  const handleAlarmOn = () =>
+    sendCommand("set_alarmon", "Alarme ligado com sucesso!");
+  const handleAlarmOff = () =>
+    sendCommand("set_alarmoff", "Alarme desligado com sucesso!");
+  const handleTriggerSiren = () =>
+    sendCommand("siren", "Sirene disparada com sucesso!");
 
   return (
     <div
@@ -74,21 +84,50 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
 
         {/* Título */}
         <h2 className="text-2xl font-semibold mb-4 text-center">
-          Status Alarme – {selectedMachine}
+          Funções Alarme – {selectedMachine}
         </h2>
 
-        {/* Botão enviar alarme */}
+        {/* Botão solicitar status */}
         <button
-          onClick={handleSendAlarm}
+          onClick={handleSendStatus}
           disabled={loading}
           className="bg-red-600 px-6 py-2 rounded mb-4 hover:bg-red-700 disabled:opacity-50"
         >
           {loading ? "Solicitando..." : "Solicitar Status"}
         </button>
 
+        {/* Novos botões de controle */}
+        <div className="flex gap-3 mb-4">
+          <button
+            onClick={handleAlarmOn}
+            disabled={loading}
+            className="bg-green-600 px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+          >
+            {loading ? "..." : "Ligar Alarme"}
+          </button>
+          <button
+            onClick={handleAlarmOff}
+            disabled={loading}
+            className="bg-gray-600 px-4 py-2 rounded hover:bg-gray-500 disabled:opacity-50"
+          >
+            {loading ? "..." : "Desligar Alarme"}
+          </button>
+          <button
+            onClick={handleTriggerSiren}
+            disabled={loading}
+            className="bg-yellow-600 px-4 py-2 rounded hover:bg-yellow-700 disabled:opacity-50"
+          >
+            {loading ? "..." : "Disparar Sirene"}
+          </button>
+        </div>
+
         {/* Mensagem de resposta */}
         {responseMsg && (
-          <p className={`mb-4 ${responseMsg.startsWith("✅") ? "text-green-400" : "text-red-400"}`}>
+          <p
+            className={`mb-4 ${
+              responseMsg.startsWith("✅") ? "text-green-400" : "text-red-400"
+            }`}
+          >
             {responseMsg}
           </p>
         )}
@@ -102,7 +141,9 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
             <button
               onClick={() => setShowDetails(!showDetails)}
               className={`px-4 py-1 mb-4 rounded ${
-                showDetails ? "bg-gray-600 hover:bg-gray-500" : "bg-green-600 hover:bg-green-700"
+                showDetails
+                  ? "bg-gray-600 hover:bg-gray-500"
+                  : "bg-green-600 hover:bg-green-700"
               }`}
             >
               {showDetails ? "Ocultar Detalhes" : "Mostrar Detalhes"}

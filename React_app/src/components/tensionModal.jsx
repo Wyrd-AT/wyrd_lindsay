@@ -1,4 +1,4 @@
-// components/TensaoModal.jsx
+// components/tensionModal.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { IoClose } from "react-icons/io5";
 import { useParsedMessages } from "../hooks/useParsedMessages";

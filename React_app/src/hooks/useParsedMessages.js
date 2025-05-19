@@ -27,9 +27,10 @@ export function useParsedMessages() {
         // Tenta parsear
         try {
           const parsed = parseMessage(doc.payload);
+          //console.log("[useParsedMessages] parsed message:", parsed);
           const msgObj = {
             ...parsed,
-            timestamp: doc.timestamp || new Date().toISOString(),
+            timestamp: parsed.timestamp || new Date().toISOString(),
             origin: doc.origin,
           };
 

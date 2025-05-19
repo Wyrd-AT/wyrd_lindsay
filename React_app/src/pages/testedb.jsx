@@ -5,6 +5,7 @@ import { useParsedMessages } from '../hooks/useParsedMessages';
 
 const DebugPage = () => {
   const messages = useParsedMessages();
+  //console.log("[DegugPage] parsed message:", messages);
   const [topic, setTopic] = useState('');
   const [payload, setPayload] = useState('');
 
