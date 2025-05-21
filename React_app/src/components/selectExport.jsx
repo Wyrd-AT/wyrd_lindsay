@@ -89,7 +89,7 @@ export default function SelectExport({
           Mensagem
         </button>
 
-        {/* Botão “ver detalhes máquina” */}
+        {/* Botão “Ver detalhes máquina” */}
         <button
           onClick={onclick_details}
           className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"

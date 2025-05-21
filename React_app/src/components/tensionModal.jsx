@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { IoClose } from "react-icons/io5";
 import { useParsedMessages } from "../hooks/useParsedMessages";
-import TensionGraph from "./TensionGraph";
+import TensionGraph from "./tensionGraph";
 
 export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
   const parsed = useParsedMessages();
@@ -42,7 +42,7 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
     });
 
     const stats = [];
-    for (let i = 1; i <= 18; i++) {
+    for (let i = 1; i <= 16; i++) {
       const arr = (groups[i] || []).sort((a, b) => b.timestamp - a.timestamp);
       const last = arr[0];
       const avgCalc = (ary) =>
@@ -78,7 +78,7 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-10 bg-[#222] p-6 rounded-lg w-[80vw] h-[80vh] overflow-auto text-white flex flex-col"
+        className="relative z-10 bg-[#222] p-6 rounded-lg w-[80vw] h-[68vh] overflow-auto text-white flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -95,36 +95,51 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
         {!showGraph ? (
           <>
             {/* Grid de cards para cada MT */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 flex-1">
-              {mtStats.map(({ mt, last, avgHour, avgDay, status }) => (
-                <div
-                  key={mt}
-                  className="bg-[#2b2b2b] p-6 rounded shadow flex flex-col items-center"
-                >
-                  <span className="font-medium mb-1">MT {mt}</span>
-                  <span className="text-2xl font-semibold mb-1">
-                    {last} V
-                  </span>
-                  <div className="text-xs text-gray-400 text-center">
-                    <div>Média 1h: {avgHour} V</div>
-                    <div>Média 24h: {avgDay} V</div>
-                  </div>
-                  <span
-                    className={`mt-2 px-2.5 py-0.5 text-xs rounded-full ${
-                      status === "ON" ? "bg-green-600" : "bg-red-600"
-                    }`}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 flex-1">
+              {mtStats.map(({ mt, last, avgHour, avgDay, status }) => {
+                // converte last para número (pode ser "–")
+                const lv = parseFloat(last);
+                // quando ligado (ON) e < 50 V
+                const isLow = status === "ON" && !isNaN(lv) && lv < 50;
+
+                return (
+                  <div
+                    key={mt}
+                    className="bg-[#2b2b2b] p-4 rounded shadow flex flex-col items-center text-sm"
                   >
-                    {status}
-                  </span>
-                </div>
-              ))}
+                    <span className="font-medium mb-1">MT {mt}</span>
+                    <span
+                      className={`text-2xl font-semibold mb-0  ${
+                        isLow ? "text-red-600" : "text-white"
+                      }`}
+                    >
+                      {last}&nbsp;V
+                    </span>
+                    <div className="text-xs text-gray-400 text-center flex flex-wrap justify-center gap-0.5">
+                      <span className="inline-block whitespace-nowrap truncate">
+                        Média 1h: {avgHour} V
+                      </span>
+                      <span className="inline-block whitespace-nowrap truncate">
+                        Média 24h: {avgDay} V
+                      </span>
+                    </div>
+                    <span
+                      className={`mt-2 px-2.5 py-0.5 text-xs rounded-full ${
+                        status === "ON" ? "bg-green-600" : "bg-red-600"
+                      }`}
+                    >
+                      {status}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Botão para exibir o gráfico */}
             <div className="mt-4 flex justify-center">
               <button
                 onClick={() => setShowGraph(true)}
-                className="px-6 py-2 rounded bg-green-600 hover:bg-green-700"
+                className="px-6 py-2 rounded bg-gray-600 hover:bg-gray-700"
               >
                 Visualizar Gráfico
               </button>
@@ -132,14 +147,14 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
           </>
         ) : (
           <div className="flex-1 flex flex-col">
-            {/* Gráfico de todos os MTs ou apenas tempo? Aqui todos */}
+            {/* Gráfico de todos os MTs */}
             <div className="flex-1">
               <TensionGraph data={rawReadings} />
             </div>
             <div className="mt-4 flex justify-center">
               <button
                 onClick={() => setShowGraph(false)}
-                className="px-6 py-2 rounded bg-green-600 hover:bg-green-700"
+                className="px-6 py-2 rounded bg-gray-600 hover:bg-gray-700"
               >
                 Voltar aos Cards
               </button>

@@ -4,11 +4,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
-import SelectExport from "../components/SelectExport";
+import SelectExport from "../components/selectExport";
 import AlertHistory from "../components/alertHistory";
 import TensaoModal from "../components/tensionModal";
 import MensagemModal from "../components/messageModal";
-import StatusAlarmModal from "../components/StatusAlarmModal";
+import StatusAlarmModal from "../components/statusAlarmModal";
 import DetalhesMaquina from "../components/machineDetails";
 import StatsRow from "../components/statsRow";
 import useParsedMessages from "../hooks/useParsedMessages";
@@ -92,7 +92,7 @@ export default function Maquina() {
 
         <div className="w-full flex justify-center px-6 mb-8">
           <img
-            src="/irrigador.png"
+            src="/esquematico.png"
             alt="Irrigador"
             className="w-full max-h-96 object-contain rounded"
           />

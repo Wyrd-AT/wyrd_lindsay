@@ -1,7 +1,12 @@
-// components/CustomDatePicker.jsx
 import React, { useState } from 'react';
-import DatePicker from 'react-datepicker';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import ptBR from 'date-fns/locale/pt-BR';
+
 import 'react-datepicker/dist/react-datepicker.css';
+import '../styles/customDatePicker.css';  // o CSS acima
+
+// registra o locale pt-BR
+registerLocale('pt-BR', ptBR);
 
 export default function CustomDatePicker({ value, onChange, label }) {
   const [startDate, setStartDate] = useState(value || new Date());
@@ -13,18 +18,25 @@ export default function CustomDatePicker({ value, onChange, label }) {
 
   return (
     <div className="flex flex-col gap-0.5">
-      <label className="text-sm text-gray-300">{label}</label>
+      <label className="text-xs text-gray-300">{label}</label>
       <DatePicker
         selected={startDate}
         onChange={handleChange}
+        locale="pt-BR"                       // ativa pt-BR
         showTimeSelect
-        dateFormat="yyyy-MM-dd HH:mm"
-        className="bg-[#2b2b2b] text-white p-2 rounded border border-green-500 focus:outline-none focus:border-green-600 w-full"
-        calendarClassName="!bg-[#2b2b2b] !text-white border border-green-500 rounded"
-        dayClassName={(date) =>
-          'hover:!bg-green-500 hover:!text-white focus:!bg-green-600'
-        }
-        timeClassName={() => 'hover:!bg-green-500 hover:!text-white'}
+        timeCaption="hora"  
+        dateFormat="dd/MM/yyyy HH:mm"       // formato BR
+        calendarClassName="custom-datepicker"
+        className="
+          bg-[#2b2b2b] text-white text-xs p-1 rounded
+          border border-green-500
+          focus:outline-none focus:border-green-600
+          w-36 flex-shrink-0
+        "
+        // como todo o estilo do dia/hora já está no CSS,
+        // aqui só garantimos que as classes default não quebrem:
+        dayClassName={() => 'react-datepicker__day'}
+        timeClassName={() => 'react-datepicker__time-list-item'}
       />
     </div>
   );

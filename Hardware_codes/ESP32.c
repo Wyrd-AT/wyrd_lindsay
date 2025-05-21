@@ -4,9 +4,15 @@
 #include <time.h>
 #include <ArduinoQueue.h>
 
+// Acrescido para conversar com Arduino via hwrdware até solução definitiva para Comunicação Serial
+  int WDT = 0; int ACK = 0; int ALM = 0;  // WDT, ACK e Alarme !!!!
+  int t0 = 0; int t1 = 0; int t2 = 0;     // auxiliar WDT, ACK e Alarme
+
 // Configuração do Wi‑Fi
-const char* ssid = "RUT200_920F";
-const char* password = "Lindsay2025";
+// const char* ssid = "RUT200_920F";
+// const char* password = "Lindsay2025";
+const char* ssid = "RUT200_6911"; //"TCL 505"; //"RUT200_6911";
+const char* password = "Fy17PkQa"; //"hfw1fhe5"; //"Fy17PkQa";
 
 // Configuração do Broker MQTT
 const char* mqttServer = "54.211.31.145";
@@ -16,7 +22,7 @@ const char* topicSub   = "lindsay/comandos";
 
 WiFiClient     espClient;
 PubSubClient   client(espClient);
-SoftwareSerial mySerial(12, 13);           // RX=12, TX=13
+SoftwareSerial mySerial(16, 17);           // RX=12->2(led)->16, TX=13->4->17
 ArduinoQueue<String> messageQueue(300);
 
 bool horaSincronizada = false;
@@ -66,6 +72,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println(msg);
   mySerial.println(msg);
+  msg.trim();                              // Envia via hardware ao Arduino !!!!
+  if (msg == "111111;alarme") { ALM = 1; } // Envia via hardware ao Arduino !!!!
+  if (msg == "111111;ack")    { ACK = 1; } // Envia via hardware ao Arduino !!!!
 }
 
 // Reconexão MQTT não‑bloqueante
@@ -86,16 +95,45 @@ void mqttReconnect() {
 }
 
 void setup() {
-  Serial.begin(115200);
-  mySerial.begin(9600);
+  Serial.begin(57600);
+  mySerial.begin(57600);
+
+  WiFi.mode(WIFI_STA);
+
+  Serial.print("Conectando a rede Wi-Fi: ");
+  Serial.println(ssid);
 
   WiFi.begin(ssid, password);
-  Serial.println("Inicializando Wi‑Fi...");
 
-  client.setServer(mqttServer, mqttPort); 
-  client.setCallback(callback);           
+  int tentativas = 0;
+  const int maxTentativas = 20;
 
-  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov");  
+// Aguarda conexão
+  while (WiFi.status() != WL_CONNECTED && tentativas < maxTentativas) {
+    delay(500);
+    Serial.print(".");
+    tentativas++;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nConectado com sucesso!");
+    Serial.print("Endereço IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\nFalha ao conectar na rede Wi-Fi.");
+  }
+
+  client.setServer(mqttServer, mqttPort);
+  client.setCallback(callback);
+
+  configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov"); 
+
+  pinMode(13, OUTPUT);    // Solicitação de Alarme !!!!
+  pinMode(14, OUTPUT);    // ACK !!!!
+  pinMode(27, OUTPUT);    // saida WDT !!!!
+  digitalWrite(13, LOW);  // Solicitação de Alarme -> HIGH !!!!
+  digitalWrite(14, LOW);  // ACK -> HIGH !!!!
+  digitalWrite(27, LOW);  // WDT -> inicia em zero !!!!
 }
 
 void loop() {
@@ -105,6 +143,7 @@ void loop() {
   if (mySerial.available()) {
     String data = mySerial.readString();
     Serial.println("Recebido do Arduino: " + data);
+    mySerial.println("hello world"); // incluido isso aqui, ainda não funcionou !!!!
 
     int start = 0;
     int sep;
@@ -138,7 +177,10 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED && now - lastWifiReconnectAttempt >= wifiReconnectInterval) {
     lastWifiReconnectAttempt = now;
     Serial.println("Tentando reconectar Wi‑Fi...");
-    WiFi.reconnect();
+    WiFi.disconnect();
+    delay(100);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
   }
 
   // 3) Se o Wi‑Fi estiver OK, gerenciar MQTT e sincronizar horário se necessário
@@ -170,6 +212,17 @@ void loop() {
     }
     delay(50);
   }
+
+  // Conversa com Arduino via Hardware
+    t0++; if (t0 > 100) { WDT = 1 - WDT; t0 = 0; } // ciclo WDT 5s
+    if (ALM == 1) { t1++; } 
+    if (ALM == 1 && t1 > 60) { t1 = 0; ALM = 0; }  // pulsa 3s
+    if (ACK == 1) { t2++; } 
+    if (ALM == 1 && t2 > 60) { t2 = 0; ACK = 0; }  // pulsa 3s
+    if (ALM == 1) { digitalWrite(13, HIGH); } else { digitalWrite(13, LOW); }
+    if (ACK == 1) { digitalWrite(14, HIGH); } else { digitalWrite(14, LOW); }
+    if (WDT == 1) { digitalWrite(27, HIGH); } else { digitalWrite(27, LOW); }
+    
 
   delay(50);
 }

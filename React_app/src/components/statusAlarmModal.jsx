@@ -91,7 +91,7 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
         <button
           onClick={handleSendStatus}
           disabled={loading}
-          className="bg-red-600 px-6 py-2 rounded mb-4 hover:bg-red-700 disabled:opacity-50"
+          className="bg-gray-600 px-6 py-2 rounded mb-4 hover:bg-gray-700 disabled:opacity-50"
         >
           {loading ? "Solicitando..." : "Solicitar Status"}
         </button>
@@ -108,7 +108,7 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
           <button
             onClick={handleAlarmOff}
             disabled={loading}
-            className="bg-gray-600 px-4 py-2 rounded hover:bg-gray-500 disabled:opacity-50"
+            className="bg-red-600 px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
           >
             {loading ? "..." : "Desligar Alarme"}
           </button>
@@ -142,8 +142,8 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
               onClick={() => setShowDetails(!showDetails)}
               className={`px-4 py-1 mb-4 rounded ${
                 showDetails
-                  ? "bg-gray-600 hover:bg-gray-500"
-                  : "bg-green-600 hover:bg-green-700"
+                  ? "bg-gray-600 hover:bg-gray-700"
+                  : "bg-gray-600 hover:bg-gray-700"
               }`}
             >
               {showDetails ? "Ocultar Detalhes" : "Mostrar Detalhes"}
@@ -164,11 +164,13 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
                 <span className="text-sm font-medium">MT {mt}</span>
                 <span
                   className={`mt-1 text-sm font-semibold whitespace-nowrap ${
-                    status.includes("OK") || status.includes("Resolvido")
+                    status.includes("OK")
                       ? "text-green-400"
-                      : status.includes("Alarmado") || status.includes("Erro")
+                      : status.includes("Alarmado") && status.includes("Rec")
+                      ? "text-yellow-400"
+                      : status.includes("Alarmado")
                       ? "text-red-400"
-                      : "text-yellow-400"
+                      : "text-gray-500" 
                   }`}
                 >
                   {status}

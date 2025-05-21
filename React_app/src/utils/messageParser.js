@@ -21,14 +21,14 @@ export function parseMessage(message) {
   const statusMap = {
     '0': 'OK',
     '1': 'Alarmado',
-    '2': 'Alarme Resolvido',
-    '3': 'Pendente',
-    '4': 'Off',
-    '5': 'Manutenção',
-    '6': 'Erro de Configuração',
-    '7': 'Sobrecarga',
+    '2': 'Alarmado Recon',
+    '3': 'Desconhecido',
+    '4': 'Desconhecido',
+    '5': 'Desconhecido',
+    '6': 'Desconhecido',
+    '7': 'Desconhecido',
     '8': 'Desconhecido',
-    '9': 'Desativado',
+    '9': 'Desconhecido',
   };
 
   // 1) monitorStatus: ID;ts;d1;d2;...
@@ -70,7 +70,7 @@ export function parseMessage(message) {
         return {
           mt: i + 1,
           voltage: parseFloat(m[1]),
-          status: m[2] === '1' ? 'ON' : 'OFF',
+          status: m[2] === '0' ? 'ON' : 'OFF',
         };
       }
       return { mt: i + 1, voltage: parseFloat(str) || 0, status: '–' };
