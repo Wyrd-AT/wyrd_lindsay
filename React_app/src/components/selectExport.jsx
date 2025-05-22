@@ -1,8 +1,8 @@
 // components/SelectExport.jsx
 import React, { useState, useEffect } from "react";
 import { IoMdDownload } from "react-icons/io";
-import { FaChevronDown, FaBolt, FaRegEnvelope } from "react-icons/fa";
-import { FiAlertCircle } from "react-icons/fi";
+import { FaChevronDown, FaBolt, FaRegEnvelope, FaSearch, FaInfo, FaInfoCircle } from "react-icons/fa";
+import { FiAlertCircle, FiAlertTriangle } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 
 export default function SelectExport({
@@ -67,7 +67,7 @@ export default function SelectExport({
           onClick={onAlarm}
           className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
         >
-          <FiAlertCircle size={16} />
+          <FiAlertTriangle size={16} />
           Alarme
         </button>
 
@@ -80,30 +80,23 @@ export default function SelectExport({
           Tensão
         </button>
 
+        {/* Botão Exportar */}
+        <button
+          onClick={onExport}
+          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+        >
+          <IoMdDownload />
+          Exportar 
+        </button>
+        
         {/* Botão Mensagem */}
         <button
           onClick={onMessage}
           className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
         >
           <FaRegEnvelope size={16} />
-          Mensagem
         </button>
 
-        {/* Botão “Ver detalhes máquina” */}
-        <button
-          onClick={onclick_details}
-          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-        >
-          ver detalhes máquina →
-        </button>
-
-        {/* Botão Exportar */}
-        <button
-          onClick={onExport}
-          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-        >
-          exportar <IoMdDownload />
-        </button>
       </div>
     </div>
   );

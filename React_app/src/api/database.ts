@@ -1,51 +1,38 @@
-// src/api/database.ts
+// 2) src/api/database.ts
 import PouchDB from 'pouchdb';
 import PouchDBFind from 'pouchdb-find';
+import { useSyncStore } from '../stores/syncStore';
+
 PouchDB.plugin(PouchDBFind);
 
-// 1) Banco local (IndexedDB no navegador)
+// Banco local e remoto
 export const localDB = new PouchDB('lindsay');
-
-// 2) Banco remoto (CouchDB em HTTPS)
-//    - skip_setup impede tentativa de criar o DB remoto se ele já existir
 export const remoteDB = new PouchDB(
   'https://admin:wyrd@db.vpn.ind.br/mqtt_data',
   { skip_setup: true }
 );
 
-// 3) Sincronização bidirecional e ao vivo
+// Sincronização bidirecional e ao vivo
 localDB
   .sync(remoteDB, { live: true, retry: true })
-  .on('change', info => {
+  .on('change', (info) => {
     console.log('[PouchDB Sync] change', info);
+    // Dispara re-render em componentes que usam o hook
+    useSyncStore.getState().updateSyncTimestamp();
   })
-  .on('paused', err => {
-    console.log('[PouchDB Sync] paused (offline ou sem mudanças)', err);
-  })
-  .on('active', () => {
-    console.log('[PouchDB Sync] retomada');
-  })
-  .on('denied', err => {
-    console.error('[PouchDB Sync] acesso negado:', err);
-  })
-  .on('complete', info => {
-    console.log('[PouchDB Sync] completa', info);
-  })
-  .on('error', err => {
-    console.error('[PouchDB Sync] erro geral:', err);
-  });
+  .on('paused', (err) => console.log('[PouchDB Sync] paused', err))
+  .on('active', () => console.log('[PouchDB Sync] active'))
+  .on('denied', (err) => console.error('[PouchDB Sync] denied', err))
+  .on('complete', (info) => console.log('[PouchDB Sync] complete', info))
+  .on('error', (err) => console.error('[PouchDB Sync] error', err));
 
-// 4) Índices necessários para consultas rápidas
+// Índices para consultas
 export async function configureIndexes() {
   try {
-    await localDB.createIndex({
-      index: { fields: ['topic', 'payload'] }
-    });
+    await localDB.createIndex({ index: { fields: ['topic', 'payload'] } });
     console.log('[Database] índices criados');
   } catch (err) {
     console.error('[Database] erro ao criar índices:', err);
   }
 }
-
-// 5) Invoca a criação de índices na inicialização
 configureIndexes();

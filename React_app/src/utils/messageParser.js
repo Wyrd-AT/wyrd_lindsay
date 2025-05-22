@@ -21,7 +21,7 @@ export function parseMessage(message) {
   const statusMap = {
     '0': 'OK',
     '1': 'Alarmado',
-    '2': 'Alarmado Recon',
+    '2': 'Reconhecido',
     '3': 'Desconhecido',
     '4': 'Desconhecido',
     '5': 'Desconhecido',

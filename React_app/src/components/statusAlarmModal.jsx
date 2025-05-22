@@ -166,7 +166,7 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
                   className={`mt-1 text-sm font-semibold whitespace-nowrap ${
                     status.includes("OK")
                       ? "text-green-400"
-                      : status.includes("Alarmado") && status.includes("Rec")
+                      : status.includes("Rec")
                       ? "text-yellow-400"
                       : status.includes("Alarmado")
                       ? "text-red-400"

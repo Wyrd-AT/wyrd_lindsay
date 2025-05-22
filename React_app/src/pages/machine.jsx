@@ -1,6 +1,7 @@
 // src/pages/machine.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useSyncStore } from '../stores/syncStore'; 
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
@@ -13,15 +14,18 @@ import DetalhesMaquina from "../components/machineDetails";
 import StatsRow from "../components/statsRow";
 import useParsedMessages from "../hooks/useParsedMessages";
 
+
 export default function Maquina() {
   const { machineId } = useParams();
   const navigate = useNavigate();
   const parsed = useParsedMessages();
+  const syncTimestamp = useSyncStore(state => state.syncTimestamp);
 
   // monta lista única de irrigadores
-  const machines = Array.from(new Set(parsed.map((m) => m.irrigadorId))).map(
-    (id) => `IRRIGADOR ${id}`
-  );
+  const machines = useMemo(() => {
+    const ids = Array.from(new Set(parsed.map(m => m.irrigadorId)));
+    return ids.map(id => `IRRIGADOR ${id}`);
+  }, [parsed, syncTimestamp]);
 
   // valor inicial
   const defaultMachine = machineId
@@ -98,7 +102,7 @@ export default function Maquina() {
           />
         </div>
 
-        <StatsRow />
+        {/* <StatsRow /> */}
 
         {/* Agora não há mais botões aqui */}
 

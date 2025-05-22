@@ -1,5 +1,5 @@
-// React_app/src/pages/pageClients.jsx
-
+// 4) Uso do Sync no PageClients
+// src/pages/pageClients.jsx
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/sidebar';
@@ -7,6 +7,7 @@ import BodyContent from '../components/body';
 import Header from '../components/header';
 import SearchBar from '../components/searchbar';
 import { useParsedMessages } from '../hooks/useParsedMessages';
+import { SyncStatus } from '../components/syncStatus';
 import { FaRegImage } from 'react-icons/fa';
 import { FiAlertOctagon } from 'react-icons/fi';
 
@@ -40,6 +41,7 @@ function ClientCard({ clientName, email, alertCount }) {
 
 export default function ClientesPage() {
   const parsed = useParsedMessages();
+  const syncTimestamp = useSyncStore(state => state.syncTimestamp);
 
   // Mapeamento de prefixos para clientes
   const clientMap = {
@@ -53,7 +55,7 @@ export default function ClientesPage() {
     'E': 'EF','F': 'EF'
   };
 
-  // Agrupa irrigadores por cliente
+  // Agrupa irrigadores por cliente, re-calculado ao sincronizar
   const clients = useMemo(() => {
     const ids = Array.from(new Set(parsed.map(m => m.irrigadorId)));
     return ids.reduce((acc, id) => {
@@ -63,13 +65,15 @@ export default function ClientesPage() {
       acc[tag].push(id);
       return acc;
     }, {});
-  }, [parsed]);
+  }, [parsed, syncTimestamp]);
 
   return (
     <div className="w-full h-screen text-white flex bg-[#313131]">
       <Sidebar />
       <BodyContent>
         <Header page="clientes" />
+        {/* Mostra status de sincronização */}
+        <SyncStatus />
 
         {/* Link para a nova página de máquinas da Revenda */}
         <div className="mb-4">
