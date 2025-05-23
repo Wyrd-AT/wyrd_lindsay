@@ -1,28 +1,75 @@
-// components/alertEdit.jsx
+// src/components/alertEdit.jsx
 import React, { useEffect } from "react";
 import { IoClose } from "react-icons/io5";
+import { FiShare2 } from "react-icons/fi";
 
-export default function AlertEdit({ isOpen, onClose, alert }) {
+const NOTIFICATION_CHANNELS = ["SMS", "WhatsApp", "E-mail", "Ligação"];
+const ACTIONS = [
+  { label: "Ligar Alarme", style: "bg-green-500 hover:bg-green-600" },
+  { label: "Desligar Alarme", style: "bg-yellow-500 hover:bg-yellow-600" },
+  { label: "Ativar Sirene", style: "bg-red-500 hover:bg-red-600" },
+];
+
+function getStatusBadge(status) {
+  switch (status) {
+    case "Não resolvido":
+      return (
+        <span className="bg-transparent text-[#E83838] border border-[#E83838] px-2 py-1 rounded-full text-xs">
+          Não resolvido
+        </span>
+      );
+    case "Em progresso":
+      return (
+        <span className="bg-transparent text-[#C7A20D] border border-[#C7A20D] px-2 py-1 rounded-full text-xs">
+          Em progresso
+        </span>
+      );
+    case "Resolvido":
+      return (
+        <span className="bg-transparent text-[#42AE10] border border-[#42AE10] px-2 py-1 rounded-full text-xs">
+          Resolvido
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
+export default function AlertEdit({ isOpen, onClose, alertData }) {
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
   }, [onClose]);
 
-  if (!isOpen || !alert) return null;
+  if (!isOpen || !alertData) return null;
+  const {
+    id,
+    machine,
+    date,
+    time,
+    status,
+    description,
+    notifications = {},
+    history = [],
+  } = alertData;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
+      {/* backdrop */}
       <div className="absolute inset-0 bg-black opacity-50" />
+
+      {/* modal */}
       <div
         role="dialog"
         aria-modal="true"
-        className="relative bg-[#444444] text-white p-6 rounded-md w-full max-w-md"
+        className="relative bg-[#2f2f2f] text-white p-6 rounded-md w-full max-w-md flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* close button */}
         <button
           className="absolute top-4 right-4 text-2xl text-white hover:text-gray-300"
           onClick={onClose}
@@ -31,39 +78,65 @@ export default function AlertEdit({ isOpen, onClose, alert }) {
           <IoClose />
         </button>
 
-        {/* Título dinâmico */}
-        <div className="py-2">
-          <h3 className="w-fit border-b border-gray-500">
-            {alert.machine}
-          </h3>
-        </div>
-
-        {/* Detalhes do alerta */}
-        <div className="flex flex-wrap gap-4 text-sm mb-4">
+        {/* HEADER */}
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-gray-400 text-xs">DATA</p>
-            <p>{alert.date}</p>
+            <p className="uppercase text-xs text-gray-400 mb-1">ALERTA</p>
+            <h3 className="text-lg font-semibold flex items-baseline gap-2">
+              <span>#{id}</span>
+            </h3>
           </div>
-          <div>
-            <p className="text-gray-400 text-xs">HORA</p>
-            <p>{alert.time}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs">DESCRIÇÃO</p>
-            <p>{alert.description}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs">STATUS</p>
-            <p>{alert.status}</p>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-1 text-xs bg-gray-800 rounded">{date}</span>
+            <span className="px-2 py-1 text-xs bg-gray-800 rounded">{time}</span>
+            <span className="px-3 py-1">
+              {getStatusBadge(status)}
+            </span>
           </div>
         </div>
 
-        {/* Reativar alarme */}
-        <div className="flex items-center gap-2 mb-4">
-          <label className="whitespace-nowrap text-sm">
-            Ativar alarme novamente em:
-          </label>
-          <select className="border-b border-gray-500 px-2 py-1 text-sm bg-[#444444]">
+        {/* DESCRIÇÃO */}
+        <label className="text-sm text-gray-300 mb-1">Descrição:</label>
+        <textarea
+          className="w-full bg-[#3a3a3a] text-white p-2 rounded mb-4 text-sm resize-none h-20"
+          value={description}
+          // onChange={(e) => /* atualizar descrição no state */}
+        />
+
+        {/* AÇÕES */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {ACTIONS.map((act) => (
+            <button
+              key={act.label}
+              className={`${act.style} text-white text-xs font-medium px-3 py-1 rounded-full`}
+            >
+              {act.label}
+            </button>
+          ))}
+        </div>
+
+{/* #E83838 #C7A20D #42AE10 */}
+
+        {/* NOTIFICAÇÕES */}
+        <div className="flex items-center gap-4 mb-4 text-sm">
+          <span>Notificações</span>
+          {NOTIFICATION_CHANNELS.map((chan) => (
+            <label key={chan} className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                className="form-checkbox"
+                checked={!!notifications[chan]}
+                // onChange={() => /* toggle channel */}
+              />
+              <span>{chan}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* REATIVAR ALARME */}
+        <div className="flex items-center gap-2 mb-4 text-sm">
+          <label>Ativar alarme novamente em:</label>
+          <select className="bg-[#3a3a3a] border-b border-gray-600 px-2 py-1 rounded text-xs">
             <option value="15">15 MINUTOS</option>
             <option value="30">30 MINUTOS</option>
             <option value="60">1 HORA</option>
@@ -72,22 +145,32 @@ export default function AlertEdit({ isOpen, onClose, alert }) {
           </select>
         </div>
 
-        {/* Notificações */}
-        <div className="mb-4">
-          <p className="text-sm mb-2">NOTIFICAÇÕES</p>
-          <div className="flex flex-col gap-2 ml-4">
-            {["SMS", "WhatsApp", "E-mail", "Ligação"].map((chan) => (
-              <label key={chan} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="form-checkbox text-green-500" />
-                {chan}
-              </label>
-            ))}
-          </div>
+        {/* HISTÓRICO */}
+        <div className="flex-1 overflow-y-auto mb-4 px-2 py-1 bg-[#3a3a3a] rounded text-xs">
+          {history.length === 0 ? (
+            <p className="text-gray-400">Sem histórico.</p>
+          ) : (
+            history.map((evt, i) => (
+              <div key={i} className="flex items-start gap-2 mb-1">
+                <span className="w-1 bg-gray-500 h-full mt-1" />
+                <div>
+                  <p className="text-gray-300">
+                    {evt.date} às {evt.time}
+                  </p>
+                  <p>{evt.text}</p>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
-        {/* Botão Salvar */}
-        <div className="w-full flex justify-end">
-          <button className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-full text-xs">
+        {/* FOOTER */}
+        <div className="flex items-center justify-between">
+          <button className="flex items-center gap-1 text-sm px-3 py-1 rounded border border-gray-500 hover:bg-gray-700">
+            <FiShare2 />
+            <span>exportar</span>
+          </button>
+          <button className="bg-green-500 hover:bg-green-600 text-white text-sm px-5 py-2 rounded-full">
             SALVAR
           </button>
         </div>

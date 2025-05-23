@@ -20,9 +20,9 @@ export default function HomePageRevenda() {
   const getLastAlertDate = (id) => {
     const events = parsed
       .filter((m) => m.type === "event" && m.irrigadorId === id)
-      .sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     if (!events.length) return null;
-    return new Date(events[0].datetime).toLocaleDateString();
+    return new Date(events[0].timestamp).toLocaleDateString();
   };
 
   // Contagem de alertas
