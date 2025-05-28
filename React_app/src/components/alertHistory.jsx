@@ -1,4 +1,3 @@
-// src/components/alertHistory.jsx
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { FiAlertOctagon } from "react-icons/fi";
 import AlertEdit from "./alertEdit.jsx";
@@ -31,6 +30,13 @@ function getStatusBadge(status) {
 
 export default function AlertHistory({ machineId }) {
   const parsed = useParsedMessages();
+
+  const [isOpen, setIsOpen] = useState(false); // controla se details está aberto
+
+  // Função para capturar toggle do <details>
+  const handleToggle = (e) => {
+    setIsOpen(e.target.open);
+  };
 
   const alertsFromDB = useMemo(
     () =>
@@ -87,11 +93,27 @@ export default function AlertHistory({ machineId }) {
   };
 
   return (
-    <div className="bg-[#313131] text-white p-8 rounded-md w-full mt-8">
-      <div className="flex items-center pb-4">
-        <FiAlertOctagon />
-        <h2 className="text-xl font-semibold pl-4">HISTÓRICO DE ALERTAS</h2>
-      </div>
+    <details
+      className="bg-[#242424] text-white p-2 rounded-md w-full mt-4"
+      onToggle={handleToggle}
+      open={isOpen}
+    >
+      <summary
+        className="flex items-center cursor-pointer font-semibold text-xl select-none mb-4"
+        // evitar que o clique no summary feche o modal AlertEdit
+        onClick={(e) => e.stopPropagation()}
+      >
+
+        {/* Setinha que muda */}
+        <span className="mr-2">
+          {isOpen ? "▲" : "▼"}
+        </span>
+
+        {/* Ícone do alerta */}
+        <FiAlertOctagon className="mr-2" />
+
+        Histórico de Alertas
+      </summary>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {["Todos", ...STATUSES].map((st) => (
@@ -143,6 +165,6 @@ export default function AlertHistory({ machineId }) {
         onClose={handleCloseEdit}
         alertData={editingAlert}
       />
-    </div>
+    </details>
   );
 }
