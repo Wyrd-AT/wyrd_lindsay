@@ -1,30 +1,47 @@
 // src/hooks/useParsedMessages.js
 import { useEffect } from 'react';
 import dbStore from '../stores/dbStore';
-import { parseMessage } from '../utils/messageParser';
 import { useMessageStore } from '../stores/messageStore';
 
 export function useParsedMessages() {
-  // Lê array reativo do store
   const parsedMessages = useMessageStore(state => state.parsedMessages);
 
   useEffect(() => {
     let cancelled = false;
-    const { localDB } = dbStore;
-
-    const changes = localDB.changes({ since: 0, live: true, include_docs: true })
+    const changes = dbStore.localDB
+      .changes({ since: 0, live: true, include_docs: true })
       .on('change', change => {
         if (cancelled) return;
         const doc = change.doc;
-        if (!doc || doc._id.startsWith('_design/') || typeof doc.payload !== 'string') return;
-        try {
-          const parsed = parseMessage(doc.payload);
-          const msgObj = { ...parsed, timestamp: parsed.timestamp, origin: doc.origin };
-          // injeta no Zustand
-          useMessageStore.getState().upsertMessage(doc._id, msgObj);
-        } catch {
-          // ignora mensagens inválidas
+        if (!doc || doc._id.startsWith('_design/') || !doc.type) return;
+        const tipos = ['mtTension','monitorStatus','event','command'];
+        if (!tipos.includes(doc.type)) return;
+        const base = {
+          type: doc.type,
+          irrigadorId: doc.irrigadorId,
+          timestamp: new Date(doc.timestamp),
+          origin: doc.origin,
+        };
+        let msgObj;
+        switch (doc.type) {
+          case 'mtTension':
+            msgObj = { ...base, mtReadings: doc.mtReadings };
+            break;
+          case 'monitorStatus':
+            msgObj = { ...base, status: doc.status };
+            break;
+          case 'event':
+            msgObj = {
+              ...base,
+              eventType: doc.eventType,
+              eventCode: doc.eventCode,
+            };
+            break;
+          case 'command':
+            msgObj = { ...base, command: doc.command };
+            break;
         }
+        useMessageStore.getState().upsertMessage(doc._id, msgObj);
       })
       .on('error', err => console.error('[useParsedMessages] changes error:', err));
 
@@ -36,4 +53,5 @@ export function useParsedMessages() {
 
   return parsedMessages;
 }
+
 export default useParsedMessages;
