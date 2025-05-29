@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { FiAlertOctagon } from "react-icons/fi";
+import { FiAlertOctagon, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import AlertEdit from "./alertEdit.jsx";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 
+// Gera badge de status
 function getStatusBadge(status) {
   switch (status) {
     case "Não resolvido":
@@ -29,31 +30,28 @@ function getStatusBadge(status) {
 }
 
 export default function AlertHistory({ machineId }) {
+  const [isOpen, setIsOpen] = useState(false);
   const parsed = useParsedMessages();
+  const idClean = machineId.replace("IRRIGADOR ", "");
 
-  const [isOpen, setIsOpen] = useState(false); // controla se details está aberto
+  // Captura toggle
+  const handleToggle = (e) => setIsOpen(e.target.open);
 
-  // Função para capturar toggle do <details>
-  const handleToggle = (e) => {
-    setIsOpen(e.target.open);
-  };
-
+  // Filtra eventos de alerta
   const alertsFromDB = useMemo(
     () =>
       parsed.filter(
-        (msg) =>
-          msg.type === "event" &&
-          msg.irrigadorId === machineId.replace("IRRIGADOR ", "")
+        (msg) => msg.type === "event" && msg.irrigadorId === idClean
       ),
-    [parsed, machineId]
+    [parsed, idClean]
   );
 
+  // Para simular status variados
   const STATUSES = ["Não resolvido", "Em progresso", "Resolvido"];
   const statusMapRef = useRef({});
-
   useEffect(() => {
     statusMapRef.current = {};
-  }, [machineId]);
+  }, [idClean]);
 
   const realAlerts = useMemo(() => {
     return alertsFromDB.map((msg, i) => {
@@ -79,10 +77,9 @@ export default function AlertHistory({ machineId }) {
     selectedStatus === "Todos" ? true : a.status === selectedStatus
   );
 
-  // Modal
+  // Modal de edição
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
-
   const handleRowClick = (alert) => {
     setEditingAlert(alert);
     setIsEditOpen(true);
@@ -94,25 +91,19 @@ export default function AlertHistory({ machineId }) {
 
   return (
     <details
-      className="bg-[#242424] text-white p-2 rounded-md w-full mt-4"
+      className="bg-[#222] text-white p-2 rounded-md w-full mt-4"
       onToggle={handleToggle}
       open={isOpen}
     >
       <summary
-        className="flex items-center cursor-pointer font-semibold text-xl select-none mb-4"
-        // evitar que o clique no summary feche o modal AlertEdit
+        className="flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2"
         onClick={(e) => e.stopPropagation()}
       >
-
-        {/* Setinha que muda */}
-        <span className="mr-2">
-          {isOpen ? "▲" : "▼"}
-        </span>
-
-        {/* Ícone do alerta */}
-        <FiAlertOctagon className="mr-2" />
-
-        Histórico de Alertas
+        <div className="flex items-center">
+          <FiAlertOctagon size={20} className="mr-2" />
+          Histórico de Alertas
+        </div>
+        {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
       </summary>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">

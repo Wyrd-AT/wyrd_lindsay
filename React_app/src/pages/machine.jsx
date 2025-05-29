@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
-import SelectExport from "../components/SelectExport";
+import SelectExport from "../components/selectExport";
 import AlertHistory from "../components/alertHistory";
 import MensagemModal from "../components/messageModal";
 import TensaoModal from "../components/tensionModal";
@@ -14,7 +14,7 @@ import StatsRow from "../components/statsRow";
 
 import useParsedMessages from "../hooks/useParsedMessages";
 
-// Importar os componentes inline
+// import inline components
 import StatusHistory from "../components/statusHistory";
 import TensionPreview from "../components/tensionPreview";
 
@@ -72,8 +72,6 @@ export default function MaquinaRevenda() {
     >
       <SideBar />
       <BodyContent>
-        <Header page="perfilRevenda" />
-
         {/* Remove onAlarm e onTension para tirar os botões */}
         <SelectExport
           machines={machines}
@@ -84,32 +82,15 @@ export default function MaquinaRevenda() {
           onExport={handleExport}
         />
 
-        <div className="w-full flex justify-center px-6 mb-8">
-          <img
-            src="/esquematico.png"
-            alt="Irrigador"
-            className="w-full max-h-96 object-contain rounded"
-          />
-        </div>
-
-        {/* Histórico de Alertas */}
-        <AlertHistory machineId={selectedMachine} />
-
         <StatusHistory selectedMachine={selectedMachine} />
 
-        {/* Preview da Tensão na parte inferior, botão abre modal */}
-        <div className="mt-4">
-          {/* <h3 className="font-semibold text-lg mb-2">Histórico de Tensão (Prévia)</h3> */}
-          <TensionPreview selectedMachine={selectedMachine} />
-          <div className="flex justify-center mt-4">
-            <button
-              onClick={() => setIsTensaoOpen(true)}
-              className="px-6 py-2 rounded bg-gray-600 hover:bg-gray-700"
-            >
-              Expandir Tensão
-            </button>
-          </div>
-        </div>
+        <AlertHistory machineId={selectedMachine} />
+
+        {/* Agora só o preview — o expand fica dentro do próprio TensionPreview */}
+        <TensionPreview
+          selectedMachine={selectedMachine}
+          onExpand={() => setIsTensaoOpen(true)}
+        />
       </BodyContent>
 
       {/* Modais */}

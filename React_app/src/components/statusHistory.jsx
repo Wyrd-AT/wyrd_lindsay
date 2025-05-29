@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { FiSettings } from "react-icons/fi";
+import { FiSettings, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 
+// Componente de card de status
 function StatusCard({ mt, status }) {
   const colorClass =
     status.includes("OK")
@@ -13,7 +14,7 @@ function StatusCard({ mt, status }) {
       : "text-gray-500";
 
   return (
-    <div className="w-24 h-16 flex flex-col items-center justify-center bg-[#2b2b2b] p-1 rounded shadow m-1">
+    <div className="h-16 flex flex-col items-center justify-center bg-[#2b2b2b] p-1 rounded shadow">
       <span className="text-xs font-medium">MT {mt}</span>
       <span className={`mt-1 text-xs font-semibold whitespace-nowrap ${colorClass}`}>
         {status}
@@ -23,6 +24,7 @@ function StatusCard({ mt, status }) {
 }
 
 export default function StatusHistory({ selectedMachine }) {
+  const [isOpen, setIsOpen] = useState(false);
   const machineId = selectedMachine.replace("IRRIGADOR ", "");
   const parsed = useParsedMessages();
 
@@ -33,17 +35,13 @@ export default function StatusHistory({ selectedMachine }) {
   }, [parsed, machineId]);
 
   const last = statuses[0] || null;
-
-  const [isOpen, setIsOpen] = useState(false);
+  const filteredStatus = last
+    ? last.status.filter(({ mt }) => mt >= 1 && mt <= 14)
+    : [];
 
   const handleToggle = (e) => {
     setIsOpen(e.target.open);
   };
-
-  // Filtra MTs de 1 a 14
-  const filteredStatus = last
-    ? last.status.filter(({ mt }) => mt >= 1 && mt <= 14)
-    : [];
 
   return (
     <details
@@ -52,12 +50,14 @@ export default function StatusHistory({ selectedMachine }) {
       open={isOpen}
     >
       <summary
-        className="flex items-center cursor-pointer font-semibold text-lg select-none mb-2"
+        className="flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2"
         onClick={(e) => e.stopPropagation()}
       >
-        <span className="mr-2">{isOpen ? "▲" : "▼"}</span>
-        <FiSettings className="mr-2" />
-        Histórico de Status
+        <div className="flex items-center">
+          <FiSettings size={20} className="mr-2" />
+          Status de Alarmes
+        </div>
+        {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
       </summary>
 
       {last ? (
@@ -65,7 +65,7 @@ export default function StatusHistory({ selectedMachine }) {
           <p className="text-gray-300 mb-2 text-sm">
             Último status: {new Date(last.timestamp).toLocaleString()}
           </p>
-          <div className="grid grid-cols-7 gap-1 justify-center">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1">
             {filteredStatus.map(({ mt, status }) => (
               <StatusCard key={mt} mt={mt} status={status} />
             ))}
