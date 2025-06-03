@@ -6,11 +6,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
-import SelectExport from "../components/SelectExport";
+import SelectExport from "../components/selectExport";
 import AlertHistory from "../components/alertHistory";
 import TensaoModal from "../components/tensionModal";
 import MensagemModal from "../components/messageModal";
-import StatusAlarmModal from "../components/StatusAlarmModal";
+import StatusAlarmModal from "../components/statusAlarmModal";
 import DetalhesMaquina from "../components/machineDetails";
 import StatsRow from "../components/statsRow";
 import useParsedMessages from "../hooks/useParsedMessages";
@@ -22,7 +22,7 @@ export default function MaquinaRevenda() {
 
   // monta lista única de irrigadores
   const machines = Array.from(new Set(parsed.map((m) => m.irrigadorId))).map(
-    (id) => `IRRIGADOR ${id}`
+    (id) => `IRRIGADOR ${id}`,
   );
 
   // valor inicial
@@ -69,9 +69,7 @@ export default function MaquinaRevenda() {
     <div
       className={`
         w-full h-full text-white flex bg-[#313131]
-        transition-opacity duration-200 ${
-          flash ? "opacity-50" : "opacity-100"
-        }
+        transition-opacity duration-200 ${flash ? "opacity-50" : "opacity-100"}
       `}
       key={selectedMachine}
     >
