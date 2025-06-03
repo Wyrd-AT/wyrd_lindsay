@@ -28,7 +28,7 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
       .sort((a, b) => a.mt - b.mt || a.timestamp - b.timestamp);
   }, [parsed, machineId]);
 
-  // estatísticas dos primeiros 8 MTs (preview)
+  // estatísticas dos primeiros 16 MTs (preview)
   const mtStats = useMemo(() => {
     const now = Date.now();
     const hAgo = now - 1000 * 60 * 60;
@@ -59,6 +59,12 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
     return stats;
   }, [rawReadings]);
 
+  // Verifica se há pelo menos um MT com status ON e voltage < 50
+  const hasLowVoltage = mtStats.some(({ last, status }) => {
+    const lv = parseFloat(last);
+    return status === "ON" && !isNaN(lv) && lv < 50;
+  });
+
   const handleToggle = (e) => setIsOpen(e.target.open);
 
   return (
@@ -68,11 +74,12 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
       open={isOpen}
     >
       <summary
-        className="flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2"
+        className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
+          hasLowVoltage ? "pb-1 text-red-600" : ""
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center">
-          <FiZap size={20} className="mr-2" />
           Histórico de Tensões
         </div>
         {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
@@ -87,6 +94,7 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
             return (
               <div
                 key={mt}
+                style={isLow ? { border: "2px solid #DC2626" } : { border: "2px solid transparent" }}
                 className="p-3 rounded shadow flex flex-col items-center text-sm bg-[#313131]"
               >
                 <span className="font-medium mb-1">MT {mt}</span>

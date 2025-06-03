@@ -45,12 +45,6 @@ export default function Header({ page }) {
             <h1 className="text-lg md:text-xl font-semibold">
               Olá, Cliente!
             </h1>
-            <a
-              href="#"
-              className="text-xs md:text-sm underline hover:no-underline opacity-90 hover:opacity-100"
-            >
-              ver tutorial
-            </a>
           </div>
           {/*
           <button

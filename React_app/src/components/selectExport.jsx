@@ -10,8 +10,6 @@ export default function SelectExport({
   machines = [],           // ex. ["IRRIGADOR 1", ...]
   onclick_details,
   onExport,
-  onAlarm,
-  onTension,
   onMessage,
   onMachineChange,
   redirectBase = "/maquina"
@@ -158,22 +156,10 @@ export default function SelectExport({
       {/* botões de ação */}
       <div className="flex items-center gap-3">
         <button
-          onClick={onAlarm}
-          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-        >
-          <FiAlertTriangle size={16} /> Alarme
-        </button>
-        <button
-          onClick={onTension}
-          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-        >
-          <FaBolt size={16} /> Tensão
-        </button>
-        <button
           onClick={onExport}
           className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
         >
-          <IoMdDownload /> Exportar
+          <IoMdDownload />
         </button>
         <button
           onClick={onMessage}

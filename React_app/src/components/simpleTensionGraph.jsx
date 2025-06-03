@@ -48,7 +48,7 @@ export default function SimpleTensionGraph({ data }) {
     () => ({
       datasets: [
         {
-          label: `MT ${selectedMt}`,
+          label: `Vão ${selectedMt}`,
           data: pts,
           fill: false,
           borderColor: greenPalette[1],
@@ -106,7 +106,7 @@ export default function SimpleTensionGraph({ data }) {
   return (
     <div className="w-full h-full flex flex-col">
       <div className="mb-2">
-        <label className="text-sm mr-2">MT:</label>
+        <label className="text-sm mr-2">Vão:</label>
         <select
           value={selectedMt}
           onChange={(e) => setSelectedMt(Number(e.target.value))}
@@ -114,7 +114,7 @@ export default function SimpleTensionGraph({ data }) {
         >
           {mts.map((m) => (
             <option key={m} value={m}>
-              MT {m}
+              Vão {m}
             </option>
           ))}
         </select>

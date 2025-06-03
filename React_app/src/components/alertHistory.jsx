@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { FiAlertOctagon, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiAlertOctagon, FiChevronDown, FiChevronUp, FiClock } from "react-icons/fi";
 import AlertEdit from "./alertEdit.jsx";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 
@@ -30,7 +30,7 @@ function getStatusBadge(status) {
 }
 
 export default function AlertHistory({ machineId }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
   const parsed = useParsedMessages();
   const idClean = machineId.replace("IRRIGADOR ", "");
 
@@ -72,6 +72,9 @@ export default function AlertHistory({ machineId }) {
     });
   }, [alertsFromDB]);
 
+  // Verifica se existe algum alerta não resolvido para pintar o título
+  const hasUnresolved = realAlerts.some((alert) => alert.status === "Não resolvido");
+
   const [selectedStatus, setSelectedStatus] = useState("Todos");
   const filteredAlerts = realAlerts.filter((a) =>
     selectedStatus === "Todos" ? true : a.status === selectedStatus
@@ -95,16 +98,35 @@ export default function AlertHistory({ machineId }) {
       onToggle={handleToggle}
       open={isOpen}
     >
-      <summary
-        className="flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center">
-          <FiAlertOctagon size={20} className="mr-2" />
-          Histórico de Alertas
-        </div>
-        {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
-      </summary>
+
+<summary
+  className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
+    hasUnresolved ? "pb-1 text-red-600" : ""
+  }`}
+  onClick={(e) => e.stopPropagation()}
+>
+  <div className="flex items-center">
+    Histórico de Alertas
+  </div>
+
+  <div className="flex items-center space-x-3">
+    {realAlerts.some(a => a.status === "Em progresso") && (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-white">
+        <FiClock className="mr-1" size={14} />
+        {realAlerts.filter(a => a.status === "Em progresso").length}
+      </span>
+    )}
+
+    {realAlerts.some(a => a.status === "Não resolvido") && (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
+        <FiAlertOctagon className="mr-1" size={14} />
+        {realAlerts.filter(a => a.status === "Não resolvido").length}
+      </span>
+    )}    
+
+    {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
+  </div>
+</summary>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {["Todos", ...STATUSES].map((st) => (
@@ -112,9 +134,7 @@ export default function AlertHistory({ machineId }) {
             key={st}
             onClick={() => setSelectedStatus(st)}
             className={`px-3 py-1 rounded-lg ${
-              selectedStatus === st
-                ? "bg-white text-[#444444]"
-                : "bg-[#616061]"
+              selectedStatus === st ? "bg-white text-[#444444]" : "bg-[#616061]"
             }`}
           >
             {st}
@@ -138,7 +158,7 @@ export default function AlertHistory({ machineId }) {
               <tr
                 key={alert.id}
                 onClick={() => handleRowClick(alert)}
-                className="border-b border-gray-600 last:border-b-0 hover:bg-[#3a3a3a] cursor-pointer"
+                className={`border-b border-gray-600 last:border-b-0 hover:bg-[#3a3a3a] cursor-pointer`}
               >
                 <td className="px-4 py-3">{alert.date}</td>
                 <td className="px-4 py-3">{alert.time}</td>

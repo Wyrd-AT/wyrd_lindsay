@@ -4,17 +4,43 @@ import { IoClose } from "react-icons/io5";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 import TensionGraph from "./tensionGraph";
 
+function TensionCard({ mt, last, avgHour, avgDay, status }) {
+  const lv = parseFloat(last);
+  const isLow = status === "ON" && !isNaN(lv) && lv < 50;
+
+  const borderStyle = isLow
+    ? { border: "2px solid #DC2626" }
+    : { border: "2px solid transparent" };
+
+  return (
+    <div
+      style={borderStyle}
+      className="bg-[#2b2b2b] p-4 rounded shadow flex flex-col items-center text-sm"
+    >
+      <span className="font-medium mb-1">MT {mt}</span>
+      <span className={`text-2xl font-semibold mb-0 ${isLow ? "text-red-600" : "text-white"}`}>
+        {last}&nbsp;V
+      </span>
+      <div className="text-xs text-gray-400 text-center flex flex-wrap justify-center gap-0.5">
+        <span className="inline-block whitespace-nowrap truncate">Média 1h: {avgHour} V</span>
+        <span className="inline-block whitespace-nowrap truncate">Média 24h: {avgDay} V</span>
+      </div>
+      <span className={`mt-2 px-2.5 py-0.5 text-xs rounded-full ${status === "ON" ? "bg-green-600" : "bg-red-600"}`}>
+        {status}
+      </span>
+    </div>
+  );
+}
+
 export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
   const parsed = useParsedMessages();
   const machineId = selectedMachine.replace("IRRIGADOR ", "");
   const [showGraph, setShowGraph] = useState(false);
 
-  // Reset view ao abrir ou trocar máquina
   useEffect(() => {
     if (isOpen) setShowGraph(false);
   }, [isOpen, machineId]);
 
-  // Raw readings para o gráfico
   const rawReadings = useMemo(() => {
     return parsed
       .filter((m) => m.type === "mtTension" && m.irrigadorId === machineId)
@@ -29,7 +55,6 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
       .sort((a, b) => a.mt - b.mt || a.timestamp - b.timestamp);
   }, [parsed, machineId]);
 
-  // Estatísticas para cada MT
   const mtStats = useMemo(() => {
     const now = Date.now();
     const hAgo = now - 1000 * 60 * 60;
@@ -60,7 +85,6 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
     return stats;
   }, [rawReadings]);
 
-  // Fecha com ESC
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", handleEsc);
@@ -94,48 +118,12 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
 
         {!showGraph ? (
           <>
-            {/* Grid de cards para cada MT */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 flex-1">
-              {mtStats.map(({ mt, last, avgHour, avgDay, status }) => {
-                // converte last para número (pode ser "–")
-                const lv = parseFloat(last);
-                // quando ligado (ON) e < 50 V
-                const isLow = status === "ON" && !isNaN(lv) && lv < 50;
-
-                return (
-                  <div
-                    key={mt}
-                    className="bg-[#2b2b2b] p-4 rounded shadow flex flex-col items-center text-sm"
-                  >
-                    <span className="font-medium mb-1">MT {mt}</span>
-                    <span
-                      className={`text-2xl font-semibold mb-0  ${
-                        isLow ? "text-red-600" : "text-white"
-                      }`}
-                    >
-                      {last}&nbsp;V
-                    </span>
-                    <div className="text-xs text-gray-400 text-center flex flex-wrap justify-center gap-0.5">
-                      <span className="inline-block whitespace-nowrap truncate">
-                        Média 1h: {avgHour} V
-                      </span>
-                      <span className="inline-block whitespace-nowrap truncate">
-                        Média 24h: {avgDay} V
-                      </span>
-                    </div>
-                    <span
-                      className={`mt-2 px-2.5 py-0.5 text-xs rounded-full ${
-                        status === "ON" ? "bg-green-600" : "bg-red-600"
-                      }`}
-                    >
-                      {status}
-                    </span>
-                  </div>
-                );
-              })}
+              {mtStats.map((stat) => (
+                <TensionCard key={stat.mt} {...stat} />
+              ))}
             </div>
 
-            {/* Botão para exibir o gráfico */}
             <div className="mt-4 flex justify-center">
               <button
                 onClick={() => setShowGraph(true)}
@@ -147,7 +135,6 @@ export default function TensaoModal({ isOpen, onClose, selectedMachine }) {
           </>
         ) : (
           <div className="flex-1 flex flex-col">
-            {/* Gráfico de todos os MTs */}
             <div className="flex-1">
               <TensionGraph data={rawReadings} />
             </div>

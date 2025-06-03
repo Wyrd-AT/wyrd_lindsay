@@ -8,9 +8,6 @@ import SelectExport from "../components/selectExport";
 import AlertHistory from "../components/alertHistory";
 import MensagemModal from "../components/messageModal";
 import TensaoModal from "../components/tensionModal";
-import StatusAlarmModal from "../components/statusAlarmModal";
-import DetalhesMaquina from "../components/machineDetails";
-import StatsRow from "../components/statsRow";
 
 import useParsedMessages from "../hooks/useParsedMessages";
 
@@ -75,7 +72,7 @@ export default function MaquinaRevenda() {
         {/* Remove onAlarm e onTension para tirar os botões */}
         <SelectExport
           machines={machines}
-          redirectBase={`/clientes/${clientId}/machines`}
+          redirectBase={`/maquina`}
           onMachineChange={handleMachineChange}
           onclick_details={() => setIsDetailsOpen(true)}
           onMessage={() => setIsMensagemOpen(true)}
@@ -102,16 +99,6 @@ export default function MaquinaRevenda() {
       <MensagemModal
         isOpen={isMensagemOpen}
         onClose={() => setIsMensagemOpen(false)}
-        selectedMachine={selectedMachine}
-      />
-      <StatusAlarmModal
-        isOpen={isStatusOpen}
-        onClose={() => setIsStatusOpen(false)}
-        selectedMachine={selectedMachine}
-      />
-      <DetalhesMaquina
-        isOpen={isDetailsOpen}
-        onClose={() => setIsDetailsOpen(false)}
         selectedMachine={selectedMachine}
       />
     </div>
