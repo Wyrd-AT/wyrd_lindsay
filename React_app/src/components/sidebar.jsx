@@ -1,10 +1,11 @@
-// src/components/SideBar.jsx
-import React from "react";
 import { NavLink } from "react-router-dom";
 import { BiHomeAlt, BiUser } from "react-icons/bi";
 import { FiLogOut } from "react-icons/fi";
+import { useAuth } from "./useAuth";
 
 export default function SideBar() {
+  const { logout } = useAuth();
+
   return (
     <div
       className="
@@ -25,7 +26,7 @@ export default function SideBar() {
 
       {/* Home */}
       <NavLink
-        to="/home"
+        to="/"
         className={({ isActive }) =>
           `mb-4 ${isActive ? "text-green-500" : "text-white"}`
         }
@@ -52,6 +53,7 @@ export default function SideBar() {
         onClick={() => {
           // lógica de logout aqui
           console.log("Logout!");
+          logout();
         }}
         className="text-white hover:text-green-500 mb-4"
       >
