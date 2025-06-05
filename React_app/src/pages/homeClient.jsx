@@ -13,7 +13,7 @@ export default function HomePageRevenda() {
   // Derive a lista de IDs únicos sempre que `parsed` mudar
   const machines = useMemo(
     () => Array.from(new Set(parsed.map((m) => m.irrigadorId))),
-    [parsed]
+    [parsed],
   );
 
   // Data do último alerta
@@ -27,8 +27,7 @@ export default function HomePageRevenda() {
 
   // Contagem de alertas
   const getAlertCount = (id) =>
-    parsed.filter((m) => m.type === "event" && m.irrigadorId === id)
-      .length;
+    parsed.filter((m) => m.type === "event" && m.irrigadorId === id).length;
 
   return (
     <div className="w-full h-screen text-white flex bg-[#313131]">
