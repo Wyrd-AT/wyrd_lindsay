@@ -1,12 +1,13 @@
 // 4) Uso do Sync no PageClients
 // src/pages/pageClients.jsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Sidebar from '../components/sidebar';
 import BodyContent from '../components/body';
 import Header from '../components/header';
 import SearchBar from '../components/searchbar';
-import { useParsedMessages } from '../hooks/useParsedMessages';
+import { useMessageStore } from '../stores/messageStore';
+import { useSyncStore } from '../stores/syncStore';
 import { SyncStatus } from '../components/syncStatus';
 import { FaRegImage } from 'react-icons/fa';
 import { FiAlertOctagon } from 'react-icons/fi';
@@ -40,8 +41,13 @@ function ClientCard({ clientName, email, alertCount }) {
 }
 
 export default function ClientesPage() {
-  const parsed = useParsedMessages();
+  const { parsedMessages, isLoading, error, loadMessages } = useMessageStore();
   const syncTimestamp = useSyncStore(state => state.syncTimestamp);
+  
+  useEffect(() => {
+    console.log('[ClientesPage] useEffect');
+    //loadMessages();
+  }, []);
 
   // Mapeamento de prefixos para clientes
   const clientMap = {
@@ -57,7 +63,10 @@ export default function ClientesPage() {
 
   // Agrupa irrigadores por cliente, re-calculado ao sincronizar
   const clients = useMemo(() => {
-    const ids = Array.from(new Set(parsed.map(m => m.irrigadorId)));
+    console.log('[ClientesPage] clients');
+    if (isLoading || error) return {};
+    
+    const ids = Array.from(new Set(parsedMessages.map(m => m.irrigadorId)));
     return ids.reduce((acc, id) => {
       const prefix = id.charAt(0).toUpperCase();
       const tag = clientMap[prefix] || 'Outros';
@@ -65,7 +74,35 @@ export default function ClientesPage() {
       acc[tag].push(id);
       return acc;
     }, {});
-  }, [parsed, syncTimestamp]);
+  }, [parsedMessages, syncTimestamp, isLoading, error]);
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-screen text-white flex bg-[#313131]">
+        <Sidebar />
+        <BodyContent>
+          <Header page="clientes" />
+          <div className="flex items-center justify-center h-full">
+            <div className="text-xl">Carregando clientes...</div>
+          </div>
+        </BodyContent>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-screen text-white flex bg-[#313131]">
+        <Sidebar />
+        <BodyContent>
+          <Header page="clientes" />
+          <div className="flex items-center justify-center h-full">
+            <div className="text-xl text-red-500">Erro ao carregar clientes: {error}</div>
+          </div>
+        </BodyContent>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-screen text-white flex bg-[#313131]">

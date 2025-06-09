@@ -6,7 +6,7 @@ import HomePageRevenda from "./pages/homeClient";
 import Maquina from "./pages/machine";
 import ResetPass from "./pages/resetPass";
 import DebugPage from "./pages/testedb";
-import ClientesPage from "./pages/pageClients";
+//import ClientesPage from "./pages/pageClients";
 import ClientMachinesPage from "./pages/clientMachinesPage";
 import MaquinaRevenda from "./pages/machineRevenda";
 
@@ -23,7 +23,7 @@ function App() {
         <Route path="/debug" element={<DebugPage />} />
 
         {/* clientes */}
-        <Route path="/clientes" element={<ClientesPage />} />
+        {/* <Route path="/clientes" element={<ClientesPage />} /> */}
         <Route
           path="/clientes/:clientId/machines"
           element={<ClientMachinesPage />}
