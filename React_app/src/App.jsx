@@ -9,6 +9,8 @@ import DebugPage from "./pages/testedb";
 //import ClientesPage from "./pages/pageClients";
 import ClientMachinesPage from "./pages/clientMachinesPage";
 import MaquinaRevenda from "./pages/machineRevenda";
+import TensionGraphPage from "./pages/tensionGraphPage";
+
 
 function App() {
   return (
@@ -19,6 +21,7 @@ function App() {
         <Route path="/home" element={<HomePageRevenda />} />
 
         <Route path="/maquina/:machineId" element={<Maquina />} />
+        <Route path="/maquina/:machineId/tensao" element={<TensionGraphPage />} />
 
         <Route path="/debug" element={<DebugPage />} />
 

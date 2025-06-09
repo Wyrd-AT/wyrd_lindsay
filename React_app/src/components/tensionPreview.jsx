@@ -1,19 +1,15 @@
+// src/components/TensionPreview.js
 import React, { useState, useMemo } from "react";
-import {
-  FiZap,
-  FiChevronDown,
-  FiChevronUp,
-  FiMaximize2,
-} from "react-icons/fi";
+import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { useParsedMessages } from "../hooks/useParsedMessages";
-import SimpleTensionGraph from "./simpleTensionGraph";
+import { useNavigate } from "react-router-dom";  // Alterado de 'useHistory' para 'useNavigate'
 
-export default function TensionPreview({ selectedMachine, onExpand }) {
+export default function TensionPreview({ selectedMachine }) {
   const [isOpen, setIsOpen] = useState(false);
   const parsed = useParsedMessages();
+  const navigate = useNavigate();  // Usando o hook 'useNavigate' para navegação
   const machineId = selectedMachine.replace("IRRIGADOR ", "");
 
-  // monta rawReadings igual antes…
   const rawReadings = useMemo(() => {
     return parsed
       .filter((m) => m.type === "mtTension" && m.irrigadorId === machineId)
@@ -28,7 +24,6 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
       .sort((a, b) => a.mt - b.mt || a.timestamp - b.timestamp);
   }, [parsed, machineId]);
 
-  // estatísticas dos primeiros 16 MTs (preview)
   const mtStats = useMemo(() => {
     const now = Date.now();
     const hAgo = now - 1000 * 60 * 60;
@@ -39,10 +34,8 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
       groups[r.mt].push(r);
     });
     const stats = [];
-    for (let i = 1; i <= 16; i++) {
-      const arr = (groups[i] || []).sort(
-        (a, b) => b.timestamp - a.timestamp
-      );
+    for (let i = 1; i <= 12; i++) {  // Limitar a 12
+      const arr = (groups[i] || []).sort((a, b) => b.timestamp - a.timestamp);
       const last = arr[0];
       const avg = (ary) =>
         ary.length
@@ -52,14 +45,13 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
         mt: i,
         last: last ? last.voltage.toFixed(3) : "–",
         avgHour: avg(arr.filter((x) => x.timestamp.getTime() >= hAgo)),
-        avgDay: avg(arr.filter((x) => x.timestamp.getTime() >= dAgo)),
+        avgDay:  avg(arr.filter((x) => x.timestamp.getTime() >= dAgo)),
         status: last ? last.status : "OFF",
       });
     }
     return stats;
   }, [rawReadings]);
 
-  // Verifica se há pelo menos um MT com status ON e voltage < 50
   const hasLowVoltage = mtStats.some(({ last, status }) => {
     const lv = parseFloat(last);
     return status === "ON" && !isNaN(lv) && lv < 50;
@@ -79,22 +71,24 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center">
-          Histórico de Tensões
-        </div>
+        <span>Histórico de Tensões</span>
         {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
       </summary>
 
-      <div className="relative flex gap-12 p-4 bg-[#222] rounded-b text-white">
-        {/* cards preview (MT 1–8) */}
-        <div className="w-1/2 grid grid-cols-4 gap-6 text-center">
-          {mtStats.slice(0, 8).map(({ mt, last, avgHour, avgDay, status }) => {
+      <div className="p-4 bg-[#222] rounded-b text-white space-y-4">
+        {/* Mostra os cards (MT 1–12) */}
+        <div className="grid grid-cols-6 gap-6 text-center">
+          {mtStats.map(({ mt, last, avgHour, avgDay, status }) => {
             const lv = parseFloat(last);
             const isLow = status === "ON" && !isNaN(lv) && lv < 50;
             return (
               <div
                 key={mt}
-                style={isLow ? { border: "2px solid #DC2626" } : { border: "2px solid transparent" }}
+                style={
+                  isLow
+                    ? { border: "2px solid #DC2626" }
+                    : { border: "2px solid transparent" }
+                }
                 className="p-3 rounded shadow flex flex-col items-center text-sm bg-[#313131]"
               >
                 <span className="font-medium mb-1">MT {mt}</span>
@@ -103,15 +97,11 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
                     isLow ? "text-red-600" : "text-white"
                   }`}
                 >
-                  {last}&nbsp;V
+                  {last} V
                 </span>
                 <div className="text-xs text-gray-400 flex flex-wrap justify-center gap-0.5">
-                  <span className="inline-block truncate">
-                    Média 1h: {avgHour} V
-                  </span>
-                  <span className="inline-block truncate">
-                    Média 24h: {avgDay} V
-                  </span>
+                  <span className="truncate">Média 1h: {avgHour} V</span>
+                  <span className="truncate">Média 24h: {avgDay} V</span>
                 </div>
                 <span
                   className={`mt-2 px-2.5 py-0.5 text-xs rounded-full ${
@@ -125,21 +115,15 @@ export default function TensionPreview({ selectedMachine, onExpand }) {
           })}
         </div>
 
-        {/* gráfico simplificado */}
-        <div className="w-1/2 h-64">
-          <SimpleTensionGraph data={rawReadings} />
+        {/* Botão para navegar para a página de gráfico */}
+        <div className="text-right">
+          <button
+            onClick={() => navigate(`/maquina/${machineId}/tensao`)}  // Usando o 'navigate' para navegar
+            className="px-5 py-2 bg-[#616061] text-white rounded-lg hover:bg-gray-700"
+          >
+            Ver gráfico de tensões
+          </button>
         </div>
-
-        {/* expandir canto inferior direito */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onExpand();
-          }}
-          className="absolute bottom-4 right-4 p-2 bg-gray-700 rounded-full hover:bg-gray-600"
-        >
-          <FiMaximize2 size={20} />
-        </button>
       </div>
     </details>
   );
