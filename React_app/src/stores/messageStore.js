@@ -33,6 +33,8 @@ export const parseMessage = (doc) => {
         notifications: doc.notifications,
         responsible: doc.responsible,
         irrigadorId: doc.irrigadorId,
+        snooze_time: doc.snooze_time,
+        snooze_until: doc.snooze_until,
         origin: doc.origin
       };
       break;

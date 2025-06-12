@@ -51,8 +51,6 @@ export default function AlertHistory({ machineId }) {
     [parsed]
   );
 
-  console.log("📥 logsFromDB (type==='log'):", logsFromDB);
-
   // Simula status aleatório
   const STATUSES = ["Não resolvido", "Em progresso", "Resolvido"];
   const statusMapRef = useRef({});
@@ -99,24 +97,33 @@ export default function AlertHistory({ machineId }) {
   const [editingAlert, setEditingAlert] = useState(null);
 
   const handleRowClick = (alert) => {
-    // Usa o logsFromDB memoizado
-    console.log(alert._id)
-    const logs = logsFromDB
-      .filter((l) => l.alert_id === alert._id)
-      .map((l) => ({
-        timestamp: l.timestamp,
-        action: l.action,
-        responsible: l.responsible,
-      }));
+  // 1) monta o history filtrando logs
+  const history = logsFromDB
+    .filter((l) => l.alert_id === alert._id)
+    .map((l) => ({
+      timestamp: l.timestamp,
+      action:    l.action,
+      responsible: l.responsible,
+    }));
 
-    console.log("🔍 Alert selecionado:", alert);
-    console.log("🔍 Logs para este alert:", logs);
-    setEditingAlert({
-      ...alert,
-      history: logs,
-    });
-    setIsEditOpen(true);
-  };
+  // 2) encontra o próprio evento já atualizado no parsed
+  const eventDoc = parsed.find(
+    (msg) => msg.type === "event" && msg._id === alert._id
+  );
+  const snoozeUntil = eventDoc?.snooze_until
+    ? new Date(eventDoc.snooze_until)
+    : null;
+
+  // 3) passa tudo para o filho de uma vez
+  setEditingAlert({
+    ...alert,
+    history,
+    snooze_until: snoozeUntil,
+    notifications: eventDoc?.notifications ?? {},
+  });
+  setIsEditOpen(true);
+};
+
   const handleCloseEdit = () => {
     setIsEditOpen(false);
     setEditingAlert(null);
@@ -209,6 +216,7 @@ export default function AlertHistory({ machineId }) {
       <AlertEdit
         isOpen={isEditOpen}
         onClose={handleCloseEdit}
+        onSave={(updated) => setEditingAlert(updated)}
         alertData={editingAlert}
       />
     </details>
