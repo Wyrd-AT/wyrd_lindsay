@@ -1,19 +1,27 @@
-// pages/HomePageRevenda.jsx
-import React, { useMemo } from "react";
+import { createContext, useMemo } from "react";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 import BodyContent from "../components/body";
 import Header from "../components/header";
 import Sidebar from "../components/sidebar";
 import SearchBar from "../components/searchbar";
 import IrrigadorCard from "../components/irrigadorCard";
+import { useState } from "react";
+
+export const SearchContext = createContext(null);
 
 export default function HomePageRevenda() {
+  const [searchTerm, setSearchTerm] = useState("");
+
   const parsed = useParsedMessages();
 
   // Derive a lista de IDs únicos sempre que `parsed` mudar
   const machines = useMemo(
     () => Array.from(new Set(parsed.map((m) => m.irrigadorId))),
     [parsed],
+  );
+
+  const filteredMachines = machines.filter((item) =>
+    item.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   // Data do último alerta
@@ -30,35 +38,37 @@ export default function HomePageRevenda() {
     parsed.filter((m) => m.type === "event" && m.irrigadorId === id).length;
 
   return (
-    <div className="w-full h-screen text-white flex bg-[#313131]">
-      <Sidebar />
+    <SearchContext.Provider value={{ searchTerm, setSearchTerm }}>
+      <div className="w-full h-screen text-white flex bg-[#313131]">
+        <Sidebar />
 
-      <BodyContent>
-        <Header page="home" />
+        <BodyContent>
+          <Header page="home" />
 
-        <div
-          className="
+          <div
+            className="
             flex flex-wrap p-4 justify-around 
             max-h-[80vh] overflow-auto 
             scrollbar scrollbar-thin scrollbar-thumb-red-500 scrollbar-track-gray-800
           "
-        >
-          {machines.length > 0 ? (
-            machines.map((id) => (
-              <IrrigadorCard
-                key={id}
-                machineId={id}
-                lastAlertDate={getLastAlertDate(id)}
-                alertCount={getAlertCount(id)}
-              />
-            ))
-          ) : (
-            <p className="text-gray-300">Nenhum irrigador encontrado.</p>
-          )}
-        </div>
-      </BodyContent>
+          >
+            {filteredMachines.length > 0 ? (
+              filteredMachines.map((id) => (
+                <IrrigadorCard
+                  key={id}
+                  machineId={id}
+                  lastAlertDate={getLastAlertDate(id)}
+                  alertCount={getAlertCount(id)}
+                />
+              ))
+            ) : (
+              <p className="text-gray-300">Nenhum irrigador encontrado.</p>
+            )}
+          </div>
+        </BodyContent>
 
-      <SearchBar />
-    </div>
+        <SearchBar />
+      </div>
+    </SearchContext.Provider>
   );
 }
