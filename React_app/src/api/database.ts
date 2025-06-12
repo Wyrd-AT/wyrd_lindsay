@@ -33,7 +33,7 @@ const syncHandler = localDB.sync(remoteDB, {
   live: true,
   retry: true,
   selector: {
-    type: { $in: ['event', 'monitorStatus', 'command'] }
+    type: { $in: ['event', 'monitorStatus', 'command', 'log'] }
   }
 })
 .on('active', () => {

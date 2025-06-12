@@ -4,33 +4,49 @@ import { localDB } from '../api/database';
 
 export const parseMessage = (doc) => {
   if (!doc || doc._id.startsWith('_design/') || !doc.type) return null;
-  const tipos = ['mtTension', 'monitorStatus', 'event', 'command'];
+  const tipos = ['mtTension', 'monitorStatus', 'event', 'command', 'log'];
   if (!tipos.includes(doc.type)) return null;
 
   const base = {
+    _id: doc._id,
     type: doc.type,
-    irrigadorId: doc.irrigadorId,
+    // irrigadorId: doc.irrigadorId,
     timestamp: new Date(doc.timestamp),
-    origin: doc.origin,
+    // origin: doc.origin,
   };
 
   let msgObj;
   switch (doc.type) {
     case 'mtTension':
-      msgObj = { ...base, mtReadings: doc.mtReadings };
+      msgObj = { ...base, mtReadings: doc.mtReadings, irrigadorId: doc.irrigadorId, origin: doc.origin };
       break;
     case 'monitorStatus':
-      msgObj = { ...base, status: doc.status };
+      msgObj = { ...base, status: doc.status, irrigadorId: doc.irrigadorId, origin: doc.origin };
       break;
     case 'event':
       msgObj = {
         ...base,
         eventType: doc.eventType,
         eventCode: doc.eventCode,
+        status: doc.status,
+        description: doc.description,
+        notifications: doc.notifications,
+        responsible: doc.responsible,
+        irrigadorId: doc.irrigadorId,
+        origin: doc.origin
+      };
+      break;
+    case 'log':
+      msgObj = {
+        ...base,
+        alert_id: doc.alert_id,
+        responsible: doc.responsible,
+        action: doc.action
+
       };
       break;
     case 'command':
-      msgObj = { ...base, command: doc.command };
+      msgObj = { ...base, command: doc.command, irrigadorId: doc.irrigadorId, origin: doc.origin };
       break;
     default:
       return null;

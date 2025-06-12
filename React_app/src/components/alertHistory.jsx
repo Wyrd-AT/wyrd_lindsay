@@ -34,10 +34,10 @@ export default function AlertHistory({ machineId }) {
   const parsed = useParsedMessages();
   const idClean = machineId.replace("IRRIGADOR ", "");
 
-  // Captura toggle
+  // Toggle do <details>
   const handleToggle = (e) => setIsOpen(e.target.open);
 
-  // Filtra eventos de alerta
+  // Pré-filtra events e logs do PouchDB
   const alertsFromDB = useMemo(
     () =>
       parsed.filter(
@@ -46,45 +46,75 @@ export default function AlertHistory({ machineId }) {
     [parsed, idClean]
   );
 
-  // Para simular status variados
+  const logsFromDB = useMemo(
+    () => parsed.filter((msg) => msg.type === "log"),
+    [parsed]
+  );
+
+  console.log("📥 logsFromDB (type==='log'):", logsFromDB);
+
+  // Simula status aleatório
   const STATUSES = ["Não resolvido", "Em progresso", "Resolvido"];
   const statusMapRef = useRef({});
   useEffect(() => {
     statusMapRef.current = {};
   }, [idClean]);
 
+  // Monta a lista de alertas para a tabela
   const realAlerts = useMemo(() => {
     return alertsFromDB.map((msg, i) => {
-      const id = `${msg.irrigadorId}-${i}`;
-      if (!statusMapRef.current[id]) {
-        const rnd = STATUSES[Math.floor(Math.random() * STATUSES.length)];
-        statusMapRef.current[id] = rnd;
+      const key = `${msg.irrigadorId}-${i}`;
+      if (!statusMapRef.current[key]) {
+        statusMapRef.current[key] =
+          STATUSES[Math.floor(Math.random() * STATUSES.length)];
       }
       const dt = new Date(msg.timestamp);
       return {
-        id,
+        id: key,
+        _id: msg._id,
         date: dt.toLocaleDateString(),
         time: dt.toLocaleTimeString(),
-        machine: `IRRIGADOR ${msg.irrigadorId}`,
-        description: `Tipo: ${msg.eventType} | Código: ${msg.eventCode}`,
-        status: statusMapRef.current[id],
+        eventType: msg.eventType,
+        eventCode: msg.eventCode,
+        description: msg.description,
+        status: statusMapRef.current[key],
+        responsible: msg.responsible,
       };
     });
   }, [alertsFromDB]);
 
-  // Verifica se existe algum alerta não resolvido para pintar o título
-  const hasUnresolved = realAlerts.some((alert) => alert.status === "Não resolvido");
+  const hasUnresolved = realAlerts.some((a) => a.status === "Não resolvido");
 
   const [selectedStatus, setSelectedStatus] = useState("Todos");
-  const filteredAlerts = realAlerts.filter((a) =>
-    selectedStatus === "Todos" ? true : a.status === selectedStatus
+  const filteredAlerts = useMemo(
+    () =>
+      realAlerts.filter((a) =>
+        selectedStatus === "Todos" ? true : a.status === selectedStatus
+      ),
+    [realAlerts, selectedStatus]
   );
 
   // Modal de edição
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
+
   const handleRowClick = (alert) => {
-    setEditingAlert(alert);
+    // Usa o logsFromDB memoizado
+    console.log(alert._id)
+    const logs = logsFromDB
+      .filter((l) => l.alert_id === alert._id)
+      .map((l) => ({
+        timestamp: l.timestamp,
+        action: l.action,
+        responsible: l.responsible,
+      }));
+
+    console.log("🔍 Alert selecionado:", alert);
+    console.log("🔍 Logs para este alert:", logs);
+    setEditingAlert({
+      ...alert,
+      history: logs,
+    });
     setIsEditOpen(true);
   };
   const handleCloseEdit = () => {
@@ -98,43 +128,40 @@ export default function AlertHistory({ machineId }) {
       onToggle={handleToggle}
       open={isOpen}
     >
+      <summary
+        className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
+          hasUnresolved ? "pb-1 text-red-600" : ""
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>Histórico de Alertas</div>
+        <div className="flex items-center space-x-3">
+          {realAlerts.some((a) => a.status === "Em progresso") && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-white">
+              <FiClock className="mr-1" size={14} />
+              {realAlerts.filter((a) => a.status === "Em progresso").length}
+            </span>
+          )}
+          {realAlerts.some((a) => a.status === "Não resolvido") && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
+              <FiAlertOctagon className="mr-1" size={14} />
+              {realAlerts.filter((a) => a.status === "Não resolvido").length}
+            </span>
+          )}
+          {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
+        </div>
+      </summary>
 
-<summary
-  className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
-    hasUnresolved ? "pb-1 text-red-600" : ""
-  }`}
-  onClick={(e) => e.stopPropagation()}
->
-  <div className="flex items-center">
-    Histórico de Alertas
-  </div>
-
-  <div className="flex items-center space-x-3">
-    {realAlerts.some(a => a.status === "Em progresso") && (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-white">
-        <FiClock className="mr-1" size={14} />
-        {realAlerts.filter(a => a.status === "Em progresso").length}
-      </span>
-    )}
-
-    {realAlerts.some(a => a.status === "Não resolvido") && (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
-        <FiAlertOctagon className="mr-1" size={14} />
-        {realAlerts.filter(a => a.status === "Não resolvido").length}
-      </span>
-    )}    
-
-    {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
-  </div>
-</summary>
-
+      {/* Filtros de status */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {["Todos", ...STATUSES].map((st) => (
           <button
             key={st}
             onClick={() => setSelectedStatus(st)}
             className={`px-3 py-1 rounded-lg ${
-              selectedStatus === st ? "bg-white text-[#444444]" : "bg-[#616061]"
+              selectedStatus === st
+                ? "bg-white text-[#444444]"
+                : "bg-[#616061]"
             }`}
           >
             {st}
@@ -142,14 +169,15 @@ export default function AlertHistory({ machineId }) {
         ))}
       </div>
 
+      {/* Tabela de alertas */}
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-[#444444] text-sm uppercase">
             <tr>
               <th className="px-4 py-2">DATA</th>
               <th className="px-4 py-2">HORA</th>
-              <th className="px-4 py-2">MÁQUINA</th>
-              <th className="px-4 py-2">DESCRIÇÃO</th>
+              <th className="px-4 py-2">CÓDIGO</th>
+              <th className="px-4 py-2">RESPONSÁVEL</th>
               <th className="px-4 py-2">STATUS</th>
             </tr>
           </thead>
@@ -158,12 +186,18 @@ export default function AlertHistory({ machineId }) {
               <tr
                 key={alert.id}
                 onClick={() => handleRowClick(alert)}
-                className={`border-b border-gray-600 last:border-b-0 hover:bg-[#3a3a3a] cursor-pointer`}
+                className="border-b border-gray-600 last:border-b-0 hover:bg-[#3a3a3a] cursor-pointer"
               >
                 <td className="px-4 py-3">{alert.date}</td>
                 <td className="px-4 py-3">{alert.time}</td>
-                <td className="px-4 py-3">{alert.machine}</td>
-                <td className="px-4 py-3">{alert.description}</td>
+                <td className="px-4 py-3">
+                  {`${alert.eventType} - ${alert.eventCode}`}
+                </td>
+                <td className="px-4 py-3">
+                  {alert.responsible && alert.responsible !== "None"
+                    ? alert.responsible
+                    : "---------"}
+                </td>
                 <td className="px-1 py-3">{getStatusBadge(alert.status)}</td>
               </tr>
             ))}
@@ -171,6 +205,7 @@ export default function AlertHistory({ machineId }) {
         </table>
       </div>
 
+      {/* Modal de edição */}
       <AlertEdit
         isOpen={isEditOpen}
         onClose={handleCloseEdit}

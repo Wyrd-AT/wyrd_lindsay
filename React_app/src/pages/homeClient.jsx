@@ -12,6 +12,7 @@ export default function HomePageRevenda() {
   const { parsedMessages, isLoading, error } = useMessageStore();
 
   // Derive a lista de IDs únicos sempre que `parsedMessages` mudar
+  console.log(parsedMessages)
   const machines = useMemo(
     () => {
       if (isLoading || error) return [];

@@ -14,7 +14,7 @@ export function useParsedMessages() {
   //       console.log('[useParsedMessages] change', change);
   //       if (cancelled) return;
   //       const doc = change.doc;
-  //       if (!doc || doc._id.startsWith('_design/') || !doc.type) return;
+  //       if (!doc || doc._id.startsWith('_design/') || !doc.type) return;s
   //       const tipos = ['mtTension','monitorStatus','event','command'];
   //       if (!tipos.includes(doc.type)) return;
   //       const base = {
