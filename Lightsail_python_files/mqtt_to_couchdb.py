@@ -89,7 +89,18 @@ def parse_message(message: str) -> dict:
             'irrigadorId': irrigador_id,
             'timestamp': fmt_ts(timestamp),
             'eventType': 'alarme' if ev[0] == 'A' else 'evento',
-            'eventCode': ev[1:]
+            'eventCode': ev[1:],
+            'status': 'Não resolvido',
+            'description': 'Sem descrição',  # você pode modificar isso mais tarde com informações adicionais
+            'responsible': 'A definir',  # também pode ser alterado conforme o caso
+            'notifications': {
+                'WhatsApp': False,
+                'E-mail': False,
+                'SMS': False,
+                'Ligação': False,
+            },
+            'snooze_time': None,  # isso pode ser ajustado conforme a lógica
+            'snooze_until': None  # ajusta o horário da soneca
         }
 
     # 3) command simples: exatamente 2 partes e a segunda é só letras
