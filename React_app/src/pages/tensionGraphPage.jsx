@@ -1,37 +1,44 @@
-// src/pages/FullTensionGraphPage.js
-import React, { useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useParsedMessages } from "../hooks/useParsedMessages";
-import TensionGraph from "../components/tensionGraph";
-import SideBar from "../components/sidebar";  // Sidebar do app
-import BodyContent from "../components/body";  // Corpo do conteúdo, onde o gráfico será renderizado
+import { useMtTensionStore } from "../stores/mtTensionStore";  // Importando o store de mtTension
+import TensionGraph from "../components/TensionGraph";
+import SideBar from "../components/SideBar";
+import Body from "../components/Body";  // Corrigido para usar Body
 
 export default function FullTensionGraphPage() {
   const { machineId } = useParams();  // Obtém o 'machineId' da URL
-  const parsed = useParsedMessages(); // Hook para obter as mensagens (dados de tensões)
+  const { initialize, tensionMessages, isLoading, error } = useMtTensionStore();  // Pegue o store de mtTension
 
-  // Filtra os dados de tensão (MT) e os organiza
-  const rawReadings = useMemo(() => {
-    return parsed
-      .filter((m) => m.type === "mtTension" && m.irrigadorId === machineId)
-      .flatMap((m) =>
-        (m.mtReadings || []).map((r) => ({
-          mt: r.mt,
-          voltage: parseFloat(r.voltage) || 0,
-          timestamp: new Date(m.timestamp),
-          status: r.status,
-        }))
-      )
-      .sort((a, b) => a.mt - b.mt || a.timestamp - b.timestamp);
-  }, [parsed, machineId]);
+  const [filterType, setFilterType] = useState('1h');
+  const [customRange, setCustomRange] = useState({ start: null, end: null });
+
+  const { startTime, endTime } = useMemo(() => {
+    const now = Date.now();
+    let start = null, end = now;
+
+    if (filterType === '1h') start = now - 1000 * 60 * 60;
+    else if (filterType === '24h') start = now - 1000 * 60 * 60 * 24;
+    else if (filterType === '7d') start = now - 1000 * 60 * 60 * 24 * 7;
+    else if (filterType === 'all') { start = null; end = null; }
+    else if (filterType === 'custom') {
+      start = customRange.start?.getTime() ?? null;
+      end = customRange.end?.getTime() ?? null;
+    }
+    return { startTime: start, endTime: end };
+  }, [filterType, customRange]);
+
+  // Carregar os dados de 'mtTension' baseado no filtro
+  useEffect(() => {
+    initialize(machineId, startTime, endTime);  // Chama a função do store para inicializar e carregar os dados
+  }, [machineId, startTime, endTime, initialize]);
 
   return (
     <div className="flex w-full h-full bg-[#313131]">
-      {/* Barra lateral, que é a mesma de outras páginas */}
+      {/* Barra lateral */}
       <SideBar />
 
       {/* Corpo do conteúdo */}
-      <BodyContent>
+      <Body>
         <header className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-white">
             Gráfico de Tensões — IRRIGADOR {machineId}
@@ -46,9 +53,15 @@ export default function FullTensionGraphPage() {
 
         {/* Gráfico de Tensão */}
         <div className="w-full h-[600px] bg-[#222] p-4 rounded">
-          <TensionGraph data={rawReadings} />
+          {isLoading ? (
+            <p className="text-white">Carregando dados de tensão...</p>
+          ) : error ? (
+            <p className="text-red-500">{error}</p>
+          ) : (
+            <TensionGraph data={tensionMessages} />
+          )}
         </div>
-      </BodyContent>
+      </Body>
     </div>
   );
 }
