@@ -19,6 +19,7 @@ export default function IrrigadorCard({
         rounded-lg overflow-hidden
         transition-shadow shadow-sm hover:shadow-md
         m-4 no-underline text-white
+        ${alertCount > 0 ? "border-2 border-red-600" : ""}
       `}
     >
       {/* imagem com padding menor */}

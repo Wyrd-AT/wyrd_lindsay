@@ -1,8 +1,10 @@
 import React from "react";
+import SyncProgressModal from "../components/SyncProgressModal";
 
 export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#272727]">
+      <SyncProgressModal />
       <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96">
         {/* Logo */}
         <div className="flex justify-center mb-6">

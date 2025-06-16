@@ -6,11 +6,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
-import SelectExport from "../components/SelectExport";
+import SelectExport from "../components/selectExport";
 import AlertHistory from "../components/alertHistory";
 import TensaoModal from "../components/tensionModal";
 import MensagemModal from "../components/messageModal";
-import StatusAlarmModal from "../components/StatusAlarmModal";
 import DetalhesMaquina from "../components/machineDetails";
 import StatsRow from "../components/statsRow";
 import useParsedMessages from "../hooks/useParsedMessages";
@@ -93,7 +92,7 @@ export default function MaquinaRevenda() {
 
         <div className="w-full flex justify-center px-6 mb-8">
           <img
-            src="/irrigador.png"
+            src="/esquematico.png"
             alt="Irrigador"
             className="w-full max-h-96 object-contain rounded"
           />
@@ -112,11 +111,6 @@ export default function MaquinaRevenda() {
       <MensagemModal
         isOpen={isMensagemOpen}
         onClose={() => setIsMensagemOpen(false)}
-        selectedMachine={selectedMachine}
-      />
-      <StatusAlarmModal
-        isOpen={isStatusOpen}
-        onClose={() => setIsStatusOpen(false)}
         selectedMachine={selectedMachine}
       />
       <DetalhesMaquina

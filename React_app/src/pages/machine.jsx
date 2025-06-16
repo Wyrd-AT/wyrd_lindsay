@@ -1,33 +1,29 @@
-// src/pages/machine.jsx
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useSyncStore } from '../stores/syncStore'; 
+
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import Header from "../components/header";
 import SelectExport from "../components/selectExport";
 import AlertHistory from "../components/alertHistory";
-import TensaoModal from "../components/tensionModal";
 import MensagemModal from "../components/messageModal";
-import StatusAlarmModal from "../components/statusAlarmModal";
-import DetalhesMaquina from "../components/machineDetails";
-import StatsRow from "../components/statsRow";
+import TensaoModal from "../components/tensionModal";
+
 import useParsedMessages from "../hooks/useParsedMessages";
 
+// import inline components
+import StatusHistory from "../components/statusHistory";
+import TensionPreview from "../components/tensionPreview";
 
-export default function Maquina() {
-  const { machineId } = useParams();
+export default function MaquinaRevenda() {
+  const { clientId, machineId } = useParams();
   const navigate = useNavigate();
   const parsed = useParsedMessages();
-  const syncTimestamp = useSyncStore(state => state.syncTimestamp);
 
-  // monta lista única de irrigadores
-  const machines = useMemo(() => {
-    const ids = Array.from(new Set(parsed.map(m => m.irrigadorId)));
-    return ids.map(id => `IRRIGADOR ${id}`);
-  }, [parsed, syncTimestamp]);
+  const machines = Array.from(new Set(parsed.map((m) => m.irrigadorId))).map(
+    (id) => `IRRIGADOR ${id}`
+  );
 
-  // valor inicial
   const defaultMachine = machineId
     ? `IRRIGADOR ${machineId}`
     : machines[0] || "";
@@ -39,14 +35,12 @@ export default function Maquina() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [flash, setFlash] = useState(false);
 
-  // sincroniza com a URL
   useEffect(() => {
     if (machineId) {
       setSelectedMachine(`IRRIGADOR ${machineId}`);
     }
   }, [machineId]);
 
-  // se não vier param, escolhe o primeiro
   useEffect(() => {
     if (!machineId && machines.length > 0) {
       setSelectedMachine(machines[0]);
@@ -56,60 +50,47 @@ export default function Maquina() {
   const handleMachineChange = (machine) => {
     setSelectedMachine(machine);
     const id = machine.replace("IRRIGADOR ", "");
-    navigate(`/maquina/${id}`);
+    navigate(`/clientes/${clientId}/machines/${id}`);
 
-    // flash effect
     setFlash(true);
     setTimeout(() => setFlash(false), 200);
   };
 
   const handleExport = () => {
-    // coloque aqui sua lógica de export (download CSV, etc)
     console.log("Exportando dados de", selectedMachine);
   };
 
   return (
     <div
-      className={`
-        w-full h-full text-white flex bg-[#313131]
-        transition-opacity duration-200 ${
-          flash ? "opacity-50" : "opacity-100"
-        }
-      `}
+      className={`w-full h-full text-white flex bg-[#313131] transition-opacity duration-200 ${
+        flash ? "opacity-50" : "opacity-100"
+      }`}
       key={selectedMachine}
     >
       <SideBar />
-
       <BodyContent>
-        <Header page="perfilClient" />
-
+        {/* Remove onAlarm e onTension para tirar os botões */}
         <SelectExport
           machines={machines}
-          redirectBase="/maquina"
+          redirectBase={`/maquina`}
           onMachineChange={handleMachineChange}
           onclick_details={() => setIsDetailsOpen(true)}
-          onAlarm={() => setIsStatusOpen(true)}
-          onTension={() => setIsTensaoOpen(true)}
           onMessage={() => setIsMensagemOpen(true)}
           onExport={handleExport}
         />
 
-        <div className="w-full flex justify-center px-6 mb-8">
-          <img
-            src="/esquematico.png"
-            alt="Irrigador"
-            className="w-full max-h-96 object-contain rounded"
-          />
-        </div>
-
-        {/* <StatsRow /> */}
-
-        {/* Agora não há mais botões aqui */}
+        <StatusHistory selectedMachine={selectedMachine} />
 
         <AlertHistory machineId={selectedMachine} />
+
+        {/* Agora só o preview — o expand fica dentro do próprio TensionPreview */}
+        <TensionPreview
+          selectedMachine={selectedMachine}
+          onExpand={() => setIsTensaoOpen(true)}
+        />
       </BodyContent>
 
-      {/* Modais acionados pelos botões no SelectExport */}
+      {/* Modais */}
       <TensaoModal
         isOpen={isTensaoOpen}
         onClose={() => setIsTensaoOpen(false)}
@@ -118,16 +99,6 @@ export default function Maquina() {
       <MensagemModal
         isOpen={isMensagemOpen}
         onClose={() => setIsMensagemOpen(false)}
-        selectedMachine={selectedMachine}
-      />
-      <StatusAlarmModal
-        isOpen={isStatusOpen}
-        onClose={() => setIsStatusOpen(false)}
-        selectedMachine={selectedMachine}
-      />
-      <DetalhesMaquina
-        isOpen={isDetailsOpen}
-        onClose={() => setIsDetailsOpen(false)}
         selectedMachine={selectedMachine}
       />
     </div>

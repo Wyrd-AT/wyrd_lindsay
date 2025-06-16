@@ -83,7 +83,7 @@ export default function TensionGraph({ data }) {
       );
 
       return {
-        label: `MT ${mt}`,
+        label: `Vão ${mt}`,
         data: pts,
         fill: false,
         borderWidth: 2,
@@ -149,7 +149,7 @@ export default function TensionGraph({ data }) {
             value={viewMode}
             onChange={(e) => setViewMode(e.target.value)}
           >
-            <option value="mt">MT Individual</option>
+            <option value="mt">Vão Individual</option>
             <option value="tower">Por Torre</option>
           </select>
         </div>
@@ -157,7 +157,7 @@ export default function TensionGraph({ data }) {
         {/* MT ou Torre */}
         {viewMode === 'mt' ? (
           <div>
-            <label className="text-sm">MT:</label>
+            <label className="text-sm">Vão:</label>
             <select
               className="ml-2 p-1 rounded bg-[#2b2b2b] text-white"
               value={selectedMt}
