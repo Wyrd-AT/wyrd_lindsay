@@ -59,5 +59,5 @@ const syncHandler = localDB.sync(remoteDB, {
 });
 
 // Export sync handler for potential cleanup
-export const sync = syncHandler;
+export const sync = syncHandler; // 
 

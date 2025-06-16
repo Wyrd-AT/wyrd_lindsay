@@ -1,3 +1,14 @@
+/* 
+  ESP REDE
+    Efetua a comunicação do Arduino com o banco de dados (MQTT)
+    Gera WDT para o Arduino efetuar o ENABLE quando reiniciado ou reenergizado o sistema
+
+  DA VERSÃO
+    Ajustada a comunicação pela UART do Arduino
+    Somente envia ao MQTT se a String enviada pelo Arduino iniciar pelo myID
+    Envia comandos escritos ao Arduino pelo Monitor Serial
+*/
+
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
@@ -5,20 +16,21 @@
 #include <ArduinoQueue.h>
 
 // Acrescido para conversar com Arduino via hwrdware até solução definitiva para Comunicação Serial
-  int WDT = 0; int ACK = 0; int ALM = 0;  // WDT, ACK e Alarme !!!!
-  int t0 = 0; int t1 = 0; int t2 = 0;     // auxiliar WDT, ACK e Alarme
+  int WDT = 0;            // WDT
+  int t0 = 0;             // auxiliar WDT
+  String myID("222222");  // para selecionar o que deve ser transmitido para Arduino e/ou Wifi
 
 // Configuração do Wi‑Fi
-// const char* ssid = "RUT200_920F";
-// const char* password = "Lindsay2025";
-const char* ssid = "RUT200_6911"; //"TCL 505"; //"RUT200_6911";
-const char* password = "Fy17PkQa"; //"hfw1fhe5"; //"Fy17PkQa";
+// const char* ssid = "RUT200_6911"; 
+// const char* password = "Fy17PkQa"; 
+const char* ssid = "TPLINK_B7F8F6";
+const char* password = "tomodashi";
 
 // Configuração do Broker MQTT
 const char* mqttServer = "54.211.31.145";
 const int   mqttPort   = 1883;
 const char* topicPub   = "lindsay/pivo01";
-const char* topicSub   = "lindsay/comandos";
+const char* topicSub   = "lindsay/comandos/111111";
 
 WiFiClient     espClient;
 PubSubClient   client(espClient);
@@ -71,10 +83,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     msg += char(payload[i]);
   }
   Serial.println(msg);
-  mySerial.println(msg);
-  msg.trim();                              // Envia via hardware ao Arduino !!!!
-  if (msg == "111111;alarme") { ALM = 1; } // Envia via hardware ao Arduino !!!!
-  if (msg == "111111;ack")    { ACK = 1; } // Envia via hardware ao Arduino !!!!
+  if (msg.substring(0, 6) == myID) { mySerial.println(msg); }
 }
 
 // Reconexão MQTT não‑bloqueante
@@ -96,6 +105,7 @@ void mqttReconnect() {
 
 void setup() {
   Serial.begin(57600);
+  Serial.setTimeout(500);
   mySerial.begin(57600);
 
   WiFi.mode(WIFI_STA);
@@ -128,12 +138,8 @@ void setup() {
 
   configTime(-3 * 3600, 0, "pool.ntp.org", "time.nist.gov"); 
 
-  pinMode(13, OUTPUT);    // Solicitação de Alarme !!!!
-  pinMode(14, OUTPUT);    // ACK !!!!
-  pinMode(27, OUTPUT);    // saida WDT !!!!
-  digitalWrite(13, LOW);  // Solicitação de Alarme -> HIGH !!!!
-  digitalWrite(14, LOW);  // ACK -> HIGH !!!!
-  digitalWrite(27, LOW);  // WDT -> inicia em zero !!!!
+  pinMode(27, OUTPUT);    // saida WDT 
+  digitalWrite(27, LOW);  // WDT -> inicia em zero 
 }
 
 void loop() {
@@ -143,32 +149,33 @@ void loop() {
   if (mySerial.available()) {
     String data = mySerial.readString();
     Serial.println("Recebido do Arduino: " + data);
-    mySerial.println("hello world"); // incluido isso aqui, ainda não funcionou !!!!
-
-    int start = 0;
-    int sep;
-    while ((sep = data.indexOf('&', start)) != -1) {
-      String msg = data.substring(start, sep);
-      msg.trim();
-      if (msg.length() > 0) {
-        if (horaSincronizada && msg.length() > 7 && msg.charAt(6) == ';') {
-          String dt = getFormattedDateTime();
-          msg = msg.substring(0,7) + dt + ";" + msg.substring(7);
+    if (data.substring(0, 6) == "222222") {  // envia somente mensagem identificada ao BD
+      // Serial.println("rotina para enviar");
+      int start = 0;
+      int sep;
+      while ((sep = data.indexOf('&', start)) != -1) {
+        String msg = data.substring(start, sep);
+        msg.trim();
+        if (msg.length() > 0) {
+          if (horaSincronizada && msg.length() > 7 && msg.charAt(6) == ';') {
+            String dt = getFormattedDateTime();
+            msg = msg.substring(0,7) + dt + ";" + msg.substring(7);
+          }
+          enqueueSeguro(msg);
         }
-        enqueueSeguro(msg);
+        start = sep + 1;
       }
-      start = sep + 1;
-    }
-    // Último fragmento (ou único)
-    if (start < data.length()) {
-      String msg = data.substring(start);
-      msg.trim();
-      if (msg.length() > 0) {
-        if (horaSincronizada && msg.length() > 7 && msg.charAt(6) == ';') {
-          String dt = getFormattedDateTime();
-          msg = msg.substring(0,7) + dt + ";" + msg.substring(7);
+      // Último fragmento (ou único)
+      if (start < data.length()) {
+        String msg = data.substring(start);
+        msg.trim();
+        if (msg.length() > 0) {
+          if (horaSincronizada && msg.length() > 7 && msg.charAt(6) == ';') {
+            String dt = getFormattedDateTime();
+            msg = msg.substring(0,7) + dt + ";" + msg.substring(7);
+          }
+          enqueueSeguro(msg);
         }
-        enqueueSeguro(msg);
       }
     }
   }
@@ -213,16 +220,14 @@ void loop() {
     delay(50);
   }
 
-  // Conversa com Arduino via Hardware
-    t0++; if (t0 > 100) { WDT = 1 - WDT; t0 = 0; } // ciclo WDT 5s
-    if (ALM == 1) { t1++; } 
-    if (ALM == 1 && t1 > 60) { t1 = 0; ALM = 0; }  // pulsa 3s
-    if (ACK == 1) { t2++; } 
-    if (ALM == 1 && t2 > 60) { t2 = 0; ACK = 0; }  // pulsa 3s
-    if (ALM == 1) { digitalWrite(13, HIGH); } else { digitalWrite(13, LOW); }
-    if (ACK == 1) { digitalWrite(14, HIGH); } else { digitalWrite(14, LOW); }
+  // 5) WDT para Arduino via Hardware e comandos via monitor serial
+    t0++; if (t0 > 25) { WDT = 1 - WDT; t0 = 0; } // ciclo WDT ~5s
     if (WDT == 1) { digitalWrite(27, HIGH); } else { digitalWrite(27, LOW); }
-    
+    if (Serial.available()) {
+      String cmd = Serial.readString();
+      Serial.println(cmd);
+      mySerial.println(cmd);
+    }
 
   delay(50);
 }
