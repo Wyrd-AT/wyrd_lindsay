@@ -1,5 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { FiAlertOctagon, FiChevronDown, FiChevronUp, FiClock } from "react-icons/fi";
+import {
+  FiAlertOctagon,
+  FiChevronDown,
+  FiChevronUp,
+  FiClock
+} from "react-icons/fi";
 import AlertEdit from "./alertEdit.jsx";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 
@@ -32,6 +37,15 @@ function getStatusBadge(status) {
 export default function AlertHistory({ machineId }) {
   const [isOpen, setIsOpen] = useState(true);
   const parsed = useParsedMessages();
+
+  // Map de exibição amigável
+  const irrigadorIdMap = {
+    "111111": "1",
+    "222222": "2",
+    "333333": "3"
+  };
+  const getDisplayName = (id) => `IRRIGADOR ${irrigadorIdMap[id] || id}`;
+
   const idClean = machineId.replace("IRRIGADOR ", "");
 
   // Captura toggle
@@ -46,7 +60,6 @@ export default function AlertHistory({ machineId }) {
     [parsed, idClean]
   );
 
-  // Para simular status variados
   const STATUSES = ["Não resolvido", "Em progresso", "Resolvido"];
   const statusMapRef = useRef({});
   useEffect(() => {
@@ -65,22 +78,22 @@ export default function AlertHistory({ machineId }) {
         id,
         date: dt.toLocaleDateString(),
         time: dt.toLocaleTimeString(),
-        machine: `IRRIGADOR ${msg.irrigadorId}`,
+        machine: getDisplayName(msg.irrigadorId),
         description: `Tipo: ${msg.eventType} | Código: ${msg.eventCode}`,
-        status: statusMapRef.current[id],
+        status: statusMapRef.current[id]
       };
     });
   }, [alertsFromDB]);
 
-  // Verifica se existe algum alerta não resolvido para pintar o título
-  const hasUnresolved = realAlerts.some((alert) => alert.status === "Não resolvido");
+  const hasUnresolved = realAlerts.some(
+    (alert) => alert.status === "Não resolvido"
+  );
 
   const [selectedStatus, setSelectedStatus] = useState("Todos");
   const filteredAlerts = realAlerts.filter((a) =>
     selectedStatus === "Todos" ? true : a.status === selectedStatus
   );
 
-  // Modal de edição
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
   const handleRowClick = (alert) => {
@@ -98,35 +111,32 @@ export default function AlertHistory({ machineId }) {
       onToggle={handleToggle}
       open={isOpen}
     >
+      <summary
+        className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
+          hasUnresolved ? "pb-1 text-red-600" : ""
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center">Histórico de Alertas</div>
 
-<summary
-  className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
-    hasUnresolved ? "pb-1 text-red-600" : ""
-  }`}
-  onClick={(e) => e.stopPropagation()}
->
-  <div className="flex items-center">
-    Histórico de Alertas
-  </div>
+        <div className="flex items-center space-x-3">
+          {realAlerts.some((a) => a.status === "Em progresso") && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-white">
+              <FiClock className="mr-1" size={14} />
+              {realAlerts.filter((a) => a.status === "Em progresso").length}
+            </span>
+          )}
 
-  <div className="flex items-center space-x-3">
-    {realAlerts.some(a => a.status === "Em progresso") && (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-white">
-        <FiClock className="mr-1" size={14} />
-        {realAlerts.filter(a => a.status === "Em progresso").length}
-      </span>
-    )}
+          {realAlerts.some((a) => a.status === "Não resolvido") && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
+              <FiAlertOctagon className="mr-1" size={14} />
+              {realAlerts.filter((a) => a.status === "Não resolvido").length}
+            </span>
+          )}
 
-    {realAlerts.some(a => a.status === "Não resolvido") && (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
-        <FiAlertOctagon className="mr-1" size={14} />
-        {realAlerts.filter(a => a.status === "Não resolvido").length}
-      </span>
-    )}    
-
-    {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
-  </div>
-</summary>
+          {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
+        </div>
+      </summary>
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {["Todos", ...STATUSES].map((st) => (

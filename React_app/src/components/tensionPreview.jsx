@@ -91,7 +91,7 @@ export default function TensionPreview({ selectedMachine }) {
                 }
                 className="p-3 rounded shadow flex flex-col items-center text-sm bg-[#313131]"
               >
-                <span className="font-medium mb-1">MT {mt}</span>
+                <span className="font-medium mb-1">Vão {mt}</span>
                 <span
                   className={`text-2xl font-semibold mb-0 ${
                     isLow ? "text-red-600" : "text-white"

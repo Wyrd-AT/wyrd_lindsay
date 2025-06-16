@@ -164,7 +164,7 @@ export default function TensionGraph({ data }) {
               onChange={(e) => setSelectedMt(Number(e.target.value))}
             >
               {mts.map((m) => (
-                <option key={m} value={m}>MT {m}</option>
+                <option key={m} value={m}>Vão {m}</option>
               ))}
             </select>
           </div>

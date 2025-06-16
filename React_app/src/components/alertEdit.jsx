@@ -1,14 +1,20 @@
-// src/components/alertEdit.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { IoClose } from "react-icons/io5";
 import { FiShare2 } from "react-icons/fi";
+import dbStore from "../stores/dbStore";
 
-const NOTIFICATION_CHANNELS = ["SMS", "WhatsApp", "E-mail", "Ligação"];
-const ACTIONS = [
-  { label: "Ligar Alarme", style: "bg-green-500 hover:bg-green-600" },
-  { label: "Desligar Alarme", style: "bg-yellow-500 hover:bg-yellow-600" },
-  { label: "Ativar Sirene", style: "bg-red-500 hover:bg-red-600" },
-];
+// Mapeamento para display
+const irrigadorIdMap = {
+  "111111": "1",
+  "222222": "2",
+  "333333": "3",
+};
+
+const formatAlertId = (alertId) => {
+  const [rawId, index] = alertId.split("-");
+  const mapped = irrigadorIdMap[rawId] || rawId;
+  return `#${mapped}-${index}`;
+};
 
 function getStatusBadge(status) {
   switch (status) {
@@ -36,6 +42,10 @@ function getStatusBadge(status) {
 }
 
 export default function AlertEdit({ isOpen, onClose, alertData }) {
+  const [loading, setLoading] = useState(false);
+  const [responseMsg, setResponseMsg] = useState("");
+  const loadingRef = useRef(false);
+
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", handleEsc);
@@ -43,9 +53,10 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
   }, [onClose]);
 
   if (!isOpen || !alertData) return null;
+
   const {
-    id,
-    machine,
+    id,            // ex: "111111-0"
+    machine,       // ex: "IRRIGADOR 1"
     date,
     time,
     status,
@@ -54,22 +65,50 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
     history = [],
   } = alertData;
 
+  const rawId = id.split("-")[0]; // ex: "111111"
+
+  const handleSirene = async () => {
+    if (loadingRef.current) return;
+
+    loadingRef.current = true;
+    setLoading(true);
+    setResponseMsg("");
+
+    try {
+      const topic = `lindsay/comandos/${rawId}`;
+      console.log(rawId)
+      const payload = `${rawId};ack`;
+      const doc = {
+        topic,
+        payload,
+        origin: "alert-edit",
+        qos: 0,
+        timestamp: new Date().toISOString(),
+      };
+      console.log("[AlertEdit] Enviando comando:", doc);
+      await dbStore.postData(doc);
+      setResponseMsg("✅ Comando enviado com sucesso!");
+    } catch (err) {
+      console.error("[AlertEdit] Erro ao enviar comando:", err);
+      setResponseMsg("❌ Falha ao enviar comando.");
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      {/* backdrop */}
       <div className="absolute inset-0 bg-black opacity-50" />
-
-      {/* modal */}
       <div
         role="dialog"
         aria-modal="true"
         className="relative bg-[#2f2f2f] text-white p-6 rounded-md w-full max-w-md flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* close button */}
         <button
           className="absolute top-4 right-4 text-2xl text-white hover:text-gray-300"
           onClick={onClose}
@@ -82,16 +121,15 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="uppercase text-xs text-gray-400 mb-1">ALERTA</p>
-            <h3 className="text-lg font-semibold flex items-baseline gap-2">
-              <span>#{id}</span>
+            <h3 className="text-lg font-semibold flex flex-col gap-1">
+              <span>{formatAlertId(id)}</span>
+              <span className="text-sm text-gray-300">{machine}</span>
             </h3>
           </div>
           <div className="flex items-center gap-2">
             <span className="px-2 py-1 text-xs bg-gray-800 rounded">{date}</span>
             <span className="px-2 py-1 text-xs bg-gray-800 rounded">{time}</span>
-            <span className="px-3 py-1">
-              {getStatusBadge(status)}
-            </span>
+            <span className="px-3 py-1">{getStatusBadge(status)}</span>
           </div>
         </div>
 
@@ -100,33 +138,46 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
         <textarea
           className="w-full bg-[#3a3a3a] text-white p-2 rounded mb-4 text-sm resize-none h-20"
           value={description}
-          // onChange={(e) => /* atualizar descrição no state */}
+          readOnly
         />
 
         {/* AÇÕES */}
         <div className="flex flex-wrap gap-2 mb-4">
-          {ACTIONS.map((act) => (
-            <button
-              key={act.label}
-              className={`${act.style} text-white text-xs font-medium px-3 py-1 rounded-full`}
-            >
-              {act.label}
-            </button>
-          ))}
+          {/* <button className="bg-green-500 text-white text-xs font-medium px-3 py-1 rounded-full">
+            Ligar Alarme
+          </button>
+          <button className="bg-yellow-500 text-white text-xs font-medium px-3 py-1 rounded-full">
+            Desligar Alarme
+          </button> */}
+          <button
+            className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1 rounded-full"
+            onClick={handleSirene}
+            disabled={loading}
+          >
+            {loading ? "Enviando..." : "Desativar Sirene"}
+          </button>
         </div>
 
-{/* #E83838 #C7A20D #42AE10 */}
+        {responseMsg && (
+          <p
+            className={`mb-4 text-sm ${
+              responseMsg.startsWith("✅") ? "text-green-400" : "text-red-400"
+            }`}
+          >
+            {responseMsg}
+          </p>
+        )}
 
         {/* NOTIFICAÇÕES */}
         <div className="flex items-center gap-4 mb-4 text-sm">
           <span>Notificações</span>
-          {NOTIFICATION_CHANNELS.map((chan) => (
+          {["WhatsApp"].map((chan) => (
             <label key={chan} className="flex items-center gap-1">
               <input
                 type="checkbox"
                 className="form-checkbox"
                 checked={!!notifications[chan]}
-                // onChange={() => /* toggle channel */}
+                readOnly
               />
               <span>{chan}</span>
             </label>

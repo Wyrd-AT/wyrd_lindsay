@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import SideBar from "../components/sidebar";
@@ -11,7 +11,6 @@ import TensaoModal from "../components/tensionModal";
 
 import useParsedMessages from "../hooks/useParsedMessages";
 
-// import inline components
 import StatusHistory from "../components/statusHistory";
 import TensionPreview from "../components/tensionPreview";
 
@@ -20,44 +19,47 @@ export default function MaquinaRevenda() {
   const navigate = useNavigate();
   const parsed = useParsedMessages();
 
-  const machines = Array.from(new Set(parsed.map((m) => m.irrigadorId))).map(
-    (id) => `IRRIGADOR ${id}`
-  );
+  // Mapeamento de IDs → nomes curtos
+  const irrigadorIdMap = {
+    "111111": "1",
+    "222222": "2",
+    "333333": "3",
+  };
 
-  const defaultMachine = machineId
-    ? `IRRIGADOR ${machineId}`
-    : machines[0] || "";
+  const getDisplayName = (id) => `IRRIGADOR ${irrigadorIdMap[id] || id}`;
 
-  const [selectedMachine, setSelectedMachine] = useState(defaultMachine);
+  // Lista de IDs reais únicos
+  const machineIds = useMemo(() => {
+    return Array.from(new Set(parsed.map((m) => m.irrigadorId)));
+  }, [parsed]);
+
+  // Estado: ID real selecionado (ex: "111111")
+  const [selectedMachineId, setSelectedMachineId] = useState(machineId || machineIds[0] || "");
   const [isTensaoOpen, setIsTensaoOpen] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [flash, setFlash] = useState(false);
 
+  // Atualiza selectedMachineId quando a URL muda
   useEffect(() => {
     if (machineId) {
-      setSelectedMachine(`IRRIGADOR ${machineId}`);
+      setSelectedMachineId(machineId);
+    } else if (machineIds.length > 0) {
+      setSelectedMachineId(machineIds[0]);
     }
-  }, [machineId]);
+  }, [machineId, machineIds]);
 
-  useEffect(() => {
-    if (!machineId && machines.length > 0) {
-      setSelectedMachine(machines[0]);
-    }
-  }, [machines, machineId]);
-
-  const handleMachineChange = (machine) => {
-    setSelectedMachine(machine);
-    const id = machine.replace("IRRIGADOR ", "");
-    navigate(`/clientes/${clientId}/machines/${id}`);
-
+  // Quando usuário muda o irrigador
+  const handleMachineChange = (id) => {
+    setSelectedMachineId(id);
+    navigate(`/maquina/${id}`);
     setFlash(true);
     setTimeout(() => setFlash(false), 200);
   };
 
   const handleExport = () => {
-    console.log("Exportando dados de", selectedMachine);
+    console.log("Exportando dados de", selectedMachineId);
   };
 
   return (
@@ -65,13 +67,13 @@ export default function MaquinaRevenda() {
       className={`w-full h-full text-white flex bg-[#313131] transition-opacity duration-200 ${
         flash ? "opacity-50" : "opacity-100"
       }`}
-      key={selectedMachine}
+      key={selectedMachineId}
     >
       <SideBar />
       <BodyContent>
-        {/* Remove onAlarm e onTension para tirar os botões */}
         <SelectExport
-          machines={machines}
+          machines={machineIds} // passa os IDs reais
+          getDisplayName={getDisplayName} // passa função de nome formatado
           redirectBase={`/maquina`}
           onMachineChange={handleMachineChange}
           onclick_details={() => setIsDetailsOpen(true)}
@@ -79,13 +81,10 @@ export default function MaquinaRevenda() {
           onExport={handleExport}
         />
 
-        <StatusHistory selectedMachine={selectedMachine} />
-
-        <AlertHistory machineId={selectedMachine} />
-
-        {/* Agora só o preview — o expand fica dentro do próprio TensionPreview */}
+        <StatusHistory selectedMachine={selectedMachineId} />
+        <AlertHistory machineId={selectedMachineId} />
         <TensionPreview
-          selectedMachine={selectedMachine}
+          selectedMachine={selectedMachineId}
           onExpand={() => setIsTensaoOpen(true)}
         />
       </BodyContent>
@@ -94,12 +93,12 @@ export default function MaquinaRevenda() {
       <TensaoModal
         isOpen={isTensaoOpen}
         onClose={() => setIsTensaoOpen(false)}
-        selectedMachine={selectedMachine}
+        selectedMachine={selectedMachineId}
       />
       <MensagemModal
         isOpen={isMensagemOpen}
         onClose={() => setIsMensagemOpen(false)}
-        selectedMachine={selectedMachine}
+        selectedMachine={selectedMachineId}
       />
     </div>
   );
