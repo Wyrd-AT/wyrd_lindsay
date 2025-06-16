@@ -21,9 +21,15 @@ export default function HomePageRevenda() {
 
   // Lista de irrigadores únicos com IDs reais
   const machines = useMemo(() => {
-    if (isLoading || error) return [];
-    return Array.from(new Set(parsedMessages.map((m) => m.irrigadorId)));
-  }, [parsedMessages, isLoading, error]);
+  if (isLoading || error) return [];
+  return Array.from(
+    new Set(
+      parsedMessages
+        .map((m) => m.irrigadorId)
+        .filter((id) => typeof id === "string" && id.trim() !== "")
+    )
+  );
+}, [parsedMessages, isLoading, error]);
 
   // Última data de alerta por ID
   const getLastAlertDate = (id) => {
@@ -91,11 +97,13 @@ export default function HomePageRevenda() {
           "
         >
           {machines.length > 0 ? (
-            machines.map((id) => (
+            [...machines]
+            .sort((a, b) => getAlertCount(b) - getAlertCount(a)) // 🔁 ordena do maior para o menor
+            .map((id) => (
               <IrrigadorCard
                 key={id}
-                machineId={id} // ID real
-                displayName={`IRRIGADOR ${getMachineDisplayName(id)}`} // nome exibido
+                machineId={id}
+                displayName={`IRRIGADOR ${getMachineDisplayName(id)}`}
                 lastAlertDate={getLastAlertDate(id)}
                 alertCount={getAlertCount(id)}
               />

@@ -16,6 +16,22 @@ const formatAlertId = (alertId) => {
   return `#${mapped}-${index}`;
 };
 
+function getBrasiliaTimestamp() {
+  const dt = new Date();
+
+  // Converte para horário de Brasília
+  const brTime = new Date(
+    dt.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })
+  );
+
+  // Ajusta o offset de -03:00
+  const offsetMs = brTime.getTimezoneOffset() * 60000;
+  const localISO = new Date(brTime.getTime() - offsetMs).toISOString();
+
+  // Insere manualmente o fuso -03:00
+  return localISO.replace("Z", "-03:00");
+}
+
 function getStatusBadge(status) {
   switch (status) {
     case "Não resolvido":
@@ -45,6 +61,7 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
   const [loading, setLoading] = useState(false);
   const [responseMsg, setResponseMsg] = useState("");
   const loadingRef = useRef(false);
+
 
   useEffect(() => {
     const handleEsc = (e) => e.key === "Escape" && onClose();
@@ -81,9 +98,10 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
       const doc = {
         topic,
         payload,
-        origin: "alert-edit",
+        origin: "app",
+        type: "command",
         qos: 0,
-        timestamp: new Date().toISOString(),
+        timestamp: getBrasiliaTimestamp()
       };
       console.log("[AlertEdit] Enviando comando:", doc);
       await dbStore.postData(doc);

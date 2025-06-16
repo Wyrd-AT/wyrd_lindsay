@@ -18,13 +18,15 @@ export default function SelectExport({
 
   // 1) monta as opções com ID real como value, e displayName como label
   const options = useMemo(
-    () =>
-      machines.map((id) => ({
+  () =>
+    machines
+      .filter((id) => typeof id === "string" && id.trim() !== "") // 🧹 remove undefined, null ou string vazia
+      .map((id) => ({
         value: id,
-        label: getDisplayName(id)
+        label: getDisplayName(id) || `Irrigador ${id}` // fallback se função falhar
       })),
-    [machines, getDisplayName]
-  );
+  [machines, getDisplayName]
+);
 
   const [selectedOption, setSelectedOption] = useState(null);
   const [inputValue, setInputValue] = useState("");
