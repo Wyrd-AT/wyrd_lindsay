@@ -4,16 +4,25 @@ import { useParsedMessages } from "../hooks/useParsedMessages";
 
 // Componente de card de status
 function StatusCard({ mt, status }) {
-  const colorClass =
-    status.includes("OK")
-      ? "text-green-400"
-      : status.includes("Rec")
-      ? "text-yellow-400"
-      : status.includes("Alarmado")
-      ? "text-red-400"
-      : "text-gray-500";
+  const isOK = status.includes("OK");
+  const isResolved = status.includes("Resolvido");
+  const isAlarm = status.includes("Alarmado");
+  const isRec = status.includes("Rec");
 
-  const borderStyle = status.includes("Alarmado")
+  // Texto que aparece no card
+  const displayStatus = isRec
+    ? "Alarme reconhecido"
+    : status;
+
+  // Cor do texto
+  const colorClass = (isOK || isResolved)
+    ? "text-green-400"
+    : (isAlarm || isRec)
+    ? "text-red-400"
+    : "text-gray-500";
+
+  // Borda somente em alarmes ativos
+  const borderStyle = isAlarm
     ? { border: "2px solid #f87171" }
     : { border: "2px solid transparent" };
 
@@ -24,7 +33,7 @@ function StatusCard({ mt, status }) {
     >
       <span className="text-xs font-medium">Vão {mt}</span>
       <span className={`mt-1 text-xs font-semibold whitespace-nowrap ${colorClass}`}>
-        {status}
+        {displayStatus}
       </span>
     </div>
   );
@@ -32,9 +41,6 @@ function StatusCard({ mt, status }) {
 
 export default function StatusHistory({ selectedMachine }) {
   const [isOpen, setIsOpen] = useState(true);
-  const [filter, setFilter] = useState("Todos");
-  const [sortBy, setSortBy] = useState("urgencia");
-
   const machineId = selectedMachine.replace("IRRIGADOR ", "");
   const parsed = useParsedMessages();
 
@@ -45,39 +51,14 @@ export default function StatusHistory({ selectedMachine }) {
   }, [parsed, machineId]);
 
   const last = statuses[0] || null;
-  const filteredStatus = last
-    ? last.status.filter(({ mt }) => mt >= 1 && mt <= 14)
+  const statusesToShow = last
+    ? last.status
+        .filter(({ status }) => status && status.trim() !== "")
+        .slice(0, 14)
     : [];
 
-  const hasAlarm = filteredStatus.some(({ status }) => status.includes("Alarmado"));
-  const alarmCount = filteredStatus.filter(({ status }) => status.includes("Alarmado")).length;
-  const recCount = filteredStatus.filter(({ status }) => status.includes("Rec")).length;
-
-  const filteredAndSorted = useMemo(() => {
-    let arr = filteredStatus;
-
-    if (filter === "Alarmado") {
-      arr = arr.filter(({ status }) => status.includes("Alarmado"));
-    } else if (filter === "Reconhecido") {
-      arr = arr.filter(({ status }) => status.includes("Rec"));
-    } else if (filter === "OK") {
-      arr = arr.filter(({ status }) => status.includes("OK"));
-    }
-
-    if (sortBy === "mtAsc") {
-      arr = [...arr].sort((a, b) => a.mt - b.mt);
-    } else if (sortBy === "urgencia") {
-      const prioridade = (status) => {
-        if (status.includes("Alarmado")) return 0;
-        if (status.includes("Rec")) return 1;
-        if (status.includes("OK")) return 2;
-        return 3;
-      };
-      arr = [...arr].sort((a, b) => prioridade(a.status) - prioridade(b.status));
-    }
-
-    return arr;
-  }, [filteredStatus, filter, sortBy]);
+  const alarmCount = statusesToShow.filter(({ status }) => status.includes("Alarmado")).length;
+  const recCount = statusesToShow.filter(({ status }) => status.includes("Rec")).length;
 
   const handleToggle = (e) => {
     setIsOpen(e.target.open);
@@ -91,81 +72,37 @@ export default function StatusHistory({ selectedMachine }) {
     >
       <summary
         className={`flex items-center justify-between cursor-pointer font-semibold text-lg select-none mb-2 ${
-          hasAlarm ? "pb-1 text-red-600" : ""
+          alarmCount > 0 ? "pb-1 text-red-600" : ""
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center">
-          Status de Alarmes
-        </div>
-
+        <div className="flex items-center">Status de Alarmes</div>
         <div className="flex items-center space-x-3">
+          {/* Reconhecidos em vermelho */}
           {recCount > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-white">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
               <FiSettings className="mr-1" size={14} />
               {recCount}
             </span>
           )}
-
+          {/* Alarmados em vermelho */}
           {alarmCount > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
               <FiSettings className="mr-1" size={14} />
               {alarmCount}
             </span>
           )}
-
+          {/* Último timestamp */}
+          {last && (
+            <span className="text-xs text-gray-300 whitespace-nowrap">
+              Último: {new Date(last.timestamp).toLocaleString()}
+            </span>
+          )}
           {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
         </div>
       </summary>
-
-      {/* Linha fora do summary, com flex, tudo em uma linha sem espaçamento extra label/div */}
-      <div className="flex flex-wrap items-center gap-8 mb-4">
-        <div className="flex items-center gap-2">
-          <label className="font-semibold text-sm">Filtrar:</label>
-          {["Todos", "Alarmado", "Reconhecido", "OK"].map((f) => (
-            <button
-              key={f}
-              className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                filter === f
-                  ? "bg-white text-[#444444]"
-                  : "bg-[#616061] text-gray-300 hover:bg-gray-700"
-              }`}
-              onClick={() => setFilter(f)}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label className="font-semibold text-sm">Ordenar:</label>
-          {[
-            { id: "mtAsc", label: "Vãos" },
-            { id: "urgencia", label: "Urgência" },
-          ].map(({ id, label }) => (
-            <button
-              key={id}
-              className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                sortBy === id
-                  ? "bg-white text-[#444444]"
-                  : "bg-[#616061] text-gray-300 hover:bg-gray-700"
-              }`}
-              onClick={() => setSortBy(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {last && (
-          <span className="ml-auto text-gray-300 text-xs whitespace-nowrap">
-            Último status: {new Date(last.timestamp).toLocaleString()}
-          </span>
-        )}
-      </div>
-
       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1">
-        {filteredAndSorted.map(({ mt, status }) => (
+        {statusesToShow.map(({ mt, status }) => (
           <StatusCard key={mt} mt={mt} status={status} />
         ))}
       </div>

@@ -16,7 +16,7 @@ STATUS_MAP = {
     '0': 'OK',
     '1': 'Alarmado',
     '2': 'Reconhecido',
-    '3': 'Desconhecido',
+    '3': 'Resolvido',
     '4': 'Desconhecido',
     '5': 'Desconhecido',
     '6': 'Desconhecido',
