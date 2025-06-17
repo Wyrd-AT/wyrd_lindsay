@@ -4,6 +4,30 @@ import { IoClose } from "react-icons/io5";
 import dbStore from "../stores/dbStore";
 import { useParsedMessages } from "../hooks/useParsedMessages";
 
+// Função utilitária para gerar ISO string no fuso de Brasília
+function getBrasiliaTimestamp() {
+  const dtf = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(new Date());
+  const year   = parts.find(p => p.type === "year").value;
+  const month  = parts.find(p => p.type === "month").value;
+  const day    = parts.find(p => p.type === "day").value;
+  const hour   = parts.find(p => p.type === "hour").value;
+  const minute = parts.find(p => p.type === "minute").value;
+  const second = parts.find(p => p.type === "second").value;
+
+  // Ajusta o offset de -03:00 (horário de Brasília)
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`;
+}
+
 export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
   const [comando, setComando] = useState("");
   const [loading, setLoading] = useState(false);
@@ -47,11 +71,12 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
     try {
       const payload = `${machineId};${comando}`;
       const doc = {
-        topic: `lindsay/comandos`,
+        topic: `lindsay/comandos/${machineId}`,
         payload,
         origin: "app",
+        type: "command",
         qos: 0,
-        timestamp: new Date().toISOString(),
+        timestamp: getBrasiliaTimestamp(), // agora no fuso de Brasília
       };
       console.log("[MensagemModal] enviando doc:", doc);
       await dbStore.postData(doc);
@@ -130,7 +155,9 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
                   className="flex justify-between bg-[#2b2b2b] p-3 rounded"
                 >
                   <span className="text-gray-300 text-sm">
-                    {new Date(msg.timestamp).toLocaleString()}
+                    {new Date(msg.timestamp).toLocaleString("pt-BR", {
+                      timeZone: "America/Sao_Paulo",
+                    })}
                   </span>
                   <span className="text-white">{msg.command}</span>
                 </li>
