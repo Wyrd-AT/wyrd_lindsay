@@ -10,11 +10,12 @@ export default function SideBar() {
       className="
         sticky top-0 left-0
         w-[100px] bg-[#444444]
-        py-8 flex flex-col items-center
+        flex flex-col items-center
         h-screen
         z-10
       "
     >
+      {/* Logo */}
       <img
         src="/FieldNetLogo.png"
         alt="FieldNet Logo"
@@ -36,7 +37,6 @@ export default function SideBar() {
       {/* Perfil */}
       <button
         onClick={() => {
-          // lógica de logout aqui
           console.log("Perfil");
         }}
         className="text-white hover:text-green-500 mb-4"
@@ -44,19 +44,23 @@ export default function SideBar() {
         <BiUser size={40} />
       </button>
 
-      {/* Espaço flexível para empurrar o logout pro final */}
+      {/* Espaço flexível para empurrar o rodapé */}
       <div className="flex-grow" />
 
       {/* Logout */}
       <button
         onClick={() => {
-          // lógica de logout aqui
           console.log("Logout!");
         }}
         className="text-white hover:text-green-500 mb-4"
       >
         <FiLogOut size={40} />
       </button>
+
+      {/* Versão no rodapé */}
+      <div className="mt-auto text-gray-300 text-xs">
+        FieldNet v0.3
+      </div>
     </div>
   );
 }
