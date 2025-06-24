@@ -1,8 +1,8 @@
 // components/MensagemModal.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { IoClose } from "react-icons/io5";
-import dbStore from "../stores/dbStore";
 import { useParsedMessages } from "../hooks/useParsedMessages";
+import { useMessageStore } from "../stores/messageStore";
 
 // Função utilitária para gerar ISO string no fuso de Brasília
 function getBrasiliaTimestamp() {
@@ -79,7 +79,7 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
         timestamp: getBrasiliaTimestamp(), // agora no fuso de Brasília
       };
       console.log("[MensagemModal] enviando doc:", doc);
-      await dbStore.postData(doc);
+      await useMessageStore.getState().postMessage(doc);
       setResponseMsg("✅ Comando enviado com sucesso!");
       setComando("");
     } catch (err) {

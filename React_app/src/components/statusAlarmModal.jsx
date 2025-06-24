@@ -1,8 +1,9 @@
 // components/StatusAlarmModal.jsx
 import React, { useEffect, useState } from "react";
 import { IoClose } from "react-icons/io5";
-import dbStore from "../stores/dbStore";
+// import dbStore from "../stores/dbStore";
 import { useParsedMessages } from "../hooks/useParsedMessages";
+import { useMessageStore } from "../stores/messageStore";
 
 export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
   const machineId = selectedMachine.replace("IRRIGADOR ", "");
@@ -40,7 +41,7 @@ export default function StatusAlarmModal({ isOpen, onClose, selectedMachine }) {
         qos: 0,
         timestamp: new Date().toISOString(),
       };
-      await dbStore.postData(doc);
+      await useMessageStore.getState().postMessage(doc);
       setResponseMsg(`✅ ${successText}`);
       setShowDetails(false);
     } catch {

@@ -1,6 +1,6 @@
 // pages/DebugPage.jsx
 import React, { useState, useMemo } from 'react';
-import dbStore from '../stores/dbStore';
+import { useMessageStore } from '../stores/messageStore';
 import { useParsedMessages } from '../hooks/useParsedMessages';
 
 const DebugPage = () => {
@@ -22,7 +22,7 @@ const DebugPage = () => {
     };
 
     try {
-      await dbStore.postData(novoDocumento);
+      await useMessageStore.getState().postMessage(novoDocumento);
       setTopic('');
       setPayload('');
     } catch (err) {

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import dbStore from './dbStore';
 import { localDB } from '../api/database';
 
 export const parseMessage = (doc) => {
@@ -63,36 +62,49 @@ const loadInitialMessages = async () => {
 };
 
 export const useMessageStore = create((set, get) => ({
-  // Map interno de _id → mensagem
   messagesMap: new Map(),
-  // Array derivado de mensagens válidas
   parsedMessages: [],
-  isLoading: true, // Start as loading
+  isLoading: true,
   error: null,
-  // Add sync status state
-  syncStatus: {
-    isSyncing: false,
-    docCountDiff: 0
-  },
 
-  // Update sync status
-  updateSyncStatus: (status) => {
-    set({ syncStatus: status });
-    // Update isLoading based on sync status
-    const { isSyncing, docCountDiff } = status;
-    set({ isLoading: isSyncing || docCountDiff > 0 });
-  },
-
-  // Initialize store with messages
   initialize: async () => {
     try {
+      console.log('[messageStore] initialize called');
       const { messagesMap, parsedMessages } = await loadInitialMessages();
       set({ 
         messagesMap, 
         parsedMessages,
-        // Don't set isLoading to false here - it will be controlled by sync status
+        isLoading: false
       });
+      console.log('[messageStore] initialize finished, loaded', parsedMessages.length, 'messages');
+      if (!get()._changesFeed) {
+        const changesFeed = localDB.changes({
+          since: 'now',
+          live: true,
+          include_docs: true
+        })
+        .on('change', (change) => {
+          if (change.doc && !change.doc._id.startsWith('_design/')) {
+            const msgObj = parseMessage(change.doc);
+            if (msgObj) {
+              set((state) => {
+                const map = new Map(state.messagesMap);
+                map.set(change.doc._id, msgObj);
+                const list = Array.from(map.values()).filter(m =>
+                  ['event', 'mtTension', 'command', 'monitorStatus'].includes(m.type)
+                );
+                return { messagesMap: map, parsedMessages: list };
+              });
+            }
+          }
+        })
+        .on('error', (err) => {
+          console.error('[messageStore] Changes feed error:', err);
+        });
+        set({ _changesFeed: changesFeed });
+      }
     } catch (err) {
+      console.error('[messageStore] initialize error', err);
       set({ 
         error: err.message,
         isLoading: false 
@@ -100,7 +112,6 @@ export const useMessageStore = create((set, get) => ({
     }
   },
 
-  // Upsert de uma mensagem parseada
   upsertMessage: (id, msgObj) => {
     const map = new Map(get().messagesMap);
     map.set(id, msgObj);
@@ -110,13 +121,50 @@ export const useMessageStore = create((set, get) => ({
     set({ messagesMap: map, parsedMessages: list });
   },
 
-  // Clear all messages
+  postMessage: async (doc) => {
+    try {
+      const response = await localDB.post(doc);
+      const msgObj = parseMessage({ ...doc, _id: response.id });
+      if (msgObj) get().upsertMessage(response.id, msgObj);
+      return response;
+    } catch (err) {
+      console.error('[messageStore] ERRO localDB.post:', err);
+      throw err;
+    }
+  },
+  saveMessage: async (doc) => {
+    try {
+      const response = await localDB.put(doc);
+      const msgObj = parseMessage(doc);
+      if (msgObj) get().upsertMessage(doc._id, msgObj);
+      return response;
+    } catch (err) {
+      console.error('[messageStore] Erro no saveMessage:', err);
+      throw err;
+    }
+  },
+  fetchMessages: async () => {
+    try {
+      const result = await localDB.allDocs({ include_docs: true });
+      return result.rows.map(row => row.doc);
+    } catch (err) {
+      console.error('[messageStore] Erro no fetchMessages:', err);
+      throw err;
+    }
+  },
+  readMessages: async (query) => {
+    try {
+      const result = await localDB.find(query);
+      return result.docs;
+    } catch (err) {
+      console.error('[messageStore] Erro no readMessages:', err);
+      throw err;
+    }
+  },
+
   clearMessages: () => {
     set({ messagesMap: new Map(), parsedMessages: [] });
   }
 }));
-
-// Initialize the store immediately
-useMessageStore.getState().initialize();
 
 export default useMessageStore;

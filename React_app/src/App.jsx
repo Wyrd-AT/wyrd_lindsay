@@ -11,7 +11,6 @@ import ClientMachinesPage from "./pages/clientMachinesPage";
 import MaquinaRevenda from "./pages/machineRevenda";
 import TensionGraphPage from "./pages/tensionGraphPage";
 
-
 function App() {
   return (
     <Router>
@@ -32,7 +31,7 @@ function App() {
           element={<ClientMachinesPage />}
         />
 
-        {/* detalhe “máquina” dentro do contexto de cliente */}
+        {/* detalhe "máquina" dentro do contexto de cliente */}
         <Route
           path="/clientes/:clientId/machines/:machineId"
           element={<MaquinaRevenda />}

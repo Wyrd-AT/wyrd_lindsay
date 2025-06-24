@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useMessageStore } from '../stores/messageStore';
+import React from 'react';
+import { getSyncActiveCount } from '../stores/syncCounterStore';
 
 const modalStyle: React.CSSProperties = {
   position: 'fixed',
@@ -11,80 +11,49 @@ const modalStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
-  zIndex: 1000
+  zIndex: 1000,
+  pointerEvents: 'auto',
+  userSelect: 'none',
 };
 
 const modalContentStyle: React.CSSProperties = {
   backgroundColor: '#313131',
-  padding: '20px',
+  padding: '32px 40px',
   borderRadius: '8px',
   minWidth: '300px',
   maxWidth: '500px',
   boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)',
-  color: 'white'
+  color: 'white',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  fontSize: '1.2em',
 };
-
-const progressBarStyle: React.CSSProperties = {
-  width: '100%',
-  height: '20px',
-  backgroundColor: '#444444',
-  borderRadius: '10px',
-  marginTop: '10px',
-  overflow: 'hidden'
-};
-
-const progressFillStyle = (progress: number): React.CSSProperties => ({
-  width: `${progress}%`,
-  height: '100%',
-  backgroundColor: '#4CAF50',
-  transition: 'width 0.3s ease-in-out'
-});
 
 const SyncProgressModal: React.FC = () => {
-  const store = useMessageStore();
-  const syncStatus = store.syncStatus || { isSyncing: false, docCountDiff: 0 };
-  const docCountDiff = syncStatus.docCountDiff || 0;
-  const [initialCount, setInitialCount] = useState<number | null>(null);
+  // Use syncActiveCount from syncCounterStore
+  const [syncActiveCount, setSyncActiveCount] = React.useState(getSyncActiveCount());
 
-  // Track initial count when sync starts
-  useEffect(() => {
-    if (docCountDiff > 0 && !initialCount) {
-      setInitialCount(docCountDiff);
-    } else if (docCountDiff === 0) {
-      setInitialCount(null);
-    }
-  }, [docCountDiff]);
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setSyncActiveCount(getSyncActiveCount());
+    }, 200);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Show modal for any sync operation
-  if (docCountDiff === 0 && !syncStatus.isSyncing) {
+  if (syncActiveCount === 0) {
     return null;
   }
 
-  // Calculate progress based on initial count
-  const progress = initialCount 
-    ? Math.max(0, Math.min(100, ((initialCount - docCountDiff) / initialCount) * 100))
-    : 0;
-
   return (
-    <div style={modalStyle}>
+    <div style={modalStyle} tabIndex={-1}>
       <div style={modalContentStyle}>
-        <h2 style={{ margin: '0 0 15px 0', color: '#4CAF50' }}>Sincronizando Banco de Dados</h2>
-        <p style={{ margin: '0 0 10px 0', color: '#ccc' }}>
-          {syncStatus.isSyncing 
-            ? `Sincronizando ${docCountDiff.toLocaleString()} documentos restantes...`
-            : 'Preparando sincronização...'}
-        </p>
-        <div style={progressBarStyle}>
-          <div style={progressFillStyle(progress)} />
+        <h2 style={{ margin: '0 0 15px 0', color: '#4CAF50', fontWeight: 600 }}>
+          Sincronizando Banco de Dados...
+        </h2>
+        <div style={{ marginTop: 16, color: '#ccc', fontSize: '1em' }}>
+          Aguarde enquanto os dados são carregados.
         </div>
-        <p style={{ 
-          margin: '10px 0 0 0', 
-          fontSize: '0.9em', 
-          color: '#ccc',
-          textAlign: 'center' 
-        }}>
-          {progress.toFixed(1)}% concluído
-        </p>
       </div>
     </div>
   );

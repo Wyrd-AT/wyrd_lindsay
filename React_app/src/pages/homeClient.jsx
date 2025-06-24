@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import { useMessageStore } from "../stores/messageStore";
 import BodyContent from "../components/body";
 import Header from "../components/header";
@@ -9,6 +9,13 @@ import SyncProgressModal from "../components/SyncProgressModal";
 
 export default function HomePageRevenda() {
   const { parsedMessages, isLoading, error } = useMessageStore();
+
+  useEffect(() => {
+    // Ensure messages are loaded when the home page is opened
+    useMessageStore.getState().initialize();
+  }, []);
+
+  console.log('[homeClient] render', { isLoading, error, parsedMessagesLength: parsedMessages.length });
 
   // Mapeamento de IDs para exibição
   const irrigadorIdMap = {
@@ -21,15 +28,17 @@ export default function HomePageRevenda() {
 
   // Lista de irrigadores únicos com IDs reais
   const machines = useMemo(() => {
-  if (isLoading || error) return [];
-  return Array.from(
-    new Set(
-      parsedMessages
-        .map((m) => m.irrigadorId)
-        .filter((id) => typeof id === "string" && id.trim() !== "")
-    )
-  );
-}, [parsedMessages, isLoading, error]);
+    if (isLoading || error) return [];
+    const result = Array.from(
+      new Set(
+        parsedMessages
+          .map((m) => m.irrigadorId)
+          .filter((id) => typeof id === "string" && id.trim() !== "")
+      )
+    );
+    console.log('[homeClient] machines', result);
+    return result;
+  }, [parsedMessages, isLoading, error]);
 
   // Última data de alerta por ID
   const getLastAlertDate = (id) => {
@@ -49,6 +58,7 @@ export default function HomePageRevenda() {
 
   // Carregando...
   if (isLoading) {
+    console.log('[homeClient] isLoading true, showing loading UI');
     return (
       <div className="w-full h-screen text-white flex bg-[#313131]">
         <SyncProgressModal />
@@ -65,6 +75,7 @@ export default function HomePageRevenda() {
 
   // Erro ao carregar
   if (error) {
+    console.log('[homeClient] error, showing error UI', error);
     return (
       <div className="w-full h-screen text-white flex bg-[#313131]">
         <SyncProgressModal />
@@ -82,6 +93,7 @@ export default function HomePageRevenda() {
   }
 
   // Interface principal
+  console.log('[homeClient] showing main UI', machines);
   return (
     <div className="w-full h-screen text-white flex bg-[#313131]">
       <SyncProgressModal />

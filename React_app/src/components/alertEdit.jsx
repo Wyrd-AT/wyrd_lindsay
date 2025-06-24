@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { IoClose } from "react-icons/io5";
 import { FiShare2 } from "react-icons/fi";
-import dbStore from "../stores/dbStore";
+import { useMessageStore } from "../stores/messageStore";
 
 // Mapeamento para display
 const irrigadorIdMap = {
@@ -104,7 +104,7 @@ export default function AlertEdit({ isOpen, onClose, alertData }) {
         timestamp: getBrasiliaTimestamp()
       };
       console.log("[AlertEdit] Enviando comando:", doc);
-      await dbStore.postData(doc);
+      await useMessageStore.getState().postMessage(doc);
       setResponseMsg("✅ Comando enviado com sucesso!");
     } catch (err) {
       console.error("[AlertEdit] Erro ao enviar comando:", err);

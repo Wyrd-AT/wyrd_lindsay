@@ -1,6 +1,5 @@
 // src/hooks/useParsedMessages.js
 import { useEffect } from 'react';
-import dbStore from '../stores/dbStore';
 import { useMessageStore } from '../stores/messageStore';
 
 export function useParsedMessages() {
