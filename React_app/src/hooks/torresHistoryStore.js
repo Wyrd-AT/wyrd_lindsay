@@ -46,7 +46,7 @@ const useTorresHistoryStore = () => {
         }
 
         // Converte para um Date válido
-        const [year, month, day] = datePart.split("-").map(Number);
+        const [year,day, month ] = datePart.split("-").map(Number);
         const [hour, minute, second] = timePart.split(":").map(Number);
         const dt = new Date(year, month - 1, day, hour, minute, second);
 

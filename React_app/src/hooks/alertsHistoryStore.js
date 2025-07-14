@@ -23,7 +23,6 @@ const useHistoricoAlertasStore = () => {
           return null;
         }
         const [idFrag, rawDate, value] = parts;
-        console.log(idFrag)
 
         if (!value || value.length < 5) {
           console.warn("Mensagem inválida (payload curto):", data);
@@ -44,7 +43,7 @@ const useHistoricoAlertasStore = () => {
           return null;
         }
 
-        const [year, month, day] = dateItems.map(Number);
+        const [year,day, month ] = dateItems.map(Number);
         const [hour, minute, second] = timeItems.map(Number);
         const dt = new Date(year, month - 1, day, hour, minute, second);
 
@@ -61,7 +60,6 @@ const useHistoricoAlertasStore = () => {
           minute: "2-digit",
           second: "2-digit",
         });
-        console.log(value.substring(1, 3))
 
         const irrigadorId = idFrag.replace(/\D/g, "");
         const alarme = value[0];
@@ -77,7 +75,6 @@ const useHistoricoAlertasStore = () => {
 
     // Adiciona os novos alertas ao histórico
     const novoHistorico = [ ...processed];
-    console.log(novoHistorico)
 
     // Elimina duplicatas por irrigadorId+date
     const uniqueMap = new Map();

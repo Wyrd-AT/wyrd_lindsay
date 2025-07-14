@@ -88,3 +88,15 @@ The results will be displayed in the console:
 There are a Deprecartion Warning in 'punycode' module.
 The version used is punycode@2.3.1, that is not deprecated.
 The warning can be ignored.
+
+
+apagar 
+
+{
+  "selector": {
+    "table": {
+      "$regex": "command"
+    }
+  },
+  "limit": 2000
+}

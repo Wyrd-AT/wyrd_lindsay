@@ -29,7 +29,7 @@ export default function CustomDatePicker({ value, onChange, label }) {
         calendarClassName="custom-datepicker"
         className="
           bg-[#2b2b2b] text-white text-xs p-1 rounded
-          border border-green-500
+          border border-[#08cb7c]
           focus:outline-none focus:border-green-600
           w-36 flex-shrink-0
         "

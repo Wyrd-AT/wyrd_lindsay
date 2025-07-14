@@ -58,192 +58,78 @@ function getStatusBadge(status) {
 }
 
 export default function AlertEdit({ isOpen, onClose, alertData }) {
-  const [loading, setLoading] = useState(false);
-  const [responseMsg, setResponseMsg] = useState("");
-  const loadingRef = useRef(false);
 
-
-  useEffect(() => {
-    const handleEsc = (e) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", handleEsc);
-    return () => document.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
-
-  if (!isOpen || !alertData) return null;
-
-  const {
-    id,            // ex: "111111-0"
-    machine,       // ex: "IRRIGADOR 1"
-    date,
-    time,
-    status,
-    description,
-    notifications = {},
-    history = [],
-  } = alertData;
-
-  const rawId = id.split("-")[0]; // ex: "111111"
-
-  const handleSirene = async () => {
-    if (loadingRef.current) return;
-
-    loadingRef.current = true;
-    setLoading(true);
-    setResponseMsg("");
-
-    try {
-      const topic = `lindsay/comandos/${rawId}`;
-      //console.log(rawId)
-      const payload = `${rawId};ack`;
-      const doc = {
-        topic,
-        payload,
-        origin: "app",
-        type: "command",
-        qos: 0,
-        timestamp: getBrasiliaTimestamp()
-      };
-      //console.log("[AlertEdit] Enviando comando:", doc);
-      await useMessageStore.getState().postMessage(doc);
-      setResponseMsg("✅ Comando enviado com sucesso!");
-    } catch (err) {
-      console.error("[AlertEdit] Erro ao enviar comando:", err);
-      setResponseMsg("❌ Falha ao enviar comando.");
-    } finally {
-      setLoading(false);
-      loadingRef.current = false;
-    }
-  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-black opacity-50" />
+      <div className="absolute inset-0 bg-black opacity-25" />
       <div
         role="dialog"
         aria-modal="true"
-        className="relative bg-[#2f2f2f] text-white p-6 rounded-md w-full max-w-md flex flex-col"
+        className="relative bg-[#2f2f2f] text-white  rounded-md w-full max-w-md flex flex-col items-center align-middle justify-between"
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          className="absolute top-4 right-4 text-2xl text-white hover:text-gray-300"
-          onClick={onClose}
-          aria-label="Fechar"
-        >
-          <IoClose />
-        </button>
-
-        {/* HEADER */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="uppercase text-xs text-gray-400 mb-1">ALERTA</p>
-            <h3 className="text-lg font-semibold flex flex-col gap-1">
-              <span>{formatAlertId(id)}</span>
-              <span className="text-sm text-gray-300">{machine}</span>
-            </h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-1 text-xs bg-gray-800 rounded">{date}</span>
-            <span className="px-2 py-1 text-xs bg-gray-800 rounded">{time}</span>
-            <span className="px-3 py-1">{getStatusBadge(status)}</span>
-          </div>
-        </div>
-
-        {/* DESCRIÇÃO */}
-        <label className="text-sm text-gray-300 mb-1">Descrição:</label>
-        <textarea
-          className="w-full bg-[#3a3a3a] text-white p-2 rounded mb-4 text-sm resize-none h-20"
-          value={description}
-          readOnly
-        />
-
-        {/* AÇÕES */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {/* <button className="bg-green-500 text-white text-xs font-medium px-3 py-1 rounded-full">
-            Ligar Alarme
-          </button>
-          <button className="bg-yellow-500 text-white text-xs font-medium px-3 py-1 rounded-full">
-            Desligar Alarme
-          </button> */}
+        <div className=" text-white p-4 rounded-md w-full max-w-md flex flex-row items-center align-middle justify-between">
+          <div>Alerta</div>
           <button
-            className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium px-3 py-1 rounded-full"
-            onClick={handleSirene}
-            disabled={loading}
+            className=""
+            onClick={onClose}
+            aria-label="Fechar"
           >
-            {loading ? "Enviando..." : "Desativar Sirene"}
+            <IoClose />
           </button>
         </div>
-
-        {responseMsg && (
-          <p
-            className={`mb-4 text-sm ${
-              responseMsg.startsWith("✅") ? "text-green-400" : "text-red-400"
-            }`}
-          >
-            {responseMsg}
+        <div className="w-full max-w-md flex flex-row items-center align-middle justify-between px-4">
+          <div>
+            ID
+          </div>
+          <div>
+            data
+          </div>
+          <div>
+            hora
+          </div>
+          <div className="border rounded-full border-red-500 text-red-500 px-4">
+            status
+          </div>
+        </div>
+        <div className="w-full max-w-md flex flex-col items-center align-middle justify-between py-2 px-4">
+          <p className=" w-full max-w-md py-2">
+            Descrição
           </p>
-        )}
+          <textarea className="w-full max-w-md rounded-md bg-[#444444]">
 
-        {/* NOTIFICAÇÕES */}
-        <div className="flex items-center gap-4 mb-4 text-sm">
-          <span>Notificações</span>
-          {["WhatsApp"].map((chan) => (
-            <label key={chan} className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                className="form-checkbox"
-                checked={!!notifications[chan]}
-                readOnly
-              />
-              <span>{chan}</span>
-            </label>
-          ))}
+          </textarea>
+        </div>
+        <div className="w-full max-w-md flex flex-col items-center align-middle justify-between pb-2 px-4">
+          <p className=" w-full max-w-md py-2">
+            Responsável
+          </p>
+          <textarea className="w-full max-w-md rounded-md bg-[#444444]">
+
+          </textarea>
+        </div>
+        <div className="w-full max-w-md flex flex-row items-center align-middle  pb-2 px-4">
+          <div className="border rounded-full border-green-500 bg-green-500 px-4 mr-2">
+            Ligar Alarme
+          </div>
+          <div className="border rounded-full border-yellow-500 bg-yellow-500 px-4">
+            Desligar Alarme
+          </div>
+
+        </div>
+        <div className="w-full max-w-md flex flex-row items-center align-middle  pb-2 px-4">
+          
         </div>
 
-        {/* REATIVAR ALARME */}
-        <div className="flex items-center gap-2 mb-4 text-sm">
-          <label>Ativar alarme novamente em:</label>
-          <select className="bg-[#3a3a3a] border-b border-gray-600 px-2 py-1 rounded text-xs">
-            <option value="15">15 MINUTOS</option>
-            <option value="30">30 MINUTOS</option>
-            <option value="60">1 HORA</option>
-            <option value="120">2 HORAS</option>
-            <option value="1440">1 DIA</option>
-          </select>
-        </div>
 
-        {/* HISTÓRICO */}
-        <div className="flex-1 overflow-y-auto mb-4 px-2 py-1 bg-[#3a3a3a] rounded text-xs">
-          {history.length === 0 ? (
-            <p className="text-gray-400">Sem histórico.</p>
-          ) : (
-            history.map((evt, i) => (
-              <div key={i} className="flex items-start gap-2 mb-1">
-                <span className="w-1 bg-gray-500 h-full mt-1" />
-                <div>
-                  <p className="text-gray-300">
-                    {evt.date} às {evt.time}
-                  </p>
-                  <p>{evt.text}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
 
-        {/* FOOTER */}
-        <div className="flex items-center justify-between">
-          <button className="flex items-center gap-1 text-sm px-3 py-1 rounded border border-gray-500 hover:bg-gray-700">
-            <FiShare2 />
-            <span>exportar</span>
-          </button>
-          <button className="bg-green-500 hover:bg-green-600 text-white text-sm px-5 py-2 rounded-full">
-            SALVAR
-          </button>
-        </div>
+
       </div>
+
     </div>
   );
 }

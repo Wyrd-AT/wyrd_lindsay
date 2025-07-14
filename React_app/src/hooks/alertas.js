@@ -6,7 +6,7 @@ const useAlertasStore = () => {
 
   const alerts = useMemo(() => {
     if (isLoading || error) return [];
-    //console.log(parsedMessages)
+    //////console.log(parsedMessages)
 
     const processed = parsedMessages
       // 1) garante que data existe e é string, além do filtro por origin/type
@@ -46,7 +46,7 @@ const useAlertasStore = () => {
         }
 
         // 3) converte tudo pra Number e monta o Date
-        const [year, month, day] = dateItems.map(Number);
+        const [year,  day,month] = dateItems.map(Number);
         const [hour, minute, second] = timeItems.map(Number);
         const dt = new Date(year, month - 1, day, hour, minute, second);
 

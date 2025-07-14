@@ -21,7 +21,7 @@ export default function IrrigadorCard({
     <Link
       to={`/maquina/${machineId}`}
       className={`
-        flex flex-row w-1/4 h-48
+        flex flex-row w-fit h-48 px-4 justify-center
         bg-[#39393a] hover:bg-[#4a4a4b]
         rounded-lg overflow-hidden
         transition-shadow shadow-sm hover:shadow-md

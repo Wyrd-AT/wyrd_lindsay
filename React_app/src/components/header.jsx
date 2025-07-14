@@ -61,7 +61,7 @@ export default function Header({ page }) {
           </div>
           {/*
           <button
-            className="flex items-center gap-2 bg-green-500 text-black font-medium px-3 md:px-4 py-2 rounded-full hover:bg-green-600 transition-colors"
+            className="flex items-center gap-2 bg-[#08cb7c] text-black font-medium px-3 md:px-4 py-2 rounded-full hover:bg-green-600 transition-colors"
             onClick={openModal}
           >
             adicionar cliente
@@ -118,7 +118,7 @@ export default function Header({ page }) {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-md bg-green-500 text-white hover:bg-green-600"
+                  className="px-4 py-2 rounded-md bg-[#08cb7c] text-white hover:bg-green-600"
                 >
                   Salvar
                 </button>

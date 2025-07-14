@@ -61,7 +61,7 @@ export default function MaquinaRevenda() {
   };
 
   const handleExport = () => {
-    //console.log("Exportando dados de", selectedMachine);
+    //////console.log("Exportando dados de", selectedMachine);
   };
 
   return (

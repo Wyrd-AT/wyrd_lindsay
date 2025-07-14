@@ -191,7 +191,7 @@ export default function TensionGraph({ data }) {
               filterType === opt
                 ? 'bg-green-600 text-white'
                 : 'bg-[#2b2b2b] text-gray-200'
-            } hover:bg-green-500`}
+            } hover:bg-[#08cb7c]`}
           >
             {opt === '1h'  ? '1h'
              : opt === '24h'? '24h'

@@ -60,25 +60,18 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
     setResponseMsg("");
     setInputError("");
 
-    // Bloqueia comandos de alarme aqui
-    if (comando.toLowerCase().includes("alarme")) {
-      setInputError("Para enviar alarmes, utilize o botão Status Alarme.");
-      setLoading(false);
-      loadingRef.current = false;
-      return;
-    }
-
+    
     try {
       const payload = `${machineId};${comando}`;
       const doc = {
         topic: `lindsay/comandos/${machineId}`,
         payload,
         origin: "app",
-        type: "command",
+        table: "command",
         qos: 0,
         timestamp: getBrasiliaTimestamp(), // agora no fuso de Brasília
       };
-      //console.log("[MensagemModal] enviando doc:", doc);
+      //////console.log("[MensagemModal] enviando doc:", doc);
       await useMessageStore.getState().postMessage(doc);
       setResponseMsg("✅ Comando enviado com sucesso!");
       setComando("");

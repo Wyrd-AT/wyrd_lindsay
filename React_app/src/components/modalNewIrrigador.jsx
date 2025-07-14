@@ -31,7 +31,7 @@ export const ModalIrrigador = ({ closeModal }) => {
       setError('Por favor, informe um nome para o irrigador.')
       return
     }
-    const apelido = nameRef.current.value.trim()
+    const apelido = apelidoRef.current.value.trim()
     if (!apelido) {
       setError('Por favor, informe um apelido para o irrigador.')
       return
@@ -172,7 +172,7 @@ export const ModalIrrigador = ({ closeModal }) => {
               px-4 py-2 rounded-md text-white 
               ${isSaving
                 ? 'bg-gray-500 cursor-not-allowed'
-                : 'bg-green-500 hover:bg-green-600'}
+                : 'bg-[#08cb7c] hover:bg-green-600'}
             `}
           >
             {isSaving ? 'Salvando...' : 'Salvar'}

@@ -17,11 +17,11 @@ export default function HomePageRevenda() {
     () => irrigadores.map(doc => doc.codigo),
     [irrigadores]
   );
-  console.log(irrigadorIds)
+  ////console.log(irrigadorIds)
 
   // { [id]: { vectorsSW: string[], latestSW: string|null } }
   const swMap = useVetorSw(irrigadorIds);
-  console.log(swMap)
+  ////console.log(swMap)
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
@@ -36,7 +36,7 @@ export default function HomePageRevenda() {
           <h1 className="text-2xl font-bold">Irrigadores</h1>
           <button
             onClick={openModal}
-            className="bg-green-500 p-2 rounded-lg font-bold"
+            className="bg-[#08cb7c] p-2 rounded-lg font-bold"
           >
             + Adicionar Irrigador
           </button>

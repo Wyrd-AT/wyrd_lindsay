@@ -3,7 +3,7 @@ import { localDB } from '../api/database';
 
 export const parseMessage = (doc) => {
   if (!doc || doc._id.startsWith('_design/') || !doc.type) return null;
-  const tipos = ['mqtt_messages'];
+  const tipos = ['mqtt_messages','command'];
   if (!tipos.includes(doc.table)) return null;
 
   const base = {
@@ -44,12 +44,12 @@ export const parseMessage = (doc) => {
 // Load initial messages from PouchDB
 const loadInitialMessages = async () => {
   try {
-    console.log('[messageStore] loadInitialMessages');
+    ////console.log('[messageStore] loadInitialMessages');
     const result = await localDB.allDocs({ include_docs: true });
-    //console.log('[messageStore] loadInitialMessages result', result);
+    //////console.log('[messageStore] loadInitialMessages result', result);
 
     const messagesMap = new Map();
-    //console.log('[messageStore] result', result, result.rows.length);
+    //////console.log('[messageStore] result', result, result.rows.length);
     result.rows.forEach(row => {
       const msgObj = parseMessage(row.doc);
       if (msgObj) {
@@ -76,17 +76,17 @@ export const useMessageStore = create((set, get) => ({
 
   initialize: async () => { 
     try {
-      console.log('[messageStore] initialize called');
+      ////console.log('[messageStore] initialize called');
       const { messagesMap, parsedMessages } = await loadInitialMessages();
-      console.log(messagesMap)
-      console.log(messagesMap)
+      ////console.log(messagesMap)
+      ////console.log(messagesMap)
 
       set({
         messagesMap,
         parsedMessages,
         isLoading: false
       });
-      console.log('[messageStore] initialize finished, loaded', parsedMessages.length, 'messages');
+      ////console.log('[messageStore] initialize finished, loaded', parsedMessages.length, 'messages');
       if (!get()._changesFeed) {
         const changesFeed = localDB.changes({
           since: 'now',
@@ -101,9 +101,9 @@ export const useMessageStore = create((set, get) => ({
                   const map = new Map(state.messagesMap);
                   map.set(change.doc._id, msgObj);
                   const list = Array.from(map.values()).filter(m =>
-                    ['mqtt_messages'].includes(m.table)
+                    ['mqtt_messages', 'command'].includes(m.table)
                   );
-                  console.log(list)
+                  ////console.log(list)
                   return { messagesMap: map, parsedMessages: list };
                 });
               }
@@ -127,7 +127,7 @@ export const useMessageStore = create((set, get) => ({
     const map = new Map(get().messagesMap);
     map.set(id, msgObj);
     const list = Array.from(map.values()).filter(m =>
-      ['mqtt_messages'].includes(m.table)
+      ['mqtt_messages','command'].includes(m.table)
     );
     set({ messagesMap: map, parsedMessages: list });
   },

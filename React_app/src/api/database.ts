@@ -6,10 +6,9 @@ PouchDB.plugin(PouchDBFind);
 
 // Database connections
 export const localDB = new PouchDB('lindsay');
-export const localDB2 = new PouchDB('lindsay2');
 export const remoteDB = new PouchDB('https://admin:wyrd@db.vpn.ind.br/mqtt_data', { skip_setup: true });
 
-console.log('[Database] Ready for manual sync and changes management.');
+////console.log('[Database] Ready for manual sync and changes management.');
 
 // Callable function to start localDB.changes listener
 export function startLocalDBChanges(onChange, onError) {
@@ -40,9 +39,9 @@ export function startSyncHandler() {
   return localDB.sync(remoteDB, {
     live: true,
     retry: true,
-    batch_size: 5000, 
+    batch_size: 50000, 
     selector: {
-      table: { $in: ['mqtt_messages','irrigadores'] }
+      table: { $in: ['mqtt_messages','irrigadores','command'] }
     }
   })
   .on('paused', (info) => {

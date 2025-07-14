@@ -1,45 +1,48 @@
+// src/App.jsx
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+
+import SyncProvider from "./components/SyncProvider";
+import SyncProgressModal from "./components/SyncProgressModal";
 
 import Login from "./pages/login";
 import HomePageRevenda from "./pages/homeClient";
 import Maquina from "./pages/machine";
 import ResetPass from "./pages/resetPass";
 import DebugPage from "./pages/testedb";
-//import ClientesPage from "./pages/pageClients";
 import ClientMachinesPage from "./pages/clientMachinesPage";
 import MaquinaRevenda from "./pages/machineRevenda";
 import TensionGraphPage from "./pages/tensionGraphPage";
 
-function App() {
+export default function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/resetPass" element={<ResetPass />} />
-        <Route path="/home" element={<HomePageRevenda />} />
+    // 1) Starta a replicação e contador de sync
+    <SyncProvider>
+      <Router>
+        {/* 2) Modal global de progresso de sync */}
+        <SyncProgressModal />
 
-        <Route path="/maquina/:machineId" element={<Maquina />} />
-        <Route path="/maquina/:machineId/tensao" element={<TensionGraphPage />} />
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/resetPass" element={<ResetPass />} />
+          <Route path="/home" element={<HomePageRevenda />} />
 
-        <Route path="/debug" element={<DebugPage />} />
+          <Route path="/maquina/:machineId" element={<Maquina />} />
+          <Route path="/maquina/:machineId/tensao" element={<TensionGraphPage />} />
 
-        {/* clientes */}
-        {/* <Route path="/clientes" element={<ClientesPage />} /> */}
-        <Route
-          path="/clientes/:clientId/machines"
-          element={<ClientMachinesPage />}
-        />
+          <Route path="/debug" element={<DebugPage />} />
 
-        {/* detalhe "máquina" dentro do contexto de cliente */}
-        <Route
-          path="/clientes/:clientId/machines/:machineId"
-          element={<MaquinaRevenda />}
-        />
+          <Route
+            path="/clientes/:clientId/machines"
+            element={<ClientMachinesPage />}
+          />
 
-      </Routes>
-    </Router>
+          <Route
+            path="/clientes/:clientId/machines/:machineId"
+            element={<MaquinaRevenda />}
+          />
+        </Routes>
+      </Router>
+    </SyncProvider>
   );
 }
-
-export default App;

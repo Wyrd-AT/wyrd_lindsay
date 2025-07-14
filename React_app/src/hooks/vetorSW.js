@@ -13,15 +13,15 @@ const STATUS_MAP = {
 // utilitário para parsear um vetor SW
 export function parseSwVector(raw) {
   const [irrigador, date, ...header] = raw.split(';');
-  //console.log(irrigador)
+  ////console.log(irrigador)
   // paineis: dois primeiros itens de 2 dígitos
   const paineis = header.slice(0, 2);
-  //console.log(paineis)
+  //////console.log(paineis)
   const torres =  header.slice(2,3)
   const monitores = header.slice(3);
 
   const paineisInfo = paineis.map(p => {
-    //console.log(p)
+    //////console.log(p)
     const [p1,p2] = p.split(';');
     return { statusAlarmeP1: STATUS_MAP[p1], statusAlarmeP2: STATUS_MAP[p2]};
   });
@@ -69,7 +69,7 @@ export function parseSwVector(raw) {
 
 export default function useVetorSw(irrigadorIds = []) {
   const { parsedMessages = [], isLoading, error, initialize } = useMessageStore();
-//console.log(parsedMessages)
+//////console.log(parsedMessages)
   useEffect(() => {
     initialize();
   }, [initialize]);
@@ -90,7 +90,6 @@ export default function useVetorSw(irrigadorIds = []) {
         const parts = d.split(';');
         return parts.length == 19 && irrigadorIds.includes(parts[0]);
       });
-    //console.log(raws)
     // agrupa por irrigador
     const grouped = raws.reduce((acc, raw) => {
       const id = raw.split(';')[0];
@@ -98,6 +97,7 @@ export default function useVetorSw(irrigadorIds = []) {
       acc[id].add(raw);
       return acc;
     }, {});
+    ////console.log(grouped)
 
     // monta resultado final
     const result = {};

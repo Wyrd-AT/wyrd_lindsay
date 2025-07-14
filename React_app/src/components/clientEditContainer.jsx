@@ -32,7 +32,7 @@ const ClientEditContainer = ({ page }) => {
         >
           <RiDeleteBinLine size={20} />
         </button>
-        <button className="flex items-center gap-2 bg-green-500 text-black font-medium px-4 py-2 rounded-full hover:bg-green-600 transition-colors">
+        <button className="flex items-center gap-2 bg-[#08cb7c] text-black font-medium px-4 py-2 rounded-full hover:bg-green-600 transition-colors">
           adicionar maquina
           <IoAdd size={20} />
         </button>
