@@ -40,7 +40,6 @@ export default function StatusAlarmModal({
     error: historyError
   } = useHistoricoAlertasStore();
 
-
   const [loading, setLoading] = useState(false);
   const [responseMsg, setResponseMsg] = useState("");
   const [collapsedSections, setCollapsedSections] = useState({});
@@ -53,113 +52,59 @@ export default function StatusAlarmModal({
     return () => document.removeEventListener("keydown", handleEsc);
   }, [isOpen, onClose]);
 
-
-
   const machineId = selectedMachine?.replace("IRRIGADOR ", "") || "";
-  const equipment = card?.title;
+  const equipment = card?.title || "";
 
-
+  // Puxa lista de irrigadores e monta mapeamento código→equipamento
   const irrigadores = useIrrigadores() || [];
-  //console.log(irrigadores)
-  // Filtra apenas os que derem true nessa comparação
-  const irrigador_analisado = irrigadores.filter(
+  const irrigador_analisado = irrigadores.find(
     (item) => item.codigo === machineId
   );
+  const equipamento_by_code = useMemo(() => {
+    if (!irrigador_analisado) return {};
+    return Object.fromEntries(
+      Array.from({ length: 13 }, (_, i) => {
+        const code = String(i + 1).padStart(2, "0"); // "01".."13"
+        const idx = i + 2; // posições 2..14 em equipamentos[]
+        return [code, irrigador_analisado.equipamentos[idx]];
+      })
+    );
+  }, [irrigador_analisado]);
 
-  const historico_do_irrigador_analisado = historicoAlertas.filter(
-    (item) => item.irrigadorId === machineId
-  )
+  // Descobre qual o código de monitor deste equipamento
+  const monitorCode = useMemo(() => {
+    const found = Object.entries(equipamento_by_code).find(
+      ([code, nome]) => nome === equipment
+    );
+    return found ? found[0] : "";
+  }, [equipamento_by_code, equipment]);
 
-  //console.log(irrigador_analisado);
-  console.log(historico_do_irrigador_analisado)
-
-
-  const equipamento_by_code = Object.fromEntries(
-    Array.from({ length: 13 }, (_, i) => {
-      const code = String(i + 1).padStart(2, "0");       // "01", "02", …, "13"
-      const idx = i + 2;// 2, 3, …, 14
-      return [code, irrigador_analisado[0]?.equipamentos[idx]];
-    })
-  );
-
-
-  //console.log(equipamento_by_code)
-
+  // Filtra histórico só deste irrigador → depois aplicamos apenas deste equipamento
   const filteredHistory = useMemo(() => {
-    if (
-      !historico_do_irrigador_analisado ||
-      !machineId ||
-      !equipamento_by_code
-    ) {
-      return [];
-    }
-
+    if (!machineId || !equipment) return [];
     return historicoAlertas.filter((item) => {
-      let equipamentoDoItem
-      if (item.monitor == 17) {
+      let equipamentoDoItem;
+      if (item.monitor === 17) {
         equipamentoDoItem = "Painel 1";
-
-      } else if (item.monitor == 18) {
+      } else if (item.monitor === 18) {
         equipamentoDoItem = "Painel 2";
-
-      }else if(item.monitor == "02" && item.alarme == "E"){
-        const monitor_numerico = parseFloat(item.monitor)+6
-        console.log(String("0"+monitor_numerico))
-        equipamentoDoItem = equipamento_by_code[String("0"+monitor_numerico)];
-
-
+      } else {
+        // padStart para garantir dois dígitos
+        const mon = String(item.monitor).padStart(2, "0");
+        equipamentoDoItem = equipamento_by_code[mon];
       }
-       else {
-        // mapeia o código do monitor para o equipamento real
-        equipamentoDoItem = equipamento_by_code[item.monitor];
-        // só inclui se o irrigador bater e o equipamento também
-      }
-      console.log(equipment)
       return (
         item.irrigadorId === machineId &&
         equipamentoDoItem === equipment
       );
     });
-  }, [
-    historicoAlertas,
-    machineId,
-    equipment,
-    equipamento_by_code
-  ]);
+  }, [historicoAlertas, machineId, equipment, equipamento_by_code]);
 
-  console.log(filteredHistory)
-
-  const historicoPorEquipamento = useMemo(() => {
-    return historicoAlertas.reduce((acumulador, item) => {
-      // só processa itens do irrigador atual
-      if (item.irrigadorId !== machineId) return acumulador;
-
-      // mapeia o código do monitor para o equipamento real
-      const equipamentoDoItem = equipamento_by_code[item.monitor];
-
-      // inicializa o array se ainda não existir
-      if (!acumulador[equipamentoDoItem]) {
-        acumulador[equipamentoDoItem] = [];
-      }
-
-      // adiciona o item ao grupo do equipamento
-      acumulador[equipamentoDoItem].push(item);
-
-      return acumulador;
-    }, {});
-  }, [
-    historicoAlertas,
-    machineId,
-    equipamento_by_code
-  ]);
-
-  // Exemplo de uso:
-  console.log(historicoPorEquipamento);
-  const sortedHistory = useMemo(() => {
-    return [...filteredHistory].sort(
-      (a, b) => new Date(b.date) - new Date(a.date)
-    );
-  }, [filteredHistory]);
+  // Ordena DESC por data
+  const sortedHistory = useMemo(
+    () => [...filteredHistory].sort((a, b) => new Date(b.date) - new Date(a.date)),
+    [filteredHistory]
+  );
 
   const formatDate = (iso) =>
     new Date(iso).toLocaleDateString("pt-BR");
@@ -185,29 +130,24 @@ export default function StatusAlarmModal({
     }));
   };
 
-  // --- Fim seção histórico ---
-
-  // Helper genérico para enviar comandos
+  // Envio genérico de comando MQTT
   const sendCommand = useCallback(
     async (command, successText) => {
       setLoading(true);
       setResponseMsg("");
       try {
         const payload = `${machineId};${command}`;
-        const doc = {
+        await postMessage({
           topic: `lindsay/comandos/${machineId}`,
           payload,
           origin: "app",
           table: "command",
           qos: 0,
           timestamp: new Date().toISOString()
-        };
-        await postMessage(doc);
+        });
         setResponseMsg(`✅ ${successText}`);
       } catch {
-        setResponseMsg(
-          `❌ Falha ao ${successText.toLowerCase()}.`
-        );
+        setResponseMsg(`❌ Falha ao ${successText.toLowerCase()}.`);
       } finally {
         setLoading(false);
       }
@@ -246,8 +186,7 @@ export default function StatusAlarmModal({
         {/* Status atuais do card */}
         <div className="grid grid-cols-2 gap-4 mb-6">
           {card.statuses.map((s) => {
-            const isTension =
-              s.label === "Falha por tensão"
+            const isTension = s.label === "Falha por tensão";
             const desc = isTension
               ? s.value
               : valueDescriptions[s.value] || s.value;
@@ -263,30 +202,17 @@ export default function StatusAlarmModal({
           })}
         </div>
 
-        {/* Botões de ação */}
+        {/* Botões de ação: usam monitorCode */}
         <div className="flex gap-2 mb-4">
           <button
             type="button"
             onClick={() =>
               sendCommand(
-                "alarme",
-                "Status solicitado com sucesso!"
-              )
-            }
-            disabled={loading}
-            className="flex-1 bg-gray-600 hover:bg-gray-700 disabled:opacity-50 px-4 py-2 rounded"
-          >
-            {loading ? "Solicitando..." : "Solicitar Status"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              sendCommand(
-                "set_alarmon",
+                `AlarmeON${monitorCode}`,
                 "Alarme ligado com sucesso!"
               )
             }
-            disabled={loading}
+            disabled={loading || !monitorCode}
             className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-2 rounded"
           >
             {loading ? "..." : "Ligar Alarme"}
@@ -295,36 +221,22 @@ export default function StatusAlarmModal({
             type="button"
             onClick={() =>
               sendCommand(
-                "set_alarmoff",
+                `AlarmeOFF${monitorCode}`,
                 "Alarme desligado com sucesso!"
               )
             }
-            disabled={loading}
+            disabled={loading || !monitorCode}
             className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 px-4 py-2 rounded"
           >
             {loading ? "..." : "Desligar Alarme"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              sendCommand(
-                "siren",
-                "Sirene disparada com sucesso!"
-              )
-            }
-            disabled={loading}
-            className="flex-1 bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 px-4 py-2 rounded"
-          >
-            {loading ? "..." : "Disparar Sirene"}
           </button>
         </div>
 
         {responseMsg && (
           <p
-            className={`mb-4 ${responseMsg.startsWith("✅")
-              ? "text-green-400"
-              : "text-red-400"
-              }`}
+            className={`mb-4 ${
+              responseMsg.startsWith("✅") ? "text-green-400" : "text-red-400"
+            }`}
           >
             {responseMsg}
           </p>
@@ -332,90 +244,58 @@ export default function StatusAlarmModal({
 
         {/* Histórico de alertas por equipamento */}
         <div className="mt-4">
-          <h3 className="text-lg font-semibold mb-2">
-            Histórico de Alertas
-          </h3>
-          <div
-            className="flex justify-between px-4 py-1 hover:bg-[#2a2a2a] rounded"
-          >
-            <span className="w-1/5">
-              Data
-            </span>
-            <span className="w-1/5">
-              Descrição
-            </span>
-            <span className="w-1/5">
-              Monitor
-            </span>
-            <span className="w-1/5">
-              Status
-            </span>
+          <h3 className="text-lg font-semibold mb-2">Histórico de Alertas</h3>
+
+          <div className="flex justify-between px-4 py-1 hover:bg-[#2a2a2a] rounded">
+            <span className="w-1/5">Data</span>
+            <span className="w-1/5">Descrição</span>
+            <span className="w-1/5">Monitor</span>
+            <span className="w-1/5">Status</span>
           </div>
 
           {isLoadingHistory ? (
             <p>Carregando histórico...</p>
           ) : historyError ? (
-            <p className="text-red-400">
-              Erro: {historyError.message}
-            </p>
+            <p className="text-red-400">Erro: {historyError.message}</p>
           ) : sortedHistory.length === 0 ? (
             <p>Nenhum alerta registrado ainda.</p>
           ) : (
             <div className="space-y-4">
-              {Object.entries(groupedByDate).map(
-                ([date, items]) => {
-                  const collapsed =
-                    collapsedSections[date];
-                  return (
-                    <div key={date}>
-                      <div
-                        className="flex items-center cursor-pointer bg-[#333] px-3 py-1 rounded"
-                        onClick={() =>
-                          toggleSection(date)
-                        }
-                      >
-
-                        {collapsed ? (
-                          <FiChevronDown />
-                        ) : (
-                          <FiChevronUp />
-                        )}
-                        <span className="ml-2 font-medium">
-
-                          {date}
-                        </span>
-                      </div>
-
-                      {!collapsed && (
-                        <div className="mt-2">
-
-                          {items.map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex justify-between px-4 py-1 hover:bg-[#2a2a2a] rounded"
-                            >
-                              <span className="w-1/5">
-                                {formatTime(item.date)}
-                              </span>
-                              <span className="w-1/5">
-                                {alarmTypeDescriptions[item.alarme]}
-                              </span>
-                              <span className="w-1/5">
-                                {item.monitor}
-                              </span>
-                              <span className="w-1/5">
-                                {valueDescriptions[
-                                  item.status
-                                ] || item.status}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+              {Object.entries(groupedByDate).map(([date, items]) => {
+                const collapsed = collapsedSections[date];
+                return (
+                  <div key={date}>
+                    <div
+                      className="flex items-center cursor-pointer bg-[#333] px-3 py-1 rounded"
+                      onClick={() => toggleSection(date)}
+                    >
+                      {collapsed ? <FiChevronDown /> : <FiChevronUp />}
+                      <span className="ml-2 font-medium">{date}</span>
                     </div>
-                  );
-                }
-              )}
+                    {!collapsed && (
+                      <div className="mt-2">
+                        {items.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex justify-between px-4 py-1 hover:bg-[#2a2a2a] rounded"
+                          >
+                            <span className="w-1/5">
+                              {formatTime(item.date)}
+                            </span>
+                            <span className="w-1/5">
+                              {alarmTypeDescriptions[item.alarme]}
+                            </span>
+                            <span className="w-1/5">{item.monitor}</span>
+                            <span className="w-1/5">
+                              {valueDescriptions[item.status] || item.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -2,8 +2,8 @@
 import React, { useState, useRef, useMemo } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import clsx from "clsx";
-import SyncProvider from "./SyncProvider";
 import useMessageStore from "../stores/messageStore";
+import SyncProvider from "./SyncProvider";
 import StatusAlarmModal from "./statusAlarmModal";
 
 // Mapeamento dos códigos para a descrição
@@ -23,17 +23,16 @@ function StatusCard({ title, statuses, onClick }) {
   const statusLabel = hasAlarmado
     ? "Alarmado"
     : hasReconhecido
-    ? "Reconhecido"
-    : allOK
-    ? "OK"
-    : "Desconhecido";
+      ? "Reconhecido"
+      : allOK
+        ? "OK"
+        : "Desconhecido";
 
   const classes = clsx(
     "h-full flex flex-col items-center justify-center rounded border-2 p-2 transition-colors duration-200 cursor-pointer",
     {
       "animate-blink-bg border-red-500 text-white": hasAlarmado,
-      "bg-red-500 border-transparent text-white":
-        !hasAlarmado && hasReconhecido,
+      "bg-red-500 border-transparent text-white": !hasAlarmado && hasReconhecido,
       "bg-[#08cb7c] border-[#08cb7c] text-white": allOK && !hasAlarmado,
       "bg-[#444444] border-transparent text-white":
         !allOK && !hasAlarmado && !hasReconhecido,
@@ -47,7 +46,7 @@ function StatusCard({ title, statuses, onClick }) {
       <div className="mt-2 flex flex-col items-start gap-1 text-xs">
         {statuses.map((s) => {
           const isTensionField =
-            s.label === "Falha por tensão" || s.label.includes("Tensão (V)");
+            s.label === "Falha por tensão" || s.label === "Tensão (V)";
           const desc = isTensionField
             ? s.value
             : valueDescriptions[s.value] || s.value;
@@ -123,7 +122,13 @@ export default function StatusHistory({
     return latestTensionEntry.split(";").slice(2);
   }, [latestTensionEntry]);
 
-  // 4) Monta os cards de status, agora incluindo tensão
+  // 3c) Remove as duas primeiras tensões (Painel1 e Painel2)
+  const shiftedTensions = useMemo(
+    () => tensionValues.slice(0),
+    [tensionValues]
+  );
+
+  // 4) Monta os cards de status
   const cards = useMemo(() => {
     if (!filteredByMachine.length || equipamentos.length < 3) return [];
 
@@ -131,7 +136,9 @@ export default function StatusHistory({
     const [rawSw1, rawSw2, torresRaw, ...restoRaw] = header;
     const [torre1, torre2] = torresRaw.split("");
     restoRaw[0] = restoRaw[0] + torre1;
-    restoRaw[7] = restoRaw[0] + torre2;
+    restoRaw[7] = restoRaw[7]
+      ? restoRaw[7] + torre2
+      : restoRaw[restoRaw.length - 1] + torre2;
 
     const baseCards = [
       {
@@ -147,10 +154,13 @@ export default function StatusHistory({
     const dynamicCards = equipamentos
       .slice(2)
       .map((name, i) => {
+        if (name === "Ausente") return null;  // opcional: já descarta aqui
+
         const raw = restoRaw[i] || "";
         if (!raw) return null;
 
-        const panelTension = tensionValues[i];
+        const panelTension = shiftedTensions[i];
+
         if (i === 0 || i === 7) {
           const [s1, s2, arm, ten, rf] = raw.split("");
           return {
@@ -162,7 +172,7 @@ export default function StatusHistory({
               { label: "Tensão SW", value: ten },
               { label: "RF", value: rf },
               ...(panelTension != null
-                ? [{ label: "Tensão (V)", value: panelTension.slice(0, -1) }]
+                ? [{ label: "Tensão (V)", value: parseFloat(panelTension).toFixed(2) }]
                 : []),
             ],
           };
@@ -176,7 +186,7 @@ export default function StatusHistory({
               { label: "Falha por tensão", value: arm },
               { label: "Tensão SW", value: ten },
               ...(panelTension != null
-                ? [{ label: "Tensão (V)", value: panelTension.slice(0, -1) }]
+                ? [{ label: "Tensão (V)", value: parseFloat(panelTension).toFixed(2) }]
                 : []),
             ],
           };
@@ -184,9 +194,15 @@ export default function StatusHistory({
       })
       .filter(Boolean);
 
-    return [...baseCards, ...dynamicCards];
-  }, [filteredByMachine, equipamentos, latestEntry, tensionValues]);
+    return [...baseCards, ...dynamicCards].filter(card => card.title !== "Ausente");
+  }, [
+    filteredByMachine,
+    equipamentos,
+    latestEntry,
+    shiftedTensions,
+  ]);
 
+  // Timestamp em Brasília
   function getBrasiliaTimestamp() {
     const dtf = new Intl.DateTimeFormat("sv-SE", {
       timeZone: "America/Sao_Paulo",
@@ -208,9 +224,8 @@ export default function StatusHistory({
     return `${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`;
   }
 
-  // Envia o comando ACK para desativar a sirene
-  const handleEnviar = async (e) => {
-    e.preventDefault();
+  // Função genérica para enviar comandos
+  const sendCommand = async (command, successText, failureText) => {
     if (!selectedMachine) {
       setResponseMsg("❌ Nenhuma máquina selecionada.");
       return;
@@ -221,7 +236,7 @@ export default function StatusHistory({
     setResponseMsg("");
 
     try {
-      const payload = `${selectedMachine};ack`;
+      const payload = `${selectedMachine};${command}`;
       const doc = {
         topic: `lindsay/comandos/${selectedMachine}`,
         payload,
@@ -231,14 +246,40 @@ export default function StatusHistory({
         timestamp: getBrasiliaTimestamp(),
       };
       await useMessageStore.getState().postMessage(doc);
-      setResponseMsg("✅ Comando ACK enviado com sucesso!");
+      setResponseMsg(`✅ ${successText}`);
     } catch (err) {
-      console.error("[StatusHistory] erro ao enviar comando ack:", err);
-      setResponseMsg("❌ Falha ao enviar comando ACK.");
+      console.error("[StatusHistory] erro ao enviar comando:", err);
+      setResponseMsg(`❌ ${failureText}`);
     } finally {
       setLoading(false);
       loadingRef.current = false;
     }
+  };
+
+  // Handlers específicos
+  const handleSolicitarStatus = (e) => {
+    e.stopPropagation();
+    sendCommand(
+      "sw",
+      "Status solicitado com sucesso!",
+      "Falha ao solicitar status."
+    );
+  };
+  const handleSirene = (e) => {
+    e.stopPropagation();
+    sendCommand(
+      "sirene",
+      "Sirene disparada com sucesso!",
+      "Falha ao disparar sirene."
+    );
+  };
+  const handleEnviar = (e) => {
+    e.stopPropagation();
+    sendCommand(
+      "ack",
+      "Comando ACK enviado com sucesso!",
+      "Falha ao enviar comando ACK."
+    );
   };
 
   return (
@@ -252,15 +293,31 @@ export default function StatusHistory({
           className="flex items-center justify-between cursor-pointer font-semibold text-lg mb-2 select-none"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             <span className="uppercase">Status de Alarmes</span>
             <button
               type="button"
-              className="px-4 bg-blue-600 hover:bg-blue-700 rounded text-sm py-1"
+              onClick={handleSolicitarStatus}
+              disabled={loading}
+              className="px-3 bg-gray-600 hover:bg-gray-700 rounded text-sm py-1"
+            >
+              {loading ? "..." : "Solicitar Status"}
+            </button>
+            <button
+              type="button"
+              onClick={handleSirene}
+              disabled={loading}
+              className="px-3 bg-yellow-600 hover:bg-yellow-700 rounded text-sm py-1"
+            >
+              {loading ? "..." : "Disparar Sirene"}
+            </button>
+            <button
+              type="button"
               onClick={handleEnviar}
               disabled={loading}
+              className="px-3 bg-blue-600 hover:bg-blue-700 rounded text-sm py-1"
             >
-              {loading ? "Enviando..." : "Desativar sirene"}
+              {loading ? "Enviando..." : "Desativar Sirene"}
             </button>
           </div>
           {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
@@ -284,11 +341,7 @@ export default function StatusHistory({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {cards.map((c) => (
-            <StatusCard
-              key={c.title}
-              {...c}
-              onClick={() => setActiveCard(c)}
-            />
+            <StatusCard key={c.title} {...c} onClick={() => setActiveCard(c)} />
           ))}
         </div>
       </details>

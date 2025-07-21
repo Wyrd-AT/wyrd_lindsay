@@ -8,7 +8,7 @@ PouchDB.plugin(PouchDBFind);
 export const localDB = new PouchDB('lindsay');
 export const remoteDB = new PouchDB('https://admin:wyrd@db.vpn.ind.br/mqtt_data', { skip_setup: true });
 
-////console.log('[Database] Ready for manual sync and changes management.');
+//////console.log('[Database] Ready for manual sync and changes management.');
 
 // Callable function to start localDB.changes listener
 export function startLocalDBChanges(onChange, onError) {
@@ -24,18 +24,18 @@ export function startLocalDBChanges(onChange, onError) {
 // Callable function for batch sync
 export function batchSync() {
   const startTime = new Date();
-  console.log('[Database] Sync start time:', startTime.toISOString());
+  //console.log('[Database] Sync start time:', startTime.toISOString());
   return remoteDB.allDocs({ include_docs: true }).then((result) => {
     const endTime = new Date();
-    console.log('[Database] Sync end time:', endTime.toISOString());
-    console.log('[Database] Result length:', result.rows ? result.rows.length : 0);
+    //console.log('[Database] Sync end time:', endTime.toISOString());
+    //console.log('[Database] Result length:', result.rows ? result.rows.length : 0);
     return result;
   });
 }
 
 // Callable function to start live sync
 export function startSyncHandler() {
-  console.log('[Database] Starting sync, counter:', getSyncActiveCount());
+  //console.log('[Database] Starting sync, counter:', getSyncActiveCount());
   return localDB.sync(remoteDB, {
     live: true,
     retry: true,
@@ -46,7 +46,7 @@ export function startSyncHandler() {
   })
   .on('paused', (info) => {
     decrementSyncActiveCount();
-    console.log('[database.ts] Sync paused, counter:', getSyncActiveCount());
+    //console.log('[database.ts] Sync paused, counter:', getSyncActiveCount());
   })
   .on('error', ((err) => { console.error('[Database] Sync error:', err); }));
 }
@@ -58,7 +58,7 @@ export async function saveData(doc: any) {
   try {
     // 1) salva localmente
     const localResult = await localDB.put(doc);
-    console.log('[Database] Salvo localmente:', localResult);
+    //console.log('[Database] Salvo localmente:', localResult);
 
     // 2) prepara doc para enviar ao remoto
     //    usamos o _id retornado (se não houver _id original, o PouchDB gerou um)
@@ -71,7 +71,7 @@ export async function saveData(doc: any) {
 
     // 3) salva remotamente
     const remoteResult = await remoteDB.put(remoteDoc);
-    console.log('[Database] Salvo no CouchDB remoto:', remoteResult);
+    //console.log('[Database] Salvo no CouchDB remoto:', remoteResult);
 
     return { localResult, remoteResult };
   } catch (error) {

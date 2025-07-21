@@ -71,7 +71,7 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
         qos: 0,
         timestamp: getBrasiliaTimestamp(), // agora no fuso de Brasília
       };
-      //////console.log("[MensagemModal] enviando doc:", doc);
+      ////////console.log("[MensagemModal] enviando doc:", doc);
       await useMessageStore.getState().postMessage(doc);
       setResponseMsg("✅ Comando enviado com sucesso!");
       setComando("");

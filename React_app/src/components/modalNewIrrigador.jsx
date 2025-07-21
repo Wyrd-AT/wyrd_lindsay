@@ -2,10 +2,24 @@
 import React, { useRef, useState, useEffect } from 'react'
 import useEquipamentos from '../hooks/useEquipaments'
 import { useDataStoreIrrigadores } from '../stores/dataStoreIrrigadores'
+import { useAuthStore } from '../stores/authStore'
+import { useNavigate } from 'react-router-dom'
 
 export const ModalIrrigador = ({ closeModal }) => {
   const nameRef = useRef()
   const apelidoRef = useRef()
+  const { isAuthenticated, user } = useAuthStore();
+    const navigate = useNavigate();
+  
+    // 2) Redireciona se não estiver logado
+    useEffect(() => {
+      if (!isAuthenticated) {
+        navigate("/login");
+      }
+    }, [isAuthenticated, navigate]);
+  
+    const domainAndTld = user.email.split('@')[1]
+    const companyId = domainAndTld.split('.')[0];
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(16)
   const addIrrigador = useDataStoreIrrigadores(state => state.addIrrigador)
@@ -45,11 +59,13 @@ export const ModalIrrigador = ({ closeModal }) => {
       table: 'irrigadores',
       codigo: nome,
       irrigador:apelido,
-      equipamentos
+      equipamentos,
+      companyId:companyId
+
     }
 
     try {
-      await addIrrigador(payload)
+      await addIrrigador(payload,companyId)
       closeModal()
     } catch (err) {
       console.error('Falha ao salvar irrigador:', err)

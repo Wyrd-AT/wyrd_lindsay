@@ -1,27 +1,38 @@
-// useDataStoreIrrigadores.ts
+// src/stores/dataStoreIrrigadores.js
 import { create } from 'zustand'
 import { useEffect, useMemo } from 'react'
 import { saveData } from '../api/database_app'
-import { localDB, remoteDB } from '../api/database'  // <- agora também importe remoteDB
+import { localDB, remoteDB } from '../api/database'
 
 export const useDataStoreIrrigadores = create((set, get) => ({
-  irrigadores: [] ,
+  irrigadores: [],
   syncTimestamp: Date.now(),
 
-  fetchIrrigadores: async () => {
+  fetchIrrigadores: async (companyId) => {
     try {
-      const result = await localDB.find({ selector: { table: 'irrigadores' } })
+      const result = await localDB.find({
+        selector: { table: 'irrigadores', companyId }
+      })
       set({ irrigadores: result.docs, syncTimestamp: Date.now() })
     } catch (err) {
       console.error('[DataStore] fetchIrrigadores error:', err)
     }
   },
 
-  addIrrigador: async payload => {
+  // agora recebe (payload, companyId)
+  addIrrigador: async (payload, companyId) => {
     try {
-      const { id, rev } = await saveData(payload)
+      const doc = {
+        ...payload,
+        table: 'irrigadores',
+        companyId           // ← injeta aqui
+      }
+      const { id, rev } = await saveData(doc)
       set(state => ({
-        irrigadores: [...state.irrigadores, { ...payload, _id: id, _rev: rev }],
+        irrigadores: [
+          ...state.irrigadores,
+          { ...doc, _id: id, _rev: rev }
+        ],
         syncTimestamp: Date.now()
       }))
     } catch (err) {
@@ -45,14 +56,11 @@ export const useDataStoreIrrigadores = create((set, get) => ({
     }
   },
 
-  removeIrrigador: async _id => {
+  removeIrrigador: async (_id) => {
     try {
       const doc = await localDB.get(_id)
-      // 1) remove local
       await localDB.remove(doc)
-      // 2) remove remoto
       await remoteDB.remove({ _id: doc._id, _rev: doc._rev })
-      // 3) atualiza estado
       set(state => ({
         irrigadores: state.irrigadores.filter(d => d._id !== _id),
         syncTimestamp: Date.now()
@@ -63,18 +71,13 @@ export const useDataStoreIrrigadores = create((set, get) => ({
   }
 }))
 
-export function useIrrigadores() {
+export function useIrrigadores(companyId) {
   const irrigadores = useDataStoreIrrigadores(state => state.irrigadores)
   const fetchIrrigadores = useDataStoreIrrigadores(state => state.fetchIrrigadores)
 
   useEffect(() => {
-    fetchIrrigadores()
-  }, [fetchIrrigadores])
+    if (companyId) fetchIrrigadores(companyId)
+  }, [fetchIrrigadores, companyId])
 
-  const irrigadoresFiltrados = useMemo(
-    () => irrigadores.filter(doc => doc.table === 'irrigadores'),
-    [irrigadores]
-  )
-
-  return irrigadoresFiltrados
+  return useMemo(() => irrigadores, [irrigadores])
 }

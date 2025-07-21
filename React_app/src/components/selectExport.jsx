@@ -26,6 +26,7 @@ export default function SelectExport({
         value: id,
         label: getDisplayName(id) || `Irrigador ${id}` // fallback se função falhar
       })),
+
   [machines, getDisplayName]
 );
 
@@ -66,11 +67,12 @@ export default function SelectExport({
       </components.ClearIndicator>
     );
   };
+  console.log((selectedMachine??[1])[0])
 
   return (
     <div className="w-full  py-2 flex justify-between items-center bg-[#13131]">
       <div className="relative bg-gray-700 border-b border-gray-600 rounded flex-none w-fit px-8 items-center flex text-center ">
-        <div className="text-white">{getDisplayName(selectedMachine??[1])}</div>
+        <div className="text-white">{getDisplayName((selectedMachine??[1])[0])}</div>
       </div>
 
       {/* botões de ação */}

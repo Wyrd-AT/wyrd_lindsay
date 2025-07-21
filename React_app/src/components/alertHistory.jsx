@@ -83,12 +83,12 @@ export default function AlertHistory({ machineId }) {
   };
 
   return (
-    <div className="overflow-x-auto bg-[#222222] p-4">
+    <div className="overflow-x-auto bg-[#222222] mt-4 p-4 rounded">
       <h2 className="text-xl font-semibold text-white mb-4">Histórico de Alertas</h2>
       <table className="min-w-full table-auto border-collapse">
         <thead>
           <tr className="bg-[#444444]">
-            {["Hora", "Irrigador", "Monitor", "Tipo", "Status"].map((col, i) => (
+            {["Hora", "Código pivô", "Monitor", "Tipo", "Status"].map((col, i) => (
               <th
                 key={i}
                 className="px-4 py-2 text-left font-semibold text-white"

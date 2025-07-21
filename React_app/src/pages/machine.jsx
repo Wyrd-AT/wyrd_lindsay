@@ -13,6 +13,13 @@ import SyncProvider from "../components/SyncProvider";
 import useVetorSw from "../hooks/vetorSW";
 import useVetorTension from "../hooks/VetorTension";
 import { useIrrigadores } from "../stores/dataStoreIrrigadores";
+import TensionChart from "../components/TensionChart";
+
+const periodOptions = [
+  { value: 'last24h', label: '24 h' },
+  { value: 'last7d', label: '7 dias' },
+  { value: 'last30d', label: '30 dias' },
+];
 
 export default function MaquinaRevenda() {
   const navigate = useNavigate();
@@ -20,9 +27,8 @@ export default function MaquinaRevenda() {
 
   // dados dos irrigadores
   const irrigadores = useIrrigadores();
-  // arrays auxiliares de IDs e labels
   const irrigadorCodes = useMemo(() => irrigadores.map(i => i.codigo), [irrigadores]);
-  const irrigadorLabels = useMemo(() => irrigadores.map(i => i.irrigador), [irrigadores]);
+  const irrigadorLabels = useMemo(() => irrigadores.map(i => i.nome), [irrigadores]);
 
   // estado de máquina selecionada
   const [selectedMachineId, setSelectedMachineId] = useState(() => {
@@ -41,7 +47,12 @@ export default function MaquinaRevenda() {
   // sincronização e hooks de dados
   const swMap = useVetorSw(irrigadorCodes);
   const tensionMap = useVetorTension(irrigadorCodes);
-  // atualiza selectedMachineId quando a rota ou dados mudam
+
+  const [selectedPeriod, setSelectedPeriod] = useState('last24h');
+
+  const currentLabel = periodOptions.find(opt => opt.value === selectedPeriod)?.label;
+
+
   useEffect(() => {
     if (machineId && irrigadorCodes.includes(machineId)) {
       setSelectedMachineId(machineId);
@@ -50,22 +61,16 @@ export default function MaquinaRevenda() {
     }
   }, [machineId, irrigadorCodes, navigate]);
 
-  // data do irrigador selecionado
   const selectedDoc = useMemo(
     () => irrigadores.find(doc => doc.codigo === selectedMachineId),
     [irrigadores, selectedMachineId]
   );
 
-  const vectorsSW = useMemo(() => {
-  return swMap[selectedMachineId]?.vectorsSW ?? []
-}, [swMap, selectedMachineId])
+  const vectorsSW = useMemo(() => swMap[selectedMachineId]?.vectorsSW ?? [], [swMap, selectedMachineId]);
+  const vectorsTensions = useMemo(() => tensionMap[selectedMachineId]?.vectorsTension ?? [], [tensionMap, selectedMachineId]);
 
-const vectorsTensions = useMemo(() => {
-  return tensionMap[selectedMachineId]?.vectorsTension?? []
-}, [tensionMap, selectedMachineId])
   const equipamentos = selectedDoc?.equipamentos ?? [];
 
-  // handler de troca de máquina
   const handleMachineChange = id => {
     setFlash(true);
     navigate(`/maquina/${id}`);
@@ -87,7 +92,7 @@ const vectorsTensions = useMemo(() => {
         <SelectExport
           machines={irrigadorLabels}
           selectedMachine={selectedMachineId}
-          getDisplayName={id => `IRRIGADOR ${id}`}
+          getDisplayName={id => `Pivô ${id}`}
           redirectBase="/maquina"
           onMachineChange={handleMachineChange}
           onClickDetails={() => setIsDetailsOpen(true)}
@@ -101,7 +106,36 @@ const vectorsTensions = useMemo(() => {
           vectorsTensions={vectorsTensions}
         />
 
-        {/* <AlertHistory machineId={selectedMachineId} /> */}
+        {/* GRID DE GRÁFICOS DE TENSÃO */}
+        <div className="flex justify-start align-middle items-center mt-4 py-4 px-2 bg-[#222222] rounded-lg">
+          <label htmlFor="periodSelect" className="mr-2 text-white">Período:</label>
+          <select
+            id="periodSelect"
+            value={selectedPeriod}
+            onChange={e => setSelectedPeriod(e.target.value)}
+            className="bg-gray-700 text-white p-0.5 rounded"
+          >
+            {periodOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Título dinâmico */}
+        <h3 className="text-start py-4 px-2  bg-[#222222] text-white">Histórico de tensões de {currentLabel}</h3>
+
+        {/* Gráfico dinâmico */}
+        <TensionChart
+          irrigadorId={selectedMachineId}
+          period={selectedPeriod}
+          height={400}
+          equipments={equipamentos}
+        />
+
+
+        <AlertHistory  machineId={selectedMachineId} />
       </BodyContent>
 
       <MensagemModal
@@ -110,7 +144,6 @@ const vectorsTensions = useMemo(() => {
         selectedMachine={selectedMachineId}
       />
 
-      {/* Caso haja necessidade de detalhes adicionais */}
       {isDetailsOpen && (
         <SyncProvider
           doc={selectedDoc}

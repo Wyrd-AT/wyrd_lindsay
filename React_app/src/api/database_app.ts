@@ -58,12 +58,12 @@ export async function saveData(doc: any): Promise<{ id: string; rev: string }> {
 
 export const deleteData = async (data) => {
   try {
-    //////console.log("deleteData => recebido:", data);
+    ////////console.log("deleteData => recebido:", data);
     
     // Se data for um objeto com _id, utilize-o diretamente (supondo que _rev também esteja presente)
     if (typeof data === "object" && data._id && typeof data._id === "string" && data._id.trim() !== "") {
       await localDB.remove(data);
-      //////console.log("Documento deletado:", data);
+      ////////console.log("Documento deletado:", data);
       return;
     }
     
@@ -74,7 +74,7 @@ export const deleteData = async (data) => {
     
     const doc = await localDB.get(data);
     await localDB.remove(doc);
-    //////console.log("Documento deletado:", doc);
+    ////////console.log("Documento deletado:", doc);
   } catch (err) {
     console.error("Error deleting data:", err);
   }

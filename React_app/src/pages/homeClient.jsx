@@ -8,20 +8,42 @@ import SyncProgressModal from "../components/SyncProgressModal";
 import { ModalIrrigador } from "../components/modalNewIrrigador";
 import { useIrrigadores } from "../stores/dataStoreIrrigadores";
 import useVetorSw, { parseSwVector } from "../hooks/vetorSW";
+import { useAuthStore } from "../stores/authStore";
+import { useNavigate } from "react-router-dom";
+
 
 export default function HomePageRevenda() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const irrigadores = useIrrigadores();
+  const navigate = useNavigate();
 
+  // 1) Pega estado de auth
+  const { isAuthenticated, user } = useAuthStore();
+
+  // 2) Redireciona se não estiver logado
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/login");
+    }
+  }, [isAuthenticated, navigate]);
+
+  //console.log(user)
+  const domainAndTld = user.email.split('@')[1]
+  //console.log(domainAndTld);
+  const companyId = domainAndTld.split('.')[0];
+  //console.log(companyId);
+
+
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const irrigadores = useIrrigadores(companyId);
   const irrigadorIds = useMemo(
     () => irrigadores.map(doc => doc.codigo),
     [irrigadores]
   );
-  ////console.log(irrigadorIds)
+  //////console.log(irrigadorIds)
 
   // { [id]: { vectorsSW: string[], latestSW: string|null } }
   const swMap = useVetorSw(irrigadorIds);
-  ////console.log(swMap)
+  //console.log(swMap)
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
@@ -33,12 +55,12 @@ export default function HomePageRevenda() {
         <Header page="home" />
 
         <div className="flex items-center justify-between px-4 mb-4">
-          <h1 className="text-2xl font-bold">Irrigadores</h1>
+          <h1 className="text-2xl font-bold">Pivôs</h1>
           <button
             onClick={openModal}
             className="bg-[#08cb7c] p-2 rounded-lg font-bold"
           >
-            + Adicionar Irrigador
+            + Adicionar Pivô
           </button>
         </div>
 
@@ -50,6 +72,7 @@ export default function HomePageRevenda() {
           {irrigadores.length > 0 ? (
             irrigadores.map(doc => {
               const { latestSW } = swMap[doc.codigo] || {};
+              //console.log(latestSW)
               // parseia o vetor mais recente (ou exibe zeros caso não exista)
               const info = latestSW ? parseSwVector(latestSW) : {
                 date: "--",
@@ -68,7 +91,7 @@ export default function HomePageRevenda() {
             })
           ) : (
             <div className="text-gray-400">
-              Nenhum irrigador cadastrado.
+              Nenhum pivô cadastrado.
             </div>
           )}
         </div>

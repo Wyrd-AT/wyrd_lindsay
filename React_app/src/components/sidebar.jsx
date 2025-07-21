@@ -37,7 +37,7 @@ export default function SideBar() {
       {/* Perfil */}
       <button
         onClick={() => {
-          //////console.log("Perfil");
+          ////////console.log("Perfil");
         }}
         className="text-white hover:text-green-500 mb-4"
       >
@@ -50,7 +50,7 @@ export default function SideBar() {
       {/* Logout */}
       <button
         onClick={() => {
-          //////console.log("Logout!");
+          ////////console.log("Logout!");
         }}
         className="text-white hover:text-green-500 mb-4"
       >

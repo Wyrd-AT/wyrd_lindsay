@@ -40,7 +40,7 @@ export default function IrrigadorCard({
       <div className="flex-1 flex flex-col justify-center">
         <div>
           <h3 className="text-3xl font-semibold truncate">
-            Irrigador {displayName}
+            Pivô {displayName}
           </h3>
           <p className="text-lg text-gray-300 truncate">
             {lastAlertDate

@@ -134,7 +134,7 @@ export default function AlertHistory({ machineId }) {
 
     try {
       const topic = `lindsay/comandos/${rawId}`;
-      ////console.log(rawId);
+      //////console.log(rawId);
       const payload = `${rawId};ack`;
       const doc = {
         topic,
@@ -144,7 +144,7 @@ export default function AlertHistory({ machineId }) {
         qos: 0,
         timestamp: getBrasiliaTimestamp()
       };
-      ////console.log("[AlertEdit] Enviando comando:", doc);
+      //////console.log("[AlertEdit] Enviando comando:", doc);
       await dbStore.postData(doc);
       setResponseMsg("✅ Comando enviado com sucesso!");
     } catch (err) {
