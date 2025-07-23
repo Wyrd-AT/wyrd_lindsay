@@ -11,7 +11,6 @@ import useVetorSw, { parseSwVector } from "../hooks/vetorSW";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
 
-
 export default function HomePageRevenda() {
   const navigate = useNavigate();
 
@@ -25,27 +24,31 @@ export default function HomePageRevenda() {
     }
   }, [isAuthenticated, navigate]);
 
-  //console.log(user)
-  const domainAndTld = user.email.split('@')[1]
-  //console.log(domainAndTld);
+  // 3) Extrai o companyId do email do usuário
+  const domainAndTld = user.email.split('@')[1];
   const companyId = domainAndTld.split('.')[0];
-  //console.log(companyId);
 
-
-
+  // 4) Estado do Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // 5) Obtendo dados de irrigadores
   const irrigadores = useIrrigadores(companyId);
   const irrigadorIds = useMemo(
     () => irrigadores.map(doc => doc.codigo),
     [irrigadores]
   );
-  //////console.log(irrigadorIds)
 
-  // { [id]: { vectorsSW: string[], latestSW: string|null } }
+  // 6) Obtendo dados de VetorSW
   const swMap = useVetorSw(irrigadorIds);
-  //console.log(swMap)
+
+  // 7) Funções para abrir e fechar o modal
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
+
+  // 8) Função de navegação para a página do irrigador
+  const navigateToIrrigador = (id) => {
+    navigate(`/irrigador/${id}`);
+  };
 
   return (
     <div className="w-full h-screen text-white flex bg-[#313131]">
@@ -72,12 +75,7 @@ export default function HomePageRevenda() {
           {irrigadores.length > 0 ? (
             irrigadores.map(doc => {
               const { latestSW } = swMap[doc.codigo] || {};
-              //console.log(latestSW)
-              // parseia o vetor mais recente (ou exibe zeros caso não exista)
-              const info = latestSW ? parseSwVector(latestSW) : {
-                date: "--",
-                totalAlarmado: 0
-              };
+              const info = latestSW ? parseSwVector(latestSW) : { date: "--", totalAlarmado: 0 };
 
               return (
                 <IrrigadorCard
@@ -86,6 +84,7 @@ export default function HomePageRevenda() {
                   displayName={doc.irrigador}
                   alertCount={info.totalAlarmado}
                   lastAlertDate={info.date}
+                  onClick={() => navigateToIrrigador(doc.codigo)} // Adicionando navegação ao clicar
                 />
               );
             })

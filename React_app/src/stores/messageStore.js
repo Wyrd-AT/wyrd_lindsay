@@ -3,7 +3,7 @@ import { localDB } from '../api/database';
 
 export const parseMessage = (doc) => {
   if (!doc || doc._id.startsWith('_design/') || !doc.type) return null;
-  const tipos = ['mqtt_messages','command'];
+  const tipos = ['mqtt_messages', 'command'];
   if (!tipos.includes(doc.table)) return null;
 
   const base = {
@@ -72,9 +72,9 @@ export const useMessageStore = create((set, get) => ({
   parsedMessages: [],
   isLoading: true,
   error: null,
-  
 
-  initialize: async () => { 
+
+  initialize: async () => {
     try {
       //////console.log('[messageStore] initialize called');
       const { messagesMap, parsedMessages } = await loadInitialMessages();
@@ -91,7 +91,9 @@ export const useMessageStore = create((set, get) => ({
         const changesFeed = localDB.changes({
           since: 'now',
           live: true,
+
           include_docs: true
+
         })
           .on('change', (change) => {
             if (change.doc && !change.doc._id.startsWith('_design/')) {
@@ -127,7 +129,7 @@ export const useMessageStore = create((set, get) => ({
     const map = new Map(get().messagesMap);
     map.set(id, msgObj);
     const list = Array.from(map.values()).filter(m =>
-      ['mqtt_messages','command'].includes(m.table)
+      ['mqtt_messages', 'command'].includes(m.table)
     );
     set({ messagesMap: map, parsedMessages: list });
   },

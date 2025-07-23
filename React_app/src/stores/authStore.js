@@ -8,12 +8,19 @@ export const useAuthStore = create(
       isAuthenticated: false,
       user: null,
       token: null,
+      companyId: null,  // Adiciona o companyId ao estado
       login: (user, token) => {
-        set({ isAuthenticated: true, user, token });
+        // Extrai o companyId do email
+        console.log(user)
+        const domainAndTld = user.email.split('@')[1];
+        const companyId = domainAndTld.split('.')[0];
+
+        // Atualiza o estado com user, token e companyId
+        set({ isAuthenticated: true, user, token, companyId });
       },
       logout: () => {
-        ////console.log("logout");
-        set({ isAuthenticated: false, user: null, token: null });
+        // Limpa o estado e a persistência ao fazer logout
+        set({ isAuthenticated: false, user: null, token: null, companyId: null });
       },
     }),
     {
@@ -23,6 +30,7 @@ export const useAuthStore = create(
         isAuthenticated: state.isAuthenticated,
         user: state.user,
         token: state.token,
+        companyId: state.companyId,  // Persiste o companyId
       }),
     }
   )

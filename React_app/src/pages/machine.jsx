@@ -1,19 +1,19 @@
-// src/pages/MaquinaRevenda.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 import SideBar from "../components/sidebar";
 import BodyContent from "../components/body";
 import SelectExport from "../components/selectExport";
-import StatusHistory from "../components/StatusHistory";
+import StatusHistory from "../components/statusHistory";
 import AlertHistory from "../components/alertHistory";
 import MensagemModal from "../components/messageModal";
 import SyncProvider from "../components/SyncProvider";
+import TensionChart from "../components/TensionChart";
 
 import useVetorSw from "../hooks/vetorSW";
 import useVetorTension from "../hooks/VetorTension";
 import { useIrrigadores } from "../stores/dataStoreIrrigadores";
-import TensionChart from "../components/TensionChart";
+import { useAuthStore } from "../stores/authStore";
 
 const periodOptions = [
   { value: 'last24h', label: '24 h' },
@@ -24,51 +24,68 @@ const periodOptions = [
 export default function MaquinaRevenda() {
   const navigate = useNavigate();
   const { machineId } = useParams();
-
-  // dados dos irrigadores
-  const irrigadores = useIrrigadores();
+  const { companyId } = useAuthStore();
+  const irrigadores = useIrrigadores(companyId);
   const irrigadorCodes = useMemo(() => irrigadores.map(i => i.codigo), [irrigadores]);
-  const irrigadorLabels = useMemo(() => irrigadores.map(i => i.nome), [irrigadores]);
 
-  // estado de máquina selecionada
-  const [selectedMachineId, setSelectedMachineId] = useState(() => {
-    return machineId && irrigadorCodes.includes(machineId)
-      ? machineId
-      : irrigadorCodes[0] || null;
-  });
-
-  // flash de transição
+  const [selectedMachineId, setSelectedMachineId] = useState(machineId || null);
   const [flash, setFlash] = useState(false);
-
-  // modais
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState('last24h');
 
-  // sincronização e hooks de dados
   const swMap = useVetorSw(irrigadorCodes);
   const tensionMap = useVetorTension(irrigadorCodes);
 
-  const [selectedPeriod, setSelectedPeriod] = useState('last24h');
-
-  const currentLabel = periodOptions.find(opt => opt.value === selectedPeriod)?.label;
-
-
-  useEffect(() => {
-    if (machineId && irrigadorCodes.includes(machineId)) {
-      setSelectedMachineId(machineId);
-    } else if (!machineId && irrigadorCodes.length > 0) {
-      navigate(`/maquina/${irrigadorCodes[0]}`, { replace: true });
-    }
-  }, [machineId, irrigadorCodes, navigate]);
-
+  // ✅ MOVED HOOKS TO THE TOP LEVEL
   const selectedDoc = useMemo(
     () => irrigadores.find(doc => doc.codigo === selectedMachineId),
     [irrigadores, selectedMachineId]
   );
+  
+  const vectorsSW = useMemo(() => {
+    return swMap[selectedMachineId] && swMap[selectedMachineId].vectorsSW ? swMap[selectedMachineId].vectorsSW : [];
+  }, [swMap, selectedMachineId]);
 
-  const vectorsSW = useMemo(() => swMap[selectedMachineId]?.vectorsSW ?? [], [swMap, selectedMachineId]);
   const vectorsTensions = useMemo(() => tensionMap[selectedMachineId]?.vectorsTension ?? [], [tensionMap, selectedMachineId]);
+  
+  // ✅ MOVED CLEANUP EFFECT TO THE TOP
+  useEffect(() => {
+    const cleanup = () => {
+      if (swMap[selectedMachineId]?.cancel) {
+        swMap[selectedMachineId].cancel();
+      }
+      if (tensionMap[selectedMachineId]?.cancel) {
+        tensionMap[selectedMachineId].cancel();
+      }
+    };
+    return cleanup;
+  }, [swMap, tensionMap, selectedMachineId]);
 
+
+  useEffect(() => {
+    if (irrigadorCodes.length === 0) {
+      return;
+    }
+    if (machineId && irrigadorCodes.includes(machineId)) {
+      setSelectedMachineId(machineId);
+    } else {
+      navigate(`/maquina/${irrigadorCodes[0]}`, { replace: true });
+    }
+  }, [machineId, irrigadorCodes, navigate]);
+
+
+  // The conditional return is now safe, as all hooks are defined before it.
+  if (!selectedDoc) {
+    return (
+      <div className="w-full h-screen flex justify-center items-center bg-[#313131] text-white">
+        <p>Carregando dados da máquina...</p>
+      </div>
+    );
+  }
+
+  // Logic and constants that depend on hooks can stay here
+  const currentLabel = periodOptions.find(opt => opt.value === selectedPeriod)?.label;
   const equipamentos = selectedDoc?.equipamentos ?? [];
 
   const handleMachineChange = id => {
@@ -76,21 +93,19 @@ export default function MaquinaRevenda() {
     navigate(`/maquina/${id}`);
     setTimeout(() => setFlash(false), 200);
   };
-
+  
   return (
     <div
-      className={`
-        w-full h-full text-white flex bg-[#313131]
+      className={`w-full h-full text-white flex bg-[#313131]
         transition-opacity duration-200
-        ${flash ? "opacity-50" : "opacity-100"}
-      `}
+        ${flash ? "opacity-50" : "opacity-100"}`}
       key={selectedMachineId}
     >
       <SideBar />
 
       <BodyContent>
         <SelectExport
-          machines={irrigadorLabels}
+          machines={irrigadorCodes}
           selectedMachine={selectedMachineId}
           getDisplayName={id => `Pivô ${id}`}
           redirectBase="/maquina"
@@ -106,7 +121,6 @@ export default function MaquinaRevenda() {
           vectorsTensions={vectorsTensions}
         />
 
-        {/* GRID DE GRÁFICOS DE TENSÃO */}
         <div className="flex justify-start align-middle items-center mt-4 py-4 px-2 bg-[#222222] rounded-lg">
           <label htmlFor="periodSelect" className="mr-2 text-white">Período:</label>
           <select
@@ -123,10 +137,8 @@ export default function MaquinaRevenda() {
           </select>
         </div>
 
-        {/* Título dinâmico */}
         <h3 className="text-start py-4 px-2  bg-[#222222] text-white">Histórico de tensões de {currentLabel}</h3>
 
-        {/* Gráfico dinâmico */}
         <TensionChart
           irrigadorId={selectedMachineId}
           period={selectedPeriod}
@@ -134,8 +146,7 @@ export default function MaquinaRevenda() {
           equipments={equipamentos}
         />
 
-
-        <AlertHistory  machineId={selectedMachineId} />
+        <AlertHistory machineId={selectedMachineId} />
       </BodyContent>
 
       <MensagemModal

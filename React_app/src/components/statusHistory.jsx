@@ -299,7 +299,8 @@ export default function StatusHistory({
               type="button"
               onClick={handleSolicitarStatus}
               disabled={loading}
-              className="px-3 bg-gray-600 hover:bg-gray-700 rounded text-sm py-1"
+                            className="px-3 bg-green-600 hover:bg-green-700 rounded text-sm py-1"
+
             >
               {loading ? "..." : "Solicitar Status"}
             </button>
@@ -318,6 +319,13 @@ export default function StatusHistory({
               className="px-3 bg-blue-600 hover:bg-blue-700 rounded text-sm py-1"
             >
               {loading ? "Enviando..." : "Desativar Sirene"}
+            </button>
+            <button
+              type="button"
+              
+              className="px-3 bg-gray-600 hover:bg-gray-700 rounded text-sm py-1"
+            >
+              {loading ? "Enviando..." : "Desativar Geral"}
             </button>
           </div>
           {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
