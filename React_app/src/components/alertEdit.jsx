@@ -4,6 +4,7 @@ import { FiShare2 } from "react-icons/fi";
 import { alarmTypeDescriptions, valueDescriptions } from "./alertHistory";
 import useLatestAlertasPorMonitor from "../hooks/useLatestAlertasPorMonitor";
 
+import { whatsappStoreConfig } from "../stores/whatsappStore";
 
 export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
   const [description, setDescription] = useState("");
@@ -11,9 +12,23 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
   const [alarmInterval, setAlarmInterval] = useState(15); // 15 minutos por padrão
   const [timer, setTimer] = useState(0); // Timer state
   const [isTimerRunning, setIsTimerRunning] = useState(false); // Timer status
-
+  const [whatsappStatus, setWhatsappStatus] = useState(false);
 
   const modalRef = useRef(null);
+  // Whatsapp
+  const { whatsappConfig, fetchWhatsappConfig, updateWhatsappStatus } =
+    whatsappStoreConfig((state) => state);
+  //
+  useEffect(() => {
+    if (!whatsappConfig) {
+      fetchWhatsappConfig();
+    }
+  }, [whatsappConfig, fetchWhatsappConfig]);
+
+  const handleToggleChange = (e) => {
+    const newSatus = e.target.checked;
+    setWhatsappStatus(newSatus);
+  };
 
   // Pega o último alerta para esse monitor (exceto este)
   const { latestAlertas } = useLatestAlertasPorMonitor();
@@ -21,17 +36,22 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
 
   console.log("Latest Alertas:", latestAlertas);
   const latestForMonitor = latestAlertas.find(
-    a => a.monitor === alertData?.monitor && a.date !== alertData?.date && a.irrigadorId == alertData?.irrigadorId
+    (a) =>
+      a.monitor === alertData?.monitor &&
+      a.date !== alertData?.date &&
+      a.irrigadorId == alertData?.irrigadorId,
   );
 
-  console.log(latestForMonitor)
+  console.log(latestForMonitor);
 
   // Inicializa campos ao abrir
   useEffect(() => {
     if (isOpen && alertData) {
       setDescription(
-        alertData.description ?? alarmTypeDescriptions[alertData.alarme] ?? ""
+        alertData.description ?? alarmTypeDescriptions[alertData.alarme] ?? "",
       );
+      fetchWhatsappConfig();
+      setWhatsappStatus(whatsappConfig.status);
       setResponsible(alertData.responsible || "");
       setTimeout(() => modalRef.current?.focus(), 0);
     }
@@ -48,8 +68,6 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
 
   if (!isOpen || !alertData) return null;
 
-
-
   const dt = new Date(alertData.date);
   const dateStr = dt.toLocaleDateString("pt-BR");
   const timeStr = dt.toLocaleTimeString("pt-BR", {
@@ -58,9 +76,9 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
   });
 
   function handleShare() {
-    const text = `Alerta ${(alertData.id)} em ${dateStr} ${timeStr}\nStatus: ${valueDescriptions[alertData.status]}`;
+    const text = `Alerta ${alertData.id} em ${dateStr} ${timeStr}\nStatus: ${valueDescriptions[alertData.status]}`;
     if (navigator.share) {
-      navigator.share({ text }).catch(() => { });
+      navigator.share({ text }).catch(() => {});
     } else {
       navigator.clipboard.writeText(text);
       alert("Texto do alerta copiado para a área de transferência");
@@ -70,15 +88,17 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
   function handleSubmit(e) {
     e.preventDefault();
 
+    updateWhatsappStatus(whatsappStatus);
+
     // Passa os dados atualizados (incluindo o timer e responsável) para a função onSave
     onSave?.({
-      ...alertData,           // Dados do alerta existente
-      description,            // Descrição atual
-      responsible,            // Responsável atual
-      timer,                  // Valor atual do timer
+      ...alertData, // Dados do alerta existente
+      description, // Descrição atual
+      responsible, // Responsável atual
+      timer, // Valor atual do timer
     });
 
-    onClose();  // Fecha o modal após salvar
+    onClose(); // Fecha o modal após salvar
   }
 
   return (
@@ -93,14 +113,12 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
         role="dialog"
         aria-modal="true"
         className="relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-[#444]">
-          <h2 className="text-lg font-semibold">
-            Alerta {(alertData.id)}
-          </h2>
+          <h2 className="text-lg font-semibold">Alerta {alertData.id}</h2>
           <div className="flex gap-2">
             <button
               type="button"
@@ -134,8 +152,6 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
               <div>{valueDescriptions[alertData.status]}</div>
             </div>
           </div>
-
-
         </div>
 
         <div className="p-4 border-t border-[#444]">
@@ -150,7 +166,16 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
             <option value={60}>1 HORA</option>
             <option value={120}>2 HORAS</option>
           </select>
+        </div>
 
+        <div className="p-4 border-[#444]">
+          <input
+            type="checkbox"
+            checked={whatsappStatus}
+            onChange={handleToggleChange}
+            className="p-4"
+          />
+          <label className="ml-2 text-gray-400">Notificar pelo Whatsapp</label>
         </div>
 
         {/* Descrição */}
@@ -161,19 +186,21 @@ export default function AlertEdit({ isOpen, onClose, alertData, onSave }) {
             className="w-full rounded-md bg-[#444444] p-2 text-sm resize-none"
             rows={3}
             value={description}
-            onChange={e => setDescription(e.target.value)}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder={alarmTypeDescriptions[alertData.alarme]}
           />
         </div>
 
         {/* Responsável */}
         <div className="p-4">
-          <label className="block mb-1 text-xs text-gray-400">Responsável</label>
+          <label className="block mb-1 text-xs text-gray-400">
+            Responsável
+          </label>
           <input
             type="text"
             className="w-full rounded-md bg-[#444444] p-2 text-sm"
             value={responsible}
-            onChange={e => setResponsible(e.target.value)}
+            onChange={(e) => setResponsible(e.target.value)}
             placeholder="Nome do responsável"
           />
         </div>
