@@ -11,7 +11,7 @@ export const useAuthStore = create(
       companyId: null,  // Adiciona o companyId ao estado
       login: (user, token) => {
         // Extrai o companyId do email
-        console.log(user)
+        //console.log(user)
         const domainAndTld = user.email.split('@')[1];
         const companyId = domainAndTld.split('.')[0];
 

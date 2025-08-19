@@ -19,27 +19,51 @@ export default function useHistoricoAlertasStore() {
         const parts = data.split(";");
         if (parts.length < 3) return null;
         const [idFrag, rawDate, value] = parts;
+        
+
         if (!value || value.length < 5) return null;
+        const [datePart, timePart] = rawDate.split("T");
+        ////console.log("idFrag1",idFrag,datePart,timePart)
 
-        const [datePart, timePart] = rawDate.split(" ");
-        if (!datePart || !timePart) return null;
+        if (!datePart || !timePart || datePart.split("-").length !== 3 || timePart.split(":").length !== 3) {
+          //console.warn("Data inválida (formato incorreto):", rawDate);
+          return null;
+        }
+        ////console.log("idFrag2",idFrag,datePart,timePart)
 
-        const [year, month, day] = datePart.split("-").map(Number);
+
+        // Converte para um Date válido
+        const [year,  month,day] = datePart.split("-").map(Number);
         const [hour, minute, second] = timePart.split(":").map(Number);
         const dt = new Date(year, month - 1, day, hour, minute, second);
-        if (isNaN(dt.getTime())) return null;
 
-        const formattedDate = dt.toLocaleDateString("pt-BR");      // dd/mm/yyyy
+        //console.log("idFrag3",idFrag,datePart,timePart)
+
+        if (isNaN(dt.getTime())) {
+          //console.warn("Data inválida (Date inválido):", rawDate);
+          return null;
+        }
+
+       
+
+
+        const formattedDate = dt.toLocaleDateString("pt-BR",{
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        }
+        );      // dd/mm/yyyy
         const formattedTime = dt.toLocaleTimeString("pt-BR", {     // HH:mm:ss
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
-        });
+        }
+      );
 
         return {
           _id,
           _rev,
-          irrigadorId: idFrag.replace(/\D/g, ""),
+          irrigadorId: idFrag,
           date: formattedDate,
           time: formattedTime,
           alarme: value[0],
@@ -51,7 +75,9 @@ export default function useHistoricoAlertasStore() {
       .filter(Boolean);
 
     setData(processed);
-  }, [parsedMessages]);
+  }, [parsedMessages,isLoading, error]);
+
+  ////console.log(data)
 
   const update = async (_id, updatedFields) => {
     try {
@@ -72,7 +98,7 @@ export default function useHistoricoAlertasStore() {
     acc[item.date].push(item);
     return acc;
   }, {});
-
+  //console.log(data)
   return {
     data,
     groupedByDatePart,

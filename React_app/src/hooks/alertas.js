@@ -6,7 +6,7 @@ const useAlertasStore = () => {
 
   const alerts = useMemo(() => {
     if (isLoading || error) return [];
-    ////////console.log(parsedMessages)
+    //////////console.log(parsedMessages)
 
     const processed = parsedMessages
       // 1) garante que data existe e é string, além do filtro por origin/type

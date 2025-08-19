@@ -21,7 +21,7 @@ export const signUp = async (email, password, companyId) => {
     });
     return response.data;
   } catch (error) {
-    //console.log(error);
+    ////console.log(error);
     throw new Error(`Erro ao registrar usuário: ${error.response.data.message}`);
   }
 };

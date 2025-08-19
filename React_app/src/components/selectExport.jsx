@@ -67,7 +67,7 @@ export default function SelectExport({
       </components.ClearIndicator>
     );
   };
-  //console.log((selectedMachine??[1])[0])
+  ////console.log((selectedMachine??[1])[0])
 
   return (
     <div className="w-full  py-2 flex justify-between items-center bg-[#13131]">

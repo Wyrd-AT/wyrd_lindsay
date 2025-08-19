@@ -22,7 +22,7 @@ function UserHeader() {
 
   const handleSignOut = (e: React.MouseEvent) => {
     e.stopPropagation();
-    ////////console.log('Signing out clicked');
+    //////////console.log('Signing out clicked');
     logout();
     setIsMenuOpen(false);
   };

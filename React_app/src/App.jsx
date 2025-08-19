@@ -18,6 +18,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import { useAuthStore } from "./stores/authStore";
 import ProtectedRoute from "./api/ProtectedRoute";
 import { startSyncHandler } from "./api/database";
+import SyncProgressBar from "./components/SyncProgressModal copy";
 
 export default function App() {
   const { isAuthenticated } = useAuthStore();
@@ -32,31 +33,18 @@ export default function App() {
     <SyncProvider>
       <Router>
         {/* 2) Modal global de progresso de sync */}
-        <SyncProgressModal />
+        <SyncProgressBar />
 
         <Routes>
           <Route path="/" element={ <Login />} />
           <Route path="/signup" element={isAuthenticated ? <Navigate to="/home" /> : <SignUp />} />
-          <Route path="/resetPass" element={isAuthenticated ? <Navigate to="/home" /> : <ResetPass />} />
-          <Route path="/forgot-password" element={isAuthenticated ? <Navigate to="/home" /> : <ForgotPassword />} />
+          <Route path="/forgot-password" element={ <ForgotPassword />} />
           <Route element={<ProtectedRoute />}>
 
             <Route path="/home" element={<HomePageRevenda />} />
 
             <Route path="/maquina/:machineId" element={<Maquina />} />
-            <Route path="/maquina/:machineId/tensao" element={<TensionGraphPage />} />
 
-            <Route path="/debug" element={<DebugPage />} />
-
-            <Route
-              path="/clientes/:clientId/machines"
-              element={<ClientMachinesPage />}
-            />
-
-            <Route
-              path="/clientes/:clientId/machines/:machineId"
-              element={<MaquinaRevenda />}
-            />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

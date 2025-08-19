@@ -4,12 +4,12 @@ import BodyContent from "../components/body";
 import Header from "../components/header";
 import Sidebar from "../components/sidebar";
 import IrrigadorCard from "../components/irrigadorCard";
-import SyncProgressModal from "../components/SyncProgressModal";
 import { ModalIrrigador } from "../components/modalNewIrrigador";
 import { useIrrigadores } from "../stores/dataStoreIrrigadores";
 import useVetorSw, { parseSwVector } from "../hooks/vetorSW";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
+import SyncProgressBar from "../components/SyncProgressModal copy";
 
 export default function HomePageRevenda() {
   const navigate = useNavigate();
@@ -52,7 +52,7 @@ export default function HomePageRevenda() {
 
   return (
     <div className="w-full h-screen text-white flex bg-[#313131]">
-      <SyncProgressModal />
+      <SyncProgressBar />
       <Sidebar />
       <BodyContent>
         <Header page="home" />

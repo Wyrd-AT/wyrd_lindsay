@@ -10,7 +10,7 @@ export function useParsedMessages() {
   //   const changes = dbStore.localDB
   //     .changes({ since: 0, live: true, include_docs: true })
   //     .on('change', change => {
-  //       ////////console.log('[useParsedMessages] change', change);
+  //       //////////console.log('[useParsedMessages] change', change);
   //       if (cancelled) return;
   //       const doc = change.doc;
   //       if (!doc || doc._id.startsWith('_design/') || !doc.type) return;

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signUp, confirmSignUp } from "../api/auth"; // Certifique-se de que o serviço de autenticação esteja correto
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -11,6 +12,12 @@ const SignUp = () => {
   const [confirmationCode, setConfirmationCode] = useState("");
   const [error, setError] = useState("");
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
 
   const [passwordCriteria, setPasswordCriteria] = useState({
     containsUpperCase: false,
@@ -115,16 +122,40 @@ const SignUp = () => {
               </div>
               <div>
                 <label htmlFor="password" className="text-gray-400 block text-sm font-medium mb-1">Password *</label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  required
-                  minLength={8}
-                  className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
+                <div className="relative"> {/* 1: container relative */}
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}  // altera o tipo conforme o estado
+                    value={password}
+                    onChange={handlePasswordChange}
+                    required
+                    minLength={8}
+                    className="
+      w-full 
+      px-3 py-2        /* padding geral */
+      pr-10            /* 2: padding extra à direita para espaço do ícone */
+      bg-[#444444] text-white 
+      border border-gray-600 rounded 
+      focus:outline-none focus:ring-2 focus:ring-green-500
+    "
+                  />
+                  <button
+                    type="button"
+                    onClick={toggleShowPassword}
+                    className="
+      absolute         /* 3: posicionamento absoluto dentro do relative */
+      bottom-5          /* centraliza verticalmente */
+      left-72          /* distância da borda direita */
+      -translate-y-1/2 /* corrige o deslocamento exato para o meio */
+      flex items-center 
+      text-xl text-gray-400 hover:text-gray-200
+    "
+                  >
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
               </div>
+
               <div className="password-rules text-sm text-gray-500 my-4">
                 <p className={passwordCriteria.containsUpperCase ? 'text-green-600' : 'text-red-600'}>
                   {passwordCriteria.containsUpperCase ? '✅' : '❌'} At least 1 uppercase letter

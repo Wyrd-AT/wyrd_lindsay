@@ -8,7 +8,7 @@ PouchDB.plugin(PouchDBFind);
 export const localDB = new PouchDB('lindsay');
 export const remoteDB = new PouchDB('https://admin:wyrd@db.vpn.ind.br/mqtt_data', { skip_setup: true });
 
-//////console.log('[Database] Ready for manual sync and changes management.');
+////////console.log('[Database] Ready for manual sync and changes management.');
 
 // Callable function to start localDB.changes listener
 export function startLocalDBChanges(onChange, onError) {
@@ -24,29 +24,31 @@ export function startLocalDBChanges(onChange, onError) {
 // Callable function for batch sync
 export function batchSync() {
   const startTime = new Date();
-  //console.log('[Database] Sync start time:', startTime.toISOString());
+  console.log('[Database] Sync start time:', startTime.toISOString());
   return remoteDB.allDocs({ include_docs: true }).then((result) => {
     const endTime = new Date();
-    //console.log('[Database] Sync end time:', endTime.toISOString());
-    //console.log('[Database] Result length:', result.rows ? result.rows.length : 0);
+    console.log('[Database] Sync end time:', endTime.toISOString());
+    console.log('[Database] Result length:', result.rows ? result.rows.length : 0);
     return result;
   });
 }
 
 // Callable function to start live sync
 export function startSyncHandler() {
-  //console.log('[Database] Starting sync, counter:', getSyncActiveCount());
+  incrementSyncActiveCount();
+  console.log('[Database] Starting sync, counter:', getSyncActiveCount());
   return localDB.sync(remoteDB, {
     live: true,
     retry: true,
-    batch_size: 50000, 
+    batch_size: 1000, 
     selector: {
       table: { $in: ['mqtt_messages','irrigadores','command'] }
     }
+  
   })
   .on('paused', (info) => {
     decrementSyncActiveCount();
-    //console.log('[database.ts] Sync paused, counter:', getSyncActiveCount());
+    console.log('[database.ts] Sync paused, counter:', getSyncActiveCount());
   })
   .on('error', ((err) => { console.error('[Database] Sync error:', err); }));
 }
@@ -58,7 +60,7 @@ export async function saveData(doc: any) {
   try {
     // 1) salva localmente
     const localResult = await localDB.put(doc);
-    //console.log('[Database] Salvo localmente:', localResult);
+    ////console.log('[Database] Salvo localmente:', localResult);
 
     // 2) prepara doc para enviar ao remoto
     //    usamos o _id retornado (se não houver _id original, o PouchDB gerou um)
@@ -71,7 +73,7 @@ export async function saveData(doc: any) {
 
     // 3) salva remotamente
     const remoteResult = await remoteDB.put(remoteDoc);
-    //console.log('[Database] Salvo no CouchDB remoto:', remoteResult);
+    ////console.log('[Database] Salvo no CouchDB remoto:', remoteResult);
 
     return { localResult, remoteResult };
   } catch (error) {
@@ -80,29 +82,65 @@ export async function saveData(doc: any) {
   }
 }
 
-export async function updateData(_id, updatedFields) {
+export async function updateData(
+  _id: string,
+  updatedFields: Record<string, any>,
+  maxRetries = 3
+): Promise<PouchDB.Core.Response> {
+  // 0) Puxa mudanças remotas → local
   try {
-    const existingDoc = await localDB.get(_id);
-    const updatedDoc = {
-      ...existingDoc,
-      ...updatedFields,
-      _id: existingDoc._id,
-      _rev: existingDoc._rev,
-    };
+    await localDB.replicate.from(remoteDB);
+  } catch (pullErr) {
+    console.warn('[Database] Falha ao puxar mudanças antes do update:', pullErr);
+  }
 
-    const result = await localDB.put(updatedDoc);
-
-    // Forçar uma replicação one‑off após o put
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const info = await localDB.replicate.to(remoteDB);
-      console.log('[Database] One‑off push para remoteDB completo:', info);
-    } catch (syncErr) {
-      console.error('[Database] Erro no one‑off push para remoteDB:', syncErr);
-    }
+      // 1) Busca a última versão do doc
+      const existing = await localDB.get(_id);
 
-    return result;
-  } catch (err) {
-    console.error('[Database] Erro ao atualizar documento:', err);
-    throw err;
+      // 2) Mescla campos
+      const toSave = { ...existing, ...updatedFields };
+
+      // 3) Tenta gravar
+      const result = await localDB.put(toSave);
+
+      // 4) One‑off push para remoto (não bloqueante)
+      localDB.replicate
+        .to(remoteDB)
+        .catch(syncErr => console.error('[Database] Erro no push após update:', syncErr));
+
+      return result;
+    } catch (err: any) {
+      if (err.status === 409) {
+        console.warn(
+          `[Database] Conflito detectado (tentativa ${attempt}/${maxRetries}), retry em ${100 *
+            2 ** attempt}ms…`
+        );
+        // back‑off exponencial
+        await new Promise(res => setTimeout(res, 100 * 2 ** attempt));
+        continue;
+      }
+      // se não for 409, propaga
+      throw err;
+    }
+  }
+
+  // 5) Última tentativa “forçada”: fetch + merge final
+  const latest = await localDB.get(_id);
+  const finalMerge = { ...latest, ...updatedFields };
+  const finalResult = await localDB.put(finalMerge);
+  await localDB.replicate
+    .to(remoteDB)
+    .catch(syncErr => console.error('[Database] Erro no push final após update:', syncErr));
+  return finalResult;
+}
+
+async function replicateOneOff(): Promise<void> {
+  try {
+    const info = await localDB.replicate.to(remoteDB);
+    //console.log('[Database] One‑off push para remoteDB completo:', info);
+  } catch (syncErr) {
+    console.error('[Database] Erro no one‑off push para remoteDB:', syncErr);
   }
 }

@@ -45,7 +45,7 @@ export default function ClientesPage() {
   const syncTimestamp = useSyncStore(state => state.syncTimestamp);
   
   useEffect(() => {
-    ////////console.log('[ClientesPage] useEffect');
+    //////////console.log('[ClientesPage] useEffect');
     //loadMessages();
   }, []);
 
@@ -63,7 +63,7 @@ export default function ClientesPage() {
 
   // Agrupa irrigadores por cliente, re-calculado ao sincronizar
   const clients = useMemo(() => {
-    ////////console.log('[ClientesPage] clients');
+    //////////console.log('[ClientesPage] clients');
     if (isLoading || error) return {};
     
     const ids = Array.from(new Set(parsedMessages.map(m => m.irrigadorId)));

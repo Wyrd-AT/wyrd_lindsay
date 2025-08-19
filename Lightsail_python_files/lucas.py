@@ -1,13 +1,35 @@
-import paho.mqtt.client as mqtt
-import requests
+import os
 import re
 from datetime import datetime
+from typing import List, Literal
 from zoneinfo import ZoneInfo
+
+import couchdb
+import paho.mqtt.client as mqtt
+import requests
+from couchdb.http import ResourceNotFound
+from dotenv import load_dotenv
+from pydantic import BaseModel, ValidationError
 from twilio.base.exceptions import TwilioException
+from twilio.rest import Client
 
-from notification import send_message
+load_dotenv()
 
-# COUCHDB_URL = "http://admin:password@127.0.0.1:5984"
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+
+client_twilio = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+
+def send_message(msg: str, to: list[str]):
+    for t in to:
+        _ = client_twilio.messages.create(
+            body=msg,
+            from_="whatsapp:+14155238886",
+            to=f"whatsapp:{t}",
+        )
+
+
 COUCHDB_URL = "http://admin:wyrd@127.0.0.1:5984"
 DATABASE = "mqtt_data"
 MQTT_BROKER = "127.0.0.1"
@@ -15,7 +37,6 @@ MQTT_TOPIC = "#"
 
 BR_TZ = ZoneInfo("America/Sao_Paulo")
 
-# --- mapa de status usado em monitorStatus ---
 STATUS_MAP = {
     "0": "OK",
     "1": "Alarmado",
@@ -26,8 +47,31 @@ STATUS_MAP = {
     "6": "Desconhecido",
     "7": "Desconhecido",
     "8": "Desconhecido",
-    "9": "Desconhecido",
+    "9": "Ausente",
 }
+
+MONITOR_TENSAO = {
+    "01": "MT01",
+    "02": "MT02",
+    "03": "MT03",
+    "04": "MT04",
+    "05": "MT05",
+    "06": "MT06",
+    "07": "MT07",
+    "08": "MT08",
+    "09": "MT09",
+    "10": "MT10",
+    "11": "MT11",
+    "12": "MT12",
+    "13": "MT13",
+    "14": "MT14",
+    "15": "-",
+    "16": "-",
+    "17": "Painel 1",
+    "18": "Painel 2",
+}
+
+FILENAME = "numbers.txt"
 
 
 def fmt_ts(dt: datetime) -> str:
@@ -35,14 +79,11 @@ def fmt_ts(dt: datetime) -> str:
     Converte um datetime (naive ou aware) para fuso de Brasília,
     remove microssegundos e retorna ISO-format até os segundos.
     """
-    # se for naive, assumimos que já veio em horário local de SP
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=BR_TZ)
     else:
         dt = dt.astimezone(BR_TZ)
-
     return dt.strftime("%H:%M:%S %d/%m/%Y")
-    # return dt.replace(microsecond=0).isoformat(timespec="seconds")
 
 
 def create_db():
@@ -54,9 +95,9 @@ def create_db():
         print(f"[OK] DB '{DATABASE}' pronto (status {resp.status_code})")
 
 
-def parse_message(message: str) -> dict:
+def parse_message_alarme(message: str) -> dict:
     """
-    Porta aqui o parseMessage.js:
+    Portado de parseMessage.js:
     - split em ';'
     - parse de timestamp 'YYYY-MM-DD HH:mm:ss'
     - 4 tipos de mensagem
@@ -67,14 +108,13 @@ def parse_message(message: str) -> dict:
 
     irrigador_id = parts[0]
     raw_ts = parts[1]
-    # converter "2025-05-26 14:12:00" → "2025-05-26T14:12:00"
     ts_iso = raw_ts.replace(" ", "T")
     try:
         timestamp = datetime.fromisoformat(ts_iso)
     except ValueError:
         raise ValueError(f"Timestamp inválido: {raw_ts}")
 
-    # 1) monitorStatus: >=3 partes e todas as partes[2:] são dígitos únicos
+    # 1) monitorStatus
     if len(parts) >= 3 and all(re.fullmatch(r"\d", p) for p in parts[2:]):
         status = [
             {"mt": i + 1, "status": STATUS_MAP.get(p, "Desconhecido")}
@@ -87,7 +127,7 @@ def parse_message(message: str) -> dict:
             "status": status,
         }
 
-    # 2) event/alarme: exatamente 3 partes e parts[2] começa com A ou E seguido de dígitos
+    # 2) event/alarme
     if len(parts) == 3 and re.fullmatch(r"[AE]\d+", parts[2]):
         ev = parts[2]
         return {
@@ -97,19 +137,19 @@ def parse_message(message: str) -> dict:
             "eventType": "alarme" if ev[0] == "A" else "evento",
             "eventCode": ev[1:],
             "status": "Não resolvido",
-            "description": "Sem descrição",  # você pode modificar isso mais tarde com informações adicionais
-            "responsible": "A definir",  # também pode ser alterado conforme o caso
+            "description": "Sem descrição",
+            "responsible": "A definir",
             "notifications": {
                 "WhatsApp": False,
                 "E-mail": False,
                 "SMS": False,
                 "Ligação": False,
             },
-            "snooze_time": None,  # isso pode ser ajustado conforme a lógica
-            "snooze_until": None,  # ajusta o horário da soneca
+            "snooze_time": None,
+            "snooze_until": None,
         }
 
-    # 3) command simples: exatamente 2 partes e a segunda é só letras
+    # 3) command simples
     if len(parts) == 2 and re.fullmatch(r"[A-Za-z]+", parts[1]):
         return {
             "type": "command",
@@ -118,7 +158,7 @@ def parse_message(message: str) -> dict:
             "timestamp": fmt_ts(timestamp),
         }
 
-    # 4) mtTension: >=3 partes → tentamos regex (\d+\.\d{2})([01]) senão float simples
+    # 4) mtTension
     if len(parts) >= 3:
         mt_readings = []
         for i, token in enumerate(parts[2:]):
@@ -140,65 +180,154 @@ def parse_message(message: str) -> dict:
             "mtReadings": mt_readings,
         }
 
-    # se não entrou em nenhum caso
     raise ValueError(f"Formato não reconhecido: {message!r}")
 
 
 def on_message(client, userdata, msg):
     if msg.topic.startswith("$SYS/"):
         return
-
-    payload_str = msg.payload.decode("utf-8", errors="ignore")
     if msg.topic.startswith("lindsay/comandos"):
         return
 
+    payload_str = msg.payload.decode("utf-8", errors="ignore")
+
+    # tenta parsear
     try:
-        parsed = parse_message(payload_str)
+        parsed = {"data": payload_str, "timestamp": fmt_ts(datetime.now())}
+        parsed_alarme = parse_message_alarme(payload_str)
     except ValueError as e:
-        # fallback: envia o payload cru + erro
+        # fallback de erro
         parsed = {
-            "type": "raw",
-            "payload": payload_str,
+            "type": "error",
             "error": str(e),
+            "string_error": payload_str,
+            "timestamp": fmt_ts(datetime.now()),
+        }
+        parsed_alarme = {
+            "type": "error",
+            "error": str(e),
+            "string_error": payload_str,
             "timestamp": fmt_ts(datetime.now()),
         }
 
-    doc = {"topic": msg.topic, "origin": "esp32", **parsed}
+    # document for CouchDB
+    doc = {
+        "topic": msg.topic,
+        "type": "string",
+        "origin": "esp32",
+        "table": "mqtt_messages",
+        **parsed,
+    }
 
-    # Envia notificação
-    to = ["+5511995480383", "+5519974134215"]  # Segundo número é do cliente
+    try:
+        numbers = read_file(FILENAME)
+    except FileNotFoundError:
+        numbers = []
 
-    msg = f"""
-*Alarme Acionado*
+    notification = query_notification()
 
-*ID do Irrigador:* {doc_["irrigadorId"]}
-*ID do evento:* {doc["eventCode"]}
-*Horário:* {doc["timestamp"]}
-*Status:* {doc["status"]}
-*Descrição:* {doc["description"]}
-*Responsável:* {doc["responsible"]}
-    """
+    notify = False
 
-    if doc["eventType"] == "alarme":
+    if notification:
+        notify = notification.status
+
+    # envia notificação só se for alarme real
+    if (
+        parsed_alarme.get("type") == "event"
+        and parsed_alarme.get("eventType") == "alarme"
+        and notify
+    ):
+        msg_body = f"""
+Alarme Acionado
+
+ID do Irrigador: {parsed_alarme["irrigadorId"]}
+ID do evento: {"A" + parsed_alarme["eventCode"]}
+Evento: {MONITOR_TENSAO.get(parsed_alarme["eventCode"], "-")}
+Horário: {parsed_alarme["timestamp"]}
+Status: {parsed_alarme["status"]}
+Descrição: {parsed_alarme["description"]}
+Responsável: {parsed_alarme["responsible"]}
+"""
         try:
-            send_message(msg, to)
-            print("[OK] Notificação não enviada")
+            send_message(msg_body, numbers)
+            print("[OK] Notificação enviada")
         except TwilioException as e:
             print(f"[ERRO] Erro de configuração do Twilio: {e}")
             print(
-                "\n[ERRO] Certifique-se de que as variáveis de ambiente TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN estão definidas."
+                "\n[ERRO] Certifique-se de que as variáveis de ambiente "
+                "TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN estão definidas."
             )
             print("[ERRO] Notificação não enviada")
+    elif parsed_alarme.get("eventType") == "alarme" and not notify:
+        print("[OK] Nenhum número para notificar")
 
     # grava no CouchDB
     resp = requests.post(f"{COUCHDB_URL}/{DATABASE}", json=doc)
     if resp.status_code not in (201, 202):
         print(f"[ERRO] POST no CouchDB retornou {resp.status_code}: {resp.text}")
     else:
-        print(f"[OK] Gravou doc id={resp.json().get('id')} tipo={parsed['type']}")
+        print(f"[OK] Gravou doc id={resp.json().get('id')}")
 
 
-if __name__ == "__main__":
+def read_file(filename: str) -> List[str]:
+    lines = []
+    try:
+        with open(filename, "r", encoding="utf-8") as file:
+            lines = [line.strip() for line in file]
+    except FileNotFoundError:
+        print(f"Erro: O arquivo '{filename}' não foi encontrado.")
+    except Exception as e:
+        print(f"Ocorreu um erro inesperado: {e}")
+
+    return lines
+
+
+def query_couchdb(query):
+    try:
+        couch = couchdb.Server(COUCHDB_URL)
+        db = couch[DATABASE]
+
+        result = db.find(query)
+        return result
+    except ResourceNotFound:
+        print(f"Erro: banco de dados '{DATABASE}' não foi encontrado")
+        return None
+    except Exception as e:
+        print(f"Ocorreu um erro inesperado: {e}")
+        return None
+
+
+class Notification(BaseModel):
+    table: Literal["notificacao"]
+    status: bool
+
+    class Config:
+        extra = "allow"
+
+
+def query_notification():
+    query = {"selector": {"table": {"$regex": "notificacao"}}, "limit": 2000}
+
+    result = query_couchdb(query)
+
+    if result is None:
+        return None
+
+    item = next(result, None)
+
+    if not item:
+        print("Nenhum item encontrado")
+        return None
+
+    try:
+        notification = Notification.model_validate(item)
+        return notification
+    except ValidationError as e:
+        print(f"Erro de validação: {e}")
+        return None
+
+
+if _name_ == "_main_":
     print("Inicializando MQTT → CouchDB…")
     create_db()
 

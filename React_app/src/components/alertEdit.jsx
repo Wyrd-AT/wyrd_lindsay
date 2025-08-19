@@ -1,302 +1,255 @@
-// src/components/AlertEdit.jsx
-import React, { useEffect, useState, useRef } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { IoClose } from "react-icons/io5";
 import { FiShare2 } from "react-icons/fi";
-import { alarmTypeDescriptions, valueDescriptions } from "./alertHistory";
-import useLatestAlertasPorMonitor from "../hooks/useLatestAlertasPorMonitor";
-import useHistoricoAlertasStore from "../hooks/alertsHistoryStore";
-import { readData, saveData } from "../api/database_app";
+import { valueDescriptions } from "./alertHistory";
+import { useAuthStore } from "../stores/authStore";
+import { useAgendamentos, useDataStoreAgendamentos } from "../stores/dataStoreTimers";
 
-function formatInterval(mins) {
-  if (mins >= 60) {
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
-    const horaLabel = `HORA${h > 1 ? "S" : ""}`;
-    const minLabel = m > 0 ? ` ${m} MINUTO${m > 1 ? "S" : ""}` : "";
-    return `${h} ${horaLabel}${minLabel}`;
-  }
-  return `${mins} MINUTO${mins > 1 ? "S" : ""}`;
+function mkReqId(prefix = "ag") {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export default function AlertEdit({ isOpen, onClose, alertData }) {
-  const [description, setDescription] = useState("");
-  const [responsible, setResponsible] = useState("");
-  const [alarmInterval, setAlarmInterval] = useState(0);
-  const [timer, setTimer] = useState(0);
-  const modalRef = useRef(null);
+function formatHHMMSS(ms) {
+  const total = Math.max(0, Math.floor((ms ?? 0) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
+}
 
-  const { latestAlertas } = useLatestAlertasPorMonitor();
-  const latestForMonitor = latestAlertas.find(
-    (a) =>
-      a.monitor === alertData?.monitor &&
-      a.date !== alertData?.date &&
-      a.irrigadorId == alertData?.irrigadorId
+export default function AlertEdit({
+  isOpen = false,
+  onClose,
+  alertData = null,
+  equipamentos = [],
+}) {
+  const [monitor, setMonitor] = useState("Painel 1");
+  const [minutes, setMinutes] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [localTimerOverride, setLocalTimerOverride] = useState(null);
+  const addTimer = useDataStoreAgendamentos((state) => state.addAgendamento);
+  const { agendamentos, findAgendamentoByIdOrigem } = useAgendamentos();
+  const { user } = useAuthStore();
+  const storeTimer = findAgendamentoByIdOrigem(alertData?._id);
+
+  useEffect(() => {
+    if (alertData?.monitor != null) setMonitor(alertData.monitor);
+  }, [alertData?.monitor]);
+
+  const monitorResolved = useMemo(() => {
+    if (!Array.isArray(equipamentos) || equipamentos.length === 0) return String(monitor ?? "—");
+    const id = Number(alertData?.monitor);
+    if (Number.isNaN(id)) return String(alertData?.monitor ?? monitor ?? "—");
+
+    let idx = id === 17 ? 0 : id === 18 ? 1 : id + 1;
+    if (idx < 0 || idx >= equipamentos.length) return `#${id}`;
+    const item = equipamentos[idx];
+    return typeof item === "string" ? item : item?.nome ?? item?.name ?? `#${id}`;
+  }, [alertData?.monitor, equipamentos, monitor]);
+
+  useEffect(() => {
+    if (!localTimerOverride) return;
+    if (storeTimer?.scheduled_for && storeTimer.scheduled_for === localTimerOverride.scheduled_for) {
+      setLocalTimerOverride(null);
+    }
+  }, [alertData]);
+
+  const effectiveTimer = storeTimer;
+  const scheduledTargetTs = useMemo(
+    () => effectiveTimer?.scheduled_for ? new Date(effectiveTimer.scheduled_for).getTime() : null,
+    [effectiveTimer?.scheduled_for]
   );
 
-  const { update: updateHistory } = useHistoricoAlertasStore();
-
+  const [remainingMs, setRemainingMs] = useState(null);
   useEffect(() => {
-    if (!isOpen || !alertData) return;
-
-    // 1) Descrição
-    setDescription(
-      alertData.description ??
-        alarmTypeDescriptions[alertData.alarme] ??
-        ""
-    );
-
-    const hasResponsible =
-      alertData.responsible != null && alertData.responsible !== "";
-    const hasTimer = alertData.timer != null;
-
-    if (hasResponsible && hasTimer) {
-      // 2) Já vem no próprio alertData
-      setResponsible(alertData.responsible);
-      setTimer(alertData.timer);
-      setAlarmInterval(alertData.timer);
-    } else if (alertData._id) {
-      // 3) Busca no localDB se faltar algo
-      readData({ _id: alertData._id })
-        .then((docs) => {
-          const doc = docs[0];
-          if (doc) {
-            const resp = doc.responsible ?? "";
-            const tim = doc.timer ?? 0;
-
-            setResponsible(resp);
-            setTimer(tim);
-            setAlarmInterval(tim);
-
-            // Persiste só se não vinha antes
-            if (!hasResponsible || !hasTimer) {
-              updateHistory(alertData._id, {
-                responsible: resp,
-                timer: tim,
-              })
-                .then(() =>
-                  console.log(
-                    "✅ timer e responsible persistidos no histórico"
-                  )
-                )
-                .catch((err) =>
-                  console.error(
-                    "❌ Falha ao persistir timer/responsible:",
-                    err
-                  )
-                );
-            }
-          } else {
-            console.warn(
-              "⚠️ Nenhum documento encontrado com _id:",
-              alertData._id
-            );
-          }
-        })
-        .catch((err) =>
-          console.error("❌ Erro ao ler documento pelo _id:", err)
-        );
-    } else {
-      // 4) Nem alertData.timer nem _id: zera tudo
-      setResponsible("");
-      setTimer(0);
-      setAlarmInterval(0);
+    if (!scheduledTargetTs || !isOpen) {
+      setRemainingMs(null);
+      return;
     }
+    const tick = () => setRemainingMs(Math.max(0, scheduledTargetTs - Date.now()));
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [scheduledTargetTs, isOpen]);
 
-    // Foca no textarea
-    setTimeout(() => modalRef.current?.focus(), 0);
-  }, [isOpen, alertData?._id]);
-
-  // Fecha com Esc
+  const [previewMs, setPreviewMs] = useState(null);
   useEffect(() => {
-    function handleKeyDown(e) {
-      if (e.key === "Escape") onClose();
+    const mins = Number(minutes || 0);
+    if (!isOpen || !Number.isFinite(mins) || mins <= 0 || scheduledTargetTs) {
+      setPreviewMs(null);
+      return;
     }
-    if (isOpen) window.addEventListener("keydown", handleKeyDown);
-    return () =>
-      window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+    const previewTarget = Date.now() + mins * 60_000;
+    const tick = () => setPreviewMs(Math.max(0, previewTarget - Date.now()));
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [minutes, isOpen, scheduledTargetTs]);
 
-  if (!isOpen || !alertData) return null;
+  async function handleAgendamentoClick() {
+    if (!alertData) return;
 
-  const dt = new Date(alertData.date);
-  const dateStr = dt.toLocaleDateString("pt-BR");
-  const timeStr = dt.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  function handleShare() {
-    const text = `Alerta ${alertData.id} em ${dateStr} ${timeStr}\nStatus: ${valueDescriptions[alertData.status]}`;
-    if (navigator.share) {
-      navigator.share({ text }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text);
-      alert("Texto do alerta copiado para a área de transferência");
-    }
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-
+    const reqId = mkReqId();
     try {
-      // 1) Monta o documento completo
-      const updatedDoc = {
-        description,
-        responsible,
-        timer,
-        _id: alertData._id,
-        _rev: alertData._rev, // caso você controle revisões manualmente
+      setIsSaving(true);
+      const agora = new Date();
+      const parsedMinutes = Number(minutes || 0);
+      const scheduled = new Date(agora.getTime() + parsedMinutes * 60_000);
+
+      const timerDoc = {
+        id_origem: alertData._id,
+        ultimo_agendamento: agora.toLocaleString("pt-BR"),
+        scheduled_for: scheduled.toISOString(),
+        responsavel_agendamento: user?.email || "Desconhecido",
+        timer_value: parsedMinutes,
+        status: "agendado",
+        updated_at: agora.toISOString(),
+        created_at: storeTimer?.created_at ?? agora.toISOString(),
       };
 
-      // 2) Grava no local, replica no remoto e retorna id+rev definitivos
-      const { id, rev } = await saveData(updatedDoc);
-      console.log(`✅ Gravado e replicado no CouchDB com rev ${rev}`);
+      if (storeTimer?._id) {
+        await addTimer({ ...storeTimer, ...timerDoc });
+      } else {
+        await addTimer(timerDoc);
+        setMinutes(0);
+      }
 
-      // Atualiza o _rev em alertData para futuros updates
-      alertData._rev = rev;
-
-      // 3) Atualiza também o histórico local (Zustand)
-      await updateHistory(alertData._id, {
-        description,
-        responsible,
-        timer,
+      setLocalTimerOverride({
+        ...(storeTimer ?? {}),
+        ...timerDoc,
+        _id: storeTimer?._id ?? "local",
       });
-      console.log(
-        "✅ Documento atualizado com timer, responsável e descrição (histórico local)"
-      );
     } catch (err) {
-      console.error("❌ Falha ao atualizar:", err);
+      console.error("Erro ao salvar agendamento:", err);
+    } finally {
+      setIsSaving(false);
     }
-
-    onClose();
   }
 
+  async function handleSolutionClick() {
+    if (!effectiveTimer) return;
+
+    const reqId = mkReqId();
+    try {
+      setIsSaving(true);
+      const agora = new Date();
+      const timerDoc = {
+        id_origem: alertData._id,
+        ultimo_agendamento: effectiveTimer.ultimo_agendamento,
+        scheduled_for: effectiveTimer?.scheduled_for,
+        responsavel_agendamento: effectiveTimer?.responsavel_agendamento || "Desconhecido",
+        timer_value: effectiveTimer?.timer_value,
+        status: "solucionado",
+        updated_at: agora.toISOString(),
+        created_at: effectiveTimer?.created_at,
+        data_solucao: agora.toLocaleString("pt-BR"),
+        responsavel_solucao: user?.email || "Desconhecido",
+      };
+
+      if (storeTimer?._id) {
+        await addTimer({ ...storeTimer, ...timerDoc });
+      } else {
+        await addTimer(timerDoc);
+      }
+
+      setLocalTimerOverride({
+        ...(storeTimer ?? {}),
+        ...timerDoc,
+        _id: storeTimer?._id ?? "local",
+      });
+    } catch (err) {
+      console.error("Erro ao salvar solução:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  if (!isOpen) return null;
+
+  const ultimoAgendamento = effectiveTimer?.ultimo_agendamento ?? "—";
+  const scheduledFor = effectiveTimer?.scheduled_for ? new Date(effectiveTimer.scheduled_for).toLocaleString("pt-BR") : "—";
+  const responsavel = effectiveTimer?.responsavel_agendamento ?? "—";
+  const timerValor = Number.isFinite(effectiveTimer?.timer_value) ? `${effectiveTimer.timer_value} min` : "—";
+  const responsavelSolucao = effectiveTimer?.responsavel_solucao ?? "—";
+  const dataSolucao = effectiveTimer?.data_solucao ?? "—";
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black opacity-25" />
-      <form
-        role="dialog"
-        aria-modal="true"
-        className="relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-      >
-        {/* Header */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black opacity-25" onClick={onClose} />
+      <div role="dialog" aria-modal="true" className="relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col" aria-busy={isSaving}>
+        <details className="p-4 border-t border-[#444]">
+          <summary className="cursor-pointer text-sm text-gray-400">Ver timer (JSON)</summary>
+          <div className="mt-2 max-h-60 overflow-auto rounded bg-[#1f1f1f] p-3 text-xs font-mono leading-relaxed">
+            <pre className="whitespace-pre-wrap break-words">{effectiveTimer ? JSON.stringify(effectiveTimer, null, 2) : "—"}</pre>
+          </div>
+        </details>
+        <details className="px-4 border-t border-[#444]">
+          <summary className="cursor-pointer text-sm text-gray-400">Ver alertData (JSON)</summary>
+          <div className="mt-2 max-h-60 overflow-auto rounded bg-[#1f1f1f] p-3 text-xs font-mono leading-relaxed">
+            <pre className="whitespace-pre-wrap break-words">{alertData ? JSON.stringify(alertData, null, 2) : "—"}</pre>
+          </div>
+        </details>
+
         <div className="flex justify-between items-center p-4 border-b border-[#444]">
-          <h2 className="text-lg font-semibold">Alerta {alertData.id}</h2>
+          <h2 className="text-lg font-semibold" title={String(monitorResolved)}>{alertData?._id} {monitorResolved}</h2>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleShare}
-              aria-label="Compartilhar"
-            >
-              <FiShare2 size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fechar"
-            >
-              <IoClose size={20} />
-            </button>
+            <FiShare2 size={20} />
+            <button type="button" onClick={onClose} aria-label="Fechar"><IoClose size={20} /></button>
           </div>
         </div>
 
-        {/* Infos básicas em 4 colunas */}
         <div className="grid grid-cols-4 gap-4 p-4">
-          <div>
-            <label className="block text-xs text-gray-400">ID</label>
-            <div className="break-all text-sm">{alertData._id}</div>
+          <div><label className="block text-sm text-gray-400">Monitor</label><div className="text-sm truncate" title={String(monitorResolved)}>{monitorResolved}</div></div>
+          <div><label className="block text-sm text-gray-400">Data</label><div className="text-sm">{alertData?.date}</div></div>
+          <div><label className="block text-sm text-gray-400">Hora</label><div className="text-sm">{alertData?.time}</div></div>
+          <div><label className="block text-sm text-gray-400">Status</label><div className="text-sm">{valueDescriptions[alertData?.status]}</div></div>
+        </div>
+
+        <div className="p-4 border-t border-[#444]">
+          <h3 className="text-sm text-gray-400">Ativar alarme novamente em:</h3>
+          <div className="flex items-center gap-2 mt-1">
+            <input type="number" min={0} value={minutes} onChange={(e) => setMinutes(e.target.value)} className="w-20 px-2 text-sm bg-[#444444] rounded" disabled={isSaving} />
+            <span className="text-sm text-gray-300">MINUTOS</span>
+            <button type="button" className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed" onClick={handleAgendamentoClick} title={isSaving ? "Processando..." : "Agendar"} disabled={isSaving} aria-busy={isSaving}>
+              {isSaving ? "Agendando..." : "Agendar"}
+            </button>
           </div>
-          <div>
-            <label className="block text-xs text-gray-400">Data</label>
-            <div className="text-sm">{alertData.date}</div>
+
+          {scheduledTargetTs && (
+            <div className="mt-3 text-sm text-gray-400">
+              Cronômetro até reativação: <span className="text-white font-mono" aria-live="polite">{formatHHMMSS(remainingMs)}</span>
+              {remainingMs === 0 && <span className="ml-2 text-green-400">⏰ pronto</span>}
+            </div>
+          )}
+
+          {!scheduledTargetTs && previewMs != null && (
+            <div className="mt-3 text-sm text-gray-400">
+              Prévia ({Number(minutes)} min): <span className="text-white font-mono" aria-live="polite">{formatHHMMSS(previewMs)}</span>
+            </div>
+          )}
+
+          <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-gray-400">
+            <div>Último agendamento: <p className="text-white inline">{ultimoAgendamento}</p></div>
+            <div>Timer agendado para: <p className="text-white inline">{scheduledFor}</p></div>
+            <div>Responsável pelo agendamento: <p className="text-white inline">{responsavel}</p></div>
+            <div>Intervalo configurado: <p className="text-white inline">{timerValor}</p></div>
           </div>
-          <div>
-            <label className="block text-xs text-gray-400">Hora</label>
-            <div className="text-sm">{alertData.time}</div>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400">Status</label>
-            <div className="text-sm">
-              {valueDescriptions[alertData.status]}
+
+          <div className="mt-6 text-sm text-gray-400 border-t border-[#444] pt-4">
+            <button type="button" className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed" onClick={handleSolutionClick} title={isSaving ? "Solucionando..." : "Solucionar Alarme"} disabled={isSaving} aria-busy={isSaving}>
+              {isSaving ? "Solucionando..." : "Solucionar Alarme"}
+            </button>
+            <div>
+              <div className="mt-2">Data da solução: <p className="text-white inline">{dataSolucao}</p></div>
+              <p>Responsável pela solução do alarme:</p>
+              <p className="text-white">{responsavelSolucao}</p>
             </div>
           </div>
         </div>
 
-        {/* Intervalo genérico */}
         <div className="p-4 border-t border-[#444]">
-          <h3 className="text-xs text-gray-400">
-            Ativar alarme novamente em:
-          </h3>
-          <div className="flex items-center gap-2 mt-1">
-            <input
-              type="number"
-              min={0}
-              value={alarmInterval}
-              onChange={(e) => {
-                const parsed = parseInt(e.target.value, 10);
-                const v = Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
-                setAlarmInterval(v);
-                setTimer(v);
-              }}
-              className="w-20 px-2 py-1 text-sm bg-[#444444] rounded"
-            />
-            <span className="text-sm text-gray-300">
-              {formatInterval(alarmInterval)}
-            </span>
-          </div>
+          <input type="checkbox" checked={false} readOnly className="p-4" />
+          <label className="ml-2 text-gray-400">Notificações pelo Whatsapp DESATIVADAS</label>
         </div>
-
-        {/* Descrição */}
-        <div className="p-4">
-          <label className="block mb-1 text-xs text-gray-400">
-            Descrição
-          </label>
-          <textarea
-            ref={modalRef}
-            className="w-full rounded-md bg-[#444444] p-2 text-sm resize-none"
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={alarmTypeDescriptions[alertData.alarme]}
-          />
-        </div>
-
-        {/* Responsável */}
-        <div className="p-4">
-          <label className="block mb-1 text-xs text-gray-400">
-            Responsável
-          </label>
-          <input
-            type="text"
-            className="w-full rounded-md bg-[#444444] p-2 text-sm"
-            value={responsible}
-            onChange={(e) => setResponsible(e.target.value)}
-            placeholder="Nome do responsável"
-          />
-        </div>
-
-        {/* Botões */}
-        <div className="flex justify-end gap-2 p-4 border-t border-[#444]">
-          <button
-            type="button"
-            className="px-4 py-2 border rounded text-sm"
-            onClick={onClose}
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-green-600 rounded text-sm"
-          >
-            Salvar
-          </button>
-        </div>
-      </form>
+      </div>
     </div>
   );
 }

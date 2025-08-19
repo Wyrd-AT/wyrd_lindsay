@@ -273,7 +273,7 @@ export default function StatusAlarmModal({
                             <span className="w-1/5">
                               {alarmTypeDescriptions[item.alarme]}
                             </span>
-                            <span className="w-1/5">{item.monitor}</span>
+                            <span className="w-1/5">{item.monitor==17 ? "Painel 1":item.monitor==18 ? "Painel 2":item.monitor}</span>
                             <span className="w-1/5">
                               {valueDescriptions[item.status] || item.status}
                             </span>
@@ -289,5 +289,5 @@ export default function StatusAlarmModal({
         </div>
       </div>
     </div>
-  );
+  ); 
 }

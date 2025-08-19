@@ -5,6 +5,7 @@ import SyncProvider from "../components/SyncProvider";
 import { useAuthStore } from "../stores/authStore";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { signIn } from "../api/auth";
+import SyncProgressBar from "../components/SyncProgressModal copy";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -26,7 +27,7 @@ export default function Login() {
       return;
     }
       const response = await signIn(email, password);
-      //console.log(response)
+      ////console.log(response)
 
     try {
       const response = await signIn(email, password);
@@ -83,7 +84,7 @@ export default function Login() {
   return (
     <SyncProvider>
       <div className="flex min-h-screen items-center justify-center bg-[#272727]">
-        <SyncProgressModal />
+        <SyncProgressBar/>
         <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96 relative">
           {/* Logo */}
           <div className="flex justify-center mb-6">

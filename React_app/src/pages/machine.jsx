@@ -144,7 +144,7 @@ export default function MaquinaRevenda() {
           equipments={equipamentos}
         />
 
-        <AlertHistory machineId={selectedMachineId} />
+        <AlertHistory machineId={selectedMachineId} equipamentos={equipamentos} />
       </BodyContent>
 
       <MensagemModal
@@ -153,12 +153,7 @@ export default function MaquinaRevenda() {
         selectedMachine={selectedMachineId}
       />
 
-      {isDetailsOpen && (
-        <SyncProvider
-          doc={selectedDoc}
-          onClose={() => setIsDetailsOpen(false)}
-        />
-      )}
+    
     </div>
   );
 }

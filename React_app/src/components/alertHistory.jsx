@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import useHistoricoAlertasStore from "../hooks/alertsHistoryStore.js";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import AlertEdit from "./alertEdit.jsx";
@@ -19,7 +19,7 @@ export const alarmTypeDescriptions = {
   E: "Torre ausente (não responde à Central)",
 };
 
-export default function AlertHistory({ machineId }) {
+export default function AlertHistory({ machineId, equipamentos }) {
   const {
     data: historicoAlertas,
     isLoading: isLoadingAlertas,
@@ -27,6 +27,7 @@ export default function AlertHistory({ machineId }) {
     update: updateAlert,
   } = useHistoricoAlertasStore();
 
+  //console.log(historicoAlertas)
   const [collapsedSections, setCollapsedSections] = useState({});
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState(null);
@@ -41,12 +42,13 @@ export default function AlertHistory({ machineId }) {
       </div>
     );
   }
+  ////console.log(machineId)
 
   // Filtra pelo irrigador (se houver)
   const listaFiltrada = machineId
     ? historicoAlertas.filter((item) => item.irrigadorId === machineId)
     : historicoAlertas;
-
+  ////console.log("listaFiltrada", listaFiltrada);
   // Ordena por data e hora (mais recentes primeiro)
   const listaOrdenada = [...listaFiltrada].sort((a, b) => {
     // transforma de volta em Date para comparar corretamente
@@ -83,6 +85,62 @@ export default function AlertHistory({ machineId }) {
     setEditingAlert(null);
   };
 
+  // 1) REMOVA o bloco antigo de useMemo para "monitorResolved"
+  // ❌ apague isto:
+  /*
+    const monitorResolved = useMemo(() => {
+      console.log(monitor)
+      if (!Array.isArray(equipamentos) || equipamentos.length === 0) {
+        return String(monitor ?? "—");
+      }
+      const raw = editingAlert?.monitor;
+      setMonitor(raw);
+      const id = Number(raw);
+      console.log(id)
+      if (Number.isNaN(id)) {
+        return String(raw ?? "—");
+      }
+      let idx;
+      if (id === 17) idx = 0;
+      else if (id === 18) idx = 1;
+      else idx = id + 1;
+      if (idx < 0 || idx >= equipamentos.length) {
+        return `#${id}`;
+      }
+      const item = equipamentos[idx];
+      return typeof item === "string" ? item : item?.nome ?? item?.name ?? `#${id}`;
+    }, [editingAlert]);
+  */
+
+  // 2) ADICIONE um resolvedor puro (memoizado) que retorna uma função
+  const resolveMonitorName = useMemo(() => {
+    return (rawMonitor) => {
+      if (!Array.isArray(equipamentos) || equipamentos.length === 0) {
+        return String(rawMonitor ?? "—");
+      }
+
+      const id = Number(rawMonitor);
+      if (Number.isNaN(id)) {
+        // se vier já como texto, só mostra
+        return String(rawMonitor ?? "—");
+      }
+
+      // Regras: 17 -> equipamentos[0], 18 -> equipamentos[1], demais -> id + 1
+      let idx;
+      if (id === 17) idx = 0;
+      else if (id === 18) idx = 1;
+      else idx = id + 1;
+
+      if (idx < 0 || idx >= equipamentos.length) {
+        return `Ausente`;
+      }
+
+      const eq = equipamentos[idx];
+      return typeof eq === "string" ? eq : (eq?.nome ?? eq?.name ?? `Ausente`);
+    };
+  }, [equipamentos]);
+
+
   return (
     <div className="overflow-x-auto bg-[#222222] mt-4 p-4 rounded">
       <h2 className="text-xl font-semibold text-white mb-4">Histórico de Alertas</h2>
@@ -98,13 +156,18 @@ export default function AlertHistory({ machineId }) {
         </thead>
         <tbody>
           {Object.entries(agrupadoPorData).map(([data, itens]) => {
+            // ⚠️ FILTRA "Ausente"
+            const itensVisiveis = itens.filter(
+              (item) => resolveMonitorName(item.monitor) !== "Ausente"
+            );
+
+            // se não houver nada visível nessa data, nem mostra a seção
+            if (itensVisiveis.length === 0) return null;
+
             const isCollapsed = collapsedSections[data];
             return (
               <React.Fragment key={data}>
-                <tr
-                  onClick={() => toggleSection(data)}
-                  className="cursor-pointer"
-                >
+                <tr onClick={() => toggleSection(data)} className="cursor-pointer">
                   <td
                     className="px-4 py-2 font-semibold text-white bg-[#333333]"
                     colSpan={5}
@@ -113,8 +176,9 @@ export default function AlertHistory({ machineId }) {
                     {" " + data}
                   </td>
                 </tr>
+
                 {!isCollapsed &&
-                  itens.map((item) => (
+                  itensVisiveis.map((item) => (
                     <tr
                       key={item._id}
                       className="hover:bg-[#444444] cursor-pointer"
@@ -122,7 +186,9 @@ export default function AlertHistory({ machineId }) {
                     >
                       <td className="px-4 py-2 text-white">{item.time}</td>
                       <td className="px-4 py-2 text-white">{item.irrigadorId}</td>
-                      <td className="px-4 py-2 text-white">{item.monitor}</td>
+                      <td className="px-4 py-2 text-white">
+                        {resolveMonitorName(item.monitor)}
+                      </td>
                       <td className="px-4 py-2 text-white">
                         {alarmTypeDescriptions[item.alarme] || item.alarme}
                       </td>
@@ -141,7 +207,9 @@ export default function AlertHistory({ machineId }) {
         isOpen={isEditOpen}
         onClose={handleCloseEdit}
         alertData={editingAlert}
+        equipamentos={equipamentos}
       />
     </div>
   );
+
 }

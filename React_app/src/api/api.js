@@ -10,7 +10,7 @@ const api = axios.create({
     'Content-Type': 'application/x-amz-json-1.1',
   },
 })
-//console.log(api)
+////console.log(api)
 // Interceptador de requisição para incluir o token JWT no cabeçalho
 api.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
@@ -26,6 +26,6 @@ export const home = {
   check: () => api.get('/home'),
 };
 
-//console.log(api)
+////console.log(api)
 
 export default api

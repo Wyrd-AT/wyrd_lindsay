@@ -4,7 +4,7 @@ import useMessageStore from "../stores/messageStore";
 const useTorresStore = () => {
   const { parsedMessages = [], isLoading, error } = useMessageStore();
 
-  //////console.log(parsedMessages)
+  ////////console.log(parsedMessages)
 
   const painelNames = [
     "Painel 1", "Painel 2", "MT01", "MT02", "MT03", "MT04", "MT05",
