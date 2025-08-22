@@ -352,7 +352,7 @@ export default function AlertEdit({
         className="relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col outline-none"
         aria-busy={isSaving}
       >
-        <details className="p-4 border-t border-[#444]">
+        {/* <details className="p-4 border-t border-[#444]">
           <summary className="cursor-pointer text-sm text-gray-400">Ver timer (JSON)</summary>
           <div className="mt-2 max-h-60 overflow-auto rounded bg-[#1f1f1f] p-3 text-xs font-mono leading-relaxed">
             <pre className="whitespace-pre-wrap break-words">{prettyTimerJSON}</pre>
@@ -364,7 +364,7 @@ export default function AlertEdit({
           <div className="mt-2 max-h-60 overflow-auto rounded bg-[#1f1f1f] p-3 text-xs font-mono leading-relaxed">
             <pre className="whitespace-pre-wrap break-words">{prettyAlertJSON}</pre>
           </div>
-        </details>
+        </details> */}
 
         <div className="flex justify-between items-center p-4 border-b border-[#444]">
           <h2
@@ -374,7 +374,7 @@ export default function AlertEdit({
             className="text-lg font-semibold outline-none"
             title={String(monitorResolved)}
           >
-            {alertData?._id} {monitorResolved}
+            Alarme {monitorResolved}
           </h2>
           <div className="flex gap-2">
             <button
@@ -453,23 +453,7 @@ export default function AlertEdit({
             </button>
           </div>
 
-          {!isSolved && scheduledTargetTs && (
-            <div className="mt-3 text-sm text-gray-400">
-              Cronômetro até reativação: <span className="text-white font-mono" aria-live="polite">
-                {formatHHMMSS(remainingMs)}
-              </span>
-              {remainingMs === 0 && <span className="ml-2 text-green-400">⏰ pronto</span>}
-            </div>
-          )}
-
-          {!scheduledTargetTs && previewMs != null && Number.isFinite(previewMs) && (
-            <div className="mt-3 text-sm text-gray-400">
-              Prévia ({Number(minutes)} min):{" "}
-              <span className="text-white font-mono" aria-live="polite">
-                {formatHHMMSS(previewMs)}
-              </span>
-            </div>
-          )}
+    
 
           <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-gray-400">
             <div>

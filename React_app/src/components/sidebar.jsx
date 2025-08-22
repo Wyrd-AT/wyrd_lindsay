@@ -10,6 +10,7 @@ export default function SideBar() {
       className="
         sticky top-0 left-0
         w-[100px] bg-[#444444]
+        h-[100vh]
         flex flex-col items-center
         z-10
       "
