@@ -5,7 +5,7 @@ import SyncProvider from "../components/SyncProvider";
 import { useAuthStore } from "../stores/authStore";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { signIn } from "../api/auth";
-import SyncProgressBar from "../components/SyncProgressModal copy";
+import SyncProgressBar from "../components/SyncProgressModal";
 
 export default function Login() {
   const [email, setEmail] = useState("");

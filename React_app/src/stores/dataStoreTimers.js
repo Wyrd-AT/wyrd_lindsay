@@ -24,6 +24,7 @@ export const useDataStoreAgendamentos = create((set, get) => ({
         ...payload,
         table: 'agendamento',
       }
+      console.log("salvando")
       const { id, rev } = await saveData(doc)
       set(state => ({
         agendamentos: [

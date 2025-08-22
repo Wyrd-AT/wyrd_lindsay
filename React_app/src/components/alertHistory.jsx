@@ -207,6 +207,7 @@ export default function AlertHistory({ machineId, equipamentos }) {
         isOpen={isEditOpen}
         onClose={handleCloseEdit}
         alertData={editingAlert}
+        machineId={machineId}
         equipamentos={equipamentos}
       />
     </div>

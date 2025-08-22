@@ -51,7 +51,7 @@ export default function HomePageRevenda() {
   };
 
   return (
-    <div className="w-full h-screen text-white flex bg-[#313131]">
+    <div className="w-full h-full text-white flex bg-[#313131]">
       <SyncProgressBar />
       <Sidebar />
       <BodyContent>

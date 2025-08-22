@@ -18,7 +18,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import { useAuthStore } from "./stores/authStore";
 import ProtectedRoute from "./api/ProtectedRoute";
 import { startSyncHandler } from "./api/database";
-import SyncProgressBar from "./components/SyncProgressModal copy";
+import SyncProgressBar from "./components/SyncProgressModal";
+
 
 export default function App() {
   const { isAuthenticated } = useAuthStore();

@@ -11,7 +11,6 @@ export default function SideBar() {
         sticky top-0 left-0
         w-[100px] bg-[#444444]
         flex flex-col items-center
-        h-screen
         z-10
       "
     >

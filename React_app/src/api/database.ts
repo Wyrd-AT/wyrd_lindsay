@@ -40,7 +40,7 @@ export function startSyncHandler() {
   return localDB.sync(remoteDB, {
     live: true,
     retry: true,
-    batch_size: 1000, 
+    batch_size: 100000, 
     selector: {
       table: { $in: ['mqtt_messages','irrigadores','command'] }
     }

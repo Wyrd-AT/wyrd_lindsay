@@ -5,7 +5,7 @@ import { useParsedMessages } from "../hooks/useParsedMessages";
 import { useMessageStore } from "../stores/messageStore";
 
 // Função utilitária para gerar ISO string no fuso de Brasília
-function getBrasiliaTimestamp() {
+export function getBrasiliaTimestamp() {
   const dtf = new Intl.DateTimeFormat("sv-SE", {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
