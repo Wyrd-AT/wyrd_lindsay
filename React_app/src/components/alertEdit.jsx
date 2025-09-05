@@ -21,69 +21,112 @@ function formatHHMMSS(ms) {
   return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
+/** “...” animando */
+function Dots({ className }) {
+  const [dots, setDots] = useState("");
+  useEffect(() => {
+    const id = setInterval(() => {
+      setDots((d) => (d.length >= 3 ? "" : d + "."));
+    }, 300);
+    return () => clearInterval(id);
+  }, []);
+  // padEnd só pra manter largura estável
+  return (
+    <span className={className} aria-live="polite">
+      {dots.padEnd(3, " ")}
+    </span>
+  );
+}
+
 /** Ajuste explícito para IDs específicos, evitando regra “mágica” */
-const MONITOR_MAP = {
-  17: 0,
-  18: 1,
-};
+const MONITOR_MAP = { 17: 0, 18: 1 };
 
 export default function AlertEdit({
   isOpen = false,
   onClose,
   alertData = null,
   equipamentos = [],
-  machineId
+  machineId,
 }) {
   const [minutes, setMinutes] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
   const [localTimerOverride, setLocalTimerOverride] = useState(null);
   const [whatsappStatus, setWhatsappStatus] = useState(false);
 
-
-
-
+  // estados de carregamento
+  const [isTimerLoading, setIsTimerLoading] = useState(false);
+  const [isWhatsappLoading, setIsWhatsappLoading] = useState(false);
+  const isAlertLoading = isOpen && !alertData;
 
   const addTimer = useDataStoreAgendamentos((state) => state.addAgendamento);
+  const updateTimer = useDataStoreAgendamentos((state) => state.updateAgendamento);
+
+  const storeTimer = useAgendamentos(s => alertData?._id ? s.agendamentosById[alertData._id] : null);
+
+
   const { findAgendamentoByIdOrigem } = useAgendamentos();
   const { user } = useAuthStore();
 
-  // Evita chamar com undefined quando alertData ainda não chegou
-  const storeTimer = alertData?._id ? findAgendamentoByIdOrigem(alertData._id) : null;
+
+
+
   const { whatsappConfig, fetchWhatsappConfig, updateWhatsappStatus } =
     whatsappStoreConfig((state) => state);
 
-
-  /** Use o override local para a UI até a store sincronizar */
-  const effectiveTimer = localTimerOverride ?? storeTimer ?? null;
-
+  const effectiveTimer = useMemo(() => {
+    if (localTimerOverride && storeTimer) {
+      const l = new Date(localTimerOverride.updated_at ?? 0).getTime();
+      const s = new Date(storeTimer.updated_at ?? 0).getTime();
+      return l >= s ? localTimerOverride : storeTimer;
+    }
+    return localTimerOverride ?? storeTimer ?? null;
+  }, [localTimerOverride, storeTimer,!isOpen]);
   const isSolved = effectiveTimer?.status === "solucionado";
 
-  useEffect(() => {
-    if (!whatsappConfig) {
-      fetchWhatsappConfig();
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /**
+   * Refaz a leitura do agendamento até que o predicado seja verdadeiro
+   * (ou acabar as tentativas). Retorna o dado mais recente encontrado.
+   */
+  async function refetchPersistedAgendamento(idOrigem, predicate, { tries = 10, delayMs = 150 } = {}) {
+    for (let i = 0; i < tries; i++) {
+      const fresh = findAgendamentoByIdOrigem(idOrigem);
+      if (predicate?.(fresh)) return fresh;
+      await sleep(delayMs);
     }
-  }, [whatsappConfig, fetchWhatsappConfig]);
+    // última tentativa sem predicate garantir (pelo menos devolve algo)
+    return findAgendamentoByIdOrigem(idOrigem) ?? null;
+  }
+
+  /** WhatsApp: buscar config + hidratar status */
+  useEffect(() => {
+    if (!isOpen) return;
+    setIsWhatsappLoading(true);
+    // algumas stores não retornam Promise; usamos a própria mudança do estado
+    if (!whatsappConfig) {
+      const maybePromise = fetchWhatsappConfig?.();
+      // se for promise, marcamos o fim depois; se não for, o efeito abaixo ajusta
+      Promise.resolve(maybePromise).finally(() => setIsWhatsappLoading(false));
+    } else {
+      setWhatsappStatus(Boolean(whatsappConfig?.enabled ?? false));
+      setIsWhatsappLoading(false);
+    }
+  }, [isOpen, whatsappConfig, fetchWhatsappConfig]);
 
   const handleToggleChange = (e) => {
-    const newSatus = e.target.checked;
-    setWhatsappStatus(newSatus);
-    updateWhatsappStatus(newSatus);
-
+    const newStatus = e.target.checked;
+    setWhatsappStatus(newStatus);
+    updateWhatsappStatus(newStatus);
   };
 
   /** Quando a store ficar igual ao override, limpe o override */
   useEffect(() => {
     if (!localTimerOverride || !storeTimer) return;
-
-    // Só limpa quando a store refletir a MESMA solução (mesmos campos de solução)
-    const sameSolution =
-      storeTimer.status === localTimerOverride.status &&
-      storeTimer.data_solucao === localTimerOverride.data_solucao &&
-      storeTimer.responsavel_solucao === localTimerOverride.responsavel_solucao;
-
-    if (sameSolution) {
-      setLocalTimerOverride(null);
-    }
+    const l = new Date(localTimerOverride.updated_at ?? 0).getTime();
+    const s = new Date(storeTimer.updated_at ?? 0).getTime();
+    // se a store já está no mesmo estado ou mais nova/recente, não precisamos manter override
+    if (s >= l) setLocalTimerOverride(null);
   }, [storeTimer, localTimerOverride]);
 
   /** Acessibilidade/focus trap + ESC para fechar */
@@ -102,7 +145,7 @@ export default function AlertEdit({
         onClose?.();
       }
       if (e.key === "Tab" && dialogRef.current) {
-        const focusables = dialogRef.current.querySelectorAll < HTMLElement > (
+        const focusables = dialogRef.current.querySelectorAll(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
         );
         if (!focusables.length) return;
@@ -122,12 +165,15 @@ export default function AlertEdit({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
+  /** Resolve nome do monitor */
   const monitorResolved = useMemo(() => {
-    if (!Array.isArray(equipamentos) || equipamentos.length === 0) return String(monitor ?? "—");
+    if (!Array.isArray(equipamentos) || equipamentos.length === 0) {
+      return String(alertData?.monitor ?? "—");
+    }
     const id = Number(alertData?.monitor);
     if (Number.isNaN(id)) return String(alertData?.monitor ?? "—");
 
-    let idx = id === 17 ? 0 : id === 18 ? 1 : id + 1;
+    const idx = MONITOR_MAP[id] ?? id + 1; // sua lógica anterior com o map aplicado
     if (idx < 0 || idx >= equipamentos.length) return `#${id}`;
     const item = equipamentos[idx];
     return typeof item === "string" ? item : item?.nome ?? item?.name ?? `#${id}`;
@@ -138,8 +184,7 @@ export default function AlertEdit({
     if (!effectiveTimer?.scheduled_for || isSolved) return null;
     const ts = new Date(effectiveTimer.scheduled_for).getTime();
     return Number.isFinite(ts) ? ts : null;
-  }, [effectiveTimer?.scheduled_for, isSolved]);
-
+  }, [isSolved]);
 
   /** Contagem regressiva do agendamento atual */
   const [remainingMs, setRemainingMs] = useState(null);
@@ -152,11 +197,9 @@ export default function AlertEdit({
     const tick = () => {
       const ms = Math.max(0, scheduledTargetTs - Date.now());
       setRemainingMs(ms);
-      if (ms === 0 && id) {
-        clearInterval(id);
-      }
+      if (ms === 0 && id) clearInterval(id);
     };
-    tick(); // tick imediato
+    tick();
     id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [scheduledTargetTs, isOpen]);
@@ -176,44 +219,14 @@ export default function AlertEdit({
       setPreviewMs(ms);
       if (ms === 0 && id) clearInterval(id);
     };
-    tick(); // tick imediato
+    tick();
     id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [minutes, isOpen, scheduledTargetTs]);
 
-  /** Strings de debug memoizadas */
-  const prettyTimerJSON = useMemo(
-    () => (effectiveTimer ? JSON.stringify(effectiveTimer, null, 2) : "—"),
-    [effectiveTimer]
-  );
-  const prettyAlertJSON = useMemo(
-    () => (alertData ? JSON.stringify(alertData, null, 2) : "—"),
-    [alertData]
-  );
-
-  const sendCommandAlarmOFFxx = useCallback(
-    async (command, monitor, id) => {
-      try {
-        await postMessage({
-          topic: `lindsay/comandos/${id}`,
-          payload: `${id};${command}`,
-          origin: "app",
-          table: "command",
-          qos: 0,
-          "timer": minutes,
-          timestamp: new Date().toISOString(),
-        });
-        console.log(`Comando enviado: ${command} para monitor ${monitor} do ID ${id}`);
-      } catch (err) {
-        console.error(' comand error:', err)
-      } finally {
-      }
-    },
-    [machineId, postMessage]
-  );
-
   const handleEnviar = async (command, monitor, id) => {
     try {
+      // dica: se puder, prefira JSON aqui
       const payload = `${id};${command}${monitor}`;
       const doc = {
         topic: `lindsay/comandos/${id}`,
@@ -221,62 +234,84 @@ export default function AlertEdit({
         origin: "app",
         table: "command",
         qos: 0,
-        "timer": minutes,
-        timestamp: getBrasiliaTimestamp(), // agora no fuso de Brasília
+        timer: minutes,
+        timestamp: getBrasiliaTimestamp(),
       };
-      //////////console.log("[MensagemModal] enviando doc:", doc);
       await useMessageStore.getState().postMessage(doc);
-
     } catch (err) {
       console.error("[MensagemModal] erro ao enviar comando:", err);
     } finally {
-      console.log("comando enviado")
+      // noop
     }
   };
-  /** Ações */
+
+  // --- HELPER: cria/atualiza (upsert) o agendamento usando o existente se houver
+  async function upsertAgendamento(parsedMinutes) {
+    if (!alertData?._id) throw new Error("alertData._id ausente");
+    console.log(effectiveTimer)
+
+    const now = new Date();
+    const scheduled = new Date(now.getTime() + parsedMinutes * 60_000);
+
+    const existing = findAgendamentoByIdOrigem(alertData._id);
+    console.log(existing)
+
+    const base = {
+      id_origem: alertData._id,
+      created_at: existing?.created_at ?? now.toISOString(),
+      data_solucao: existing?.data_solucao ?? "—",
+      responsavel_solucao: existing?.responsavel_solucao ?? "—",
+    };
+
+    const doc = {
+      ...(existing ?? {}), // mantém _id para UPDATE se existir
+      ...base,
+      ultimo_agendamento: now.toLocaleString("pt-BR"),
+      scheduled_for: scheduled.toISOString(),
+      responsavel_agendamento:
+        user?.email || existing?.responsavel_agendamento || "Desconhecido",
+      timer_value: parsedMinutes,
+      status: "agendado",
+      updated_at: now.toISOString(),
+      data_solucao: "-",
+      responsavel_solucao: "-",
+    };
+    setIsTimerLoading(true);
+
+    try {
+      existing ? await updateTimer(existing._id, doc) : await addTimer(doc)
+    }
+    catch (err) {
+      console.error("[MensagemModal] erro ao enviar comando:", err);
+    }
+
+
+    // revalida até a store refletir os mesmos campos-chave
+    const persisted = doc
+
+    setLocalTimerOverride(persisted);
+    setIsTimerLoading(false);
+
+    console.log(persisted)
+
+    return persisted;
+  }
+
+
+  // --- HANDLE: Agendar
   async function handleAgendamentoClick() {
     if (!alertData) return;
 
     const parsedMinutes = Math.trunc(Number(minutes));
     if (!Number.isFinite(parsedMinutes) || parsedMinutes < 1) {
-      // aqui você pode disparar um toast/aviso se tiver infra de UI
+      // TODO: toast/erro de validação
       return;
     }
 
     try {
-      console.log("entrou no try")
       setIsSaving(true);
-      const agora = new Date();
-      const scheduled = new Date(agora.getTime() + parsedMinutes * 60_000);
-
-      const timerDoc = {
-        id_origem: alertData._id,
-        ultimo_agendamento: agora.toLocaleString("pt-BR"),
-        scheduled_for: scheduled.toISOString(),
-        responsavel_agendamento: user?.email || "Desconhecido",
-        timer_value: parsedMinutes,
-        status: "agendado",
-        updated_at: agora.toISOString(),
-        created_at: storeTimer?.created_at ?? agora.toISOString(),
-        data_solucao: "—",
-        responsavel_solucao: "—"
-      };
-      console.log("criou o doc")
-      if (storeTimer?._id) {
-        await addTimer({ ...storeTimer, ...timerDoc });
-      } else {
-        await addTimer(timerDoc);
-      }
-
-      // Override local para refletir imediatamente
-      setLocalTimerOverride({
-        ...(storeTimer ?? {}),
-        ...timerDoc,
-        _id: storeTimer?._id ?? "local",
-      });
-      console.log("iniciou o comando")
-      handleEnviar("SendOFF", alertData.monitor, machineId)
-      console.log("comando enviado")
+      await upsertAgendamento(parsedMinutes);
+      await handleEnviar("SendOFF", alertData.monitor, machineId);
     } catch (err) {
       console.error("Erro ao salvar agendamento:", err);
     } finally {
@@ -289,8 +324,12 @@ export default function AlertEdit({
 
     try {
       setIsSaving(true);
+      setIsTimerLoading(true);
+
       const agora = new Date();
-      const base = effectiveTimer ?? {}; // pode não existir timer prévio
+      const base = effectiveTimer ?? {};
+      const existing = findAgendamentoByIdOrigem(alertData._id);
+
 
       const timerDoc = {
         id_origem: alertData._id,
@@ -300,46 +339,69 @@ export default function AlertEdit({
         timer_value: base.timer_value ?? null,
         status: "solucionado",
         updated_at: agora.toISOString(),
-        created_at: base.created_at ?? storeTimer?.created_at ?? agora.toISOString(),
+        created_at: base.created_at ?? agora.toISOString(),
         data_solucao: agora.toLocaleString("pt-BR"),
         responsavel_solucao: user?.email || "Desconhecido",
       };
 
-      if (storeTimer?._id) {
-        await addTimer({ ...storeTimer, ...timerDoc });
-      } else {
-        await addTimer(timerDoc);
+      try {
+        existing ? await updateTimer(existing._id, timerDoc) : await addTimer(timerDoc)
+      }
+      catch (err) {
+        console.error("[MensagemModal] erro ao enviar comando:", err);
       }
 
-      setLocalTimerOverride({
-        ...(storeTimer ?? {}),
-        ...timerDoc,
-        _id: storeTimer?._id ?? "local",
-      });
+
+      const persisted = timerDoc
+
+      setLocalTimerOverride(persisted);
     } catch (err) {
       console.error("Erro ao salvar solução:", err);
     } finally {
+      setIsTimerLoading(false);
       setIsSaving(false);
     }
   }
 
 
+
+  useEffect(() => {
+    if (!isOpen || !alertData?._id) return;
+
+    setIsTimerLoading(true);
+    try {
+      const existing = findAgendamentoByIdOrigem(alertData._id);
+      if (existing) {
+        setLocalTimerOverride(existing);
+        if (Number.isFinite(existing.timer_value)) setMinutes(existing.timer_value);
+      } else {
+        setLocalTimerOverride(null);
+      }
+    } catch (err) {
+      console.error("Erro ao hidratar agendamento ao abrir modal:", err);
+    } finally {
+      setIsTimerLoading(false);
+    }
+  }, [isOpen, alertData?._id, findAgendamentoByIdOrigem]);
+
   if (!isOpen) return null;
 
 
-
-
-
-  const ultimoAgendamento = effectiveTimer?.ultimo_agendamento ?? "—";
+  const ultimoAgendamento = effectiveTimer?.ultimo_agendamento || "—";
   const scheduledFor = effectiveTimer?.scheduled_for
-    ? new Date(effectiveTimer.scheduled_for).toLocaleString("pt-BR")
+    ? new Date(effectiveTimer.scheduled_for).toLocaleString('pt-BR')
     : "—";
-  const responsavelAg = effectiveTimer?.responsavel_agendamento ?? "—";
+  const responsavelAg = effectiveTimer?.responsavel_agendamento || "—";
   const timerValor = Number.isFinite(effectiveTimer?.timer_value)
-    ? `${effectiveTimer.timer_value} min`
+    ? `${effectiveTimer.timer_value} minutos`
     : "—";
-  const responsavelSolucao = effectiveTimer?.responsavel_solucao ?? "—";
-  const dataSolucao = effectiveTimer?.data_solucao ?? "—";
+  const dataSolucao = effectiveTimer?.data_solucao && effectiveTimer.data_solucao !== "-"
+    ? effectiveTimer.data_solucao
+    : "—";
+  const responsavelSolucao = effectiveTimer?.responsavel_solucao && effectiveTimer.responsavel_solucao !== "-"
+    ? effectiveTimer.responsavel_solucao
+    : "—";
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -352,20 +414,6 @@ export default function AlertEdit({
         className="relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col outline-none"
         aria-busy={isSaving}
       >
-        {/* <details className="p-4 border-t border-[#444]">
-          <summary className="cursor-pointer text-sm text-gray-400">Ver timer (JSON)</summary>
-          <div className="mt-2 max-h-60 overflow-auto rounded bg-[#1f1f1f] p-3 text-xs font-mono leading-relaxed">
-            <pre className="whitespace-pre-wrap break-words">{prettyTimerJSON}</pre>
-          </div>
-        </details>
-
-        <details className="px-4 border-t border-[#444]">
-          <summary className="cursor-pointer text-sm text-gray-400">Ver alertData (JSON)</summary>
-          <div className="mt-2 max-h-60 overflow-auto rounded bg-[#1f1f1f] p-3 text-xs font-mono leading-relaxed">
-            <pre className="whitespace-pre-wrap break-words">{prettyAlertJSON}</pre>
-          </div>
-        </details> */}
-
         <div className="flex justify-between items-center p-4 border-b border-[#444]">
           <h2
             id="alertedit-title"
@@ -374,16 +422,15 @@ export default function AlertEdit({
             className="text-lg font-semibold outline-none"
             title={String(monitorResolved)}
           >
-            Alarme {monitorResolved}
+            Alarme{" "}
+            {isAlertLoading ? <Dots /> : monitorResolved || "Sem dados"}
           </h2>
           <div className="flex gap-2">
             <button
               type="button"
               className="p-1 rounded hover:bg-[#3a3a3a] focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Compartilhar"
-              onClick={() => {
-                // TODO: Implementar ação de compartilhamento aqui
-              }}
+              onClick={() => {/* implementar */ }}
             >
               <FiShare2 size={20} />
             </button>
@@ -401,20 +448,28 @@ export default function AlertEdit({
         <div className="grid grid-cols-4 gap-4 p-4">
           <div>
             <label className="block text-sm text-gray-400">Monitor</label>
-            <div className="text-sm truncate" title={String(monitorResolved)}>{monitorResolved}</div>
+            <div className="text-sm truncate" title={String(monitorResolved)}>
+              {isAlertLoading ? <Dots /> : monitorResolved || "Sem dados"}
+            </div>
           </div>
           <div>
             <label className="block text-sm text-gray-400">Data</label>
-            <div className="text-sm">{alertData?.date ?? "—"}</div>
+            <div className="text-sm">
+              {isAlertLoading ? <Dots /> : alertData?.date || "Sem dados"}
+            </div>
           </div>
           <div>
             <label className="block text-sm text-gray-400">Hora</label>
-            <div className="text-sm">{alertData?.time ?? "—"}</div>
+            <div className="text-sm">
+              {isAlertLoading ? <Dots /> : alertData?.time || "Sem dados"}
+            </div>
           </div>
           <div>
             <label className="block text-sm text-gray-400">Status</label>
             <div className="text-sm">
-              {valueDescriptions?.[alertData?.status] ?? String(alertData?.status ?? "—")}
+              {isAlertLoading ? (
+                <Dots />
+              ) : valueDescriptions?.[alertData?.status] ?? alertData?.status ?? "Sem dados"}
             </div>
           </div>
         </div>
@@ -429,11 +484,8 @@ export default function AlertEdit({
               value={Number.isFinite(minutes) ? minutes : ""}
               onChange={(e) => {
                 const v = e.currentTarget.valueAsNumber;
-                if (Number.isNaN(v)) {
-                  setMinutes(NaN);
-                } else {
-                  setMinutes(clamp(Math.trunc(v), 1, 10080)); // até 7 dias
-                }
+                if (Number.isNaN(v)) setMinutes(NaN);
+                else setMinutes(clamp(Math.trunc(v), 1, 10080)); // até 7 dias
               }}
               className="w-20 px-2 text-sm bg-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSaving}
@@ -453,20 +505,33 @@ export default function AlertEdit({
             </button>
           </div>
 
-    
+
+
 
           <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-gray-400">
             <div>
-              Último agendamento: <p className="text-white inline">{ultimoAgendamento}</p>
+              Último agendamento:{" "}
+              <p className="text-white inline">
+                {isTimerLoading ? <Dots /> : ultimoAgendamento || "Sem dados"}
+              </p>
             </div>
             <div>
-              Timer agendado para: <p className="text-white inline">{scheduledFor}</p>
+              Timer agendado para:{" "}
+              <p className="text-white inline">
+                {isTimerLoading ? <Dots /> : scheduledFor || "Sem dados"}
+              </p>
             </div>
             <div>
-              Responsável pelo agendamento: <p className="text-white inline">{responsavelAg}</p>
+              Responsável pelo agendamento:{" "}
+              <p className="text-white inline">
+                {isTimerLoading ? <Dots /> : responsavelAg || "Sem dados"}
+              </p>
             </div>
             <div>
-              Intervalo configurado: <p className="text-white inline">{timerValor}</p>
+              Intervalo configurado:{" "}
+              <p className="text-white inline">
+                {isTimerLoading ? <Dots /> : timerValor || "Sem dados"}
+              </p>
             </div>
           </div>
 
@@ -483,25 +548,39 @@ export default function AlertEdit({
             </button>
             <div>
               <div className="mt-2">
-                Data da solução: <p className="text-white inline">{dataSolucao}</p>
+                Data da solução:{" "}
+                <p className="text-white inline">
+                  {isTimerLoading ? <Dots /> : dataSolucao || "Sem dados"}
+                </p>
               </div>
               <p>Responsável pela solução do alarme:</p>
-              <p className="text-white">{responsavelSolucao}</p>
+              <p className="text-white">
+                {isTimerLoading ? <Dots /> : responsavelSolucao || "Sem dados"}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="p-4 border-[#444]">
-          <input
-            type="checkbox"
-            checked={whatsappStatus}
-            onChange={handleToggleChange}
-            className="p-4"
-          />
-          {whatsappStatus == false ? <label className="ml-2 text-gray-400">Notificações pelo Whatsapp DESATIVADAS</label> : <label className="ml-2 text-gray-400">Notificações pelo Whatsapp ATIVADAS</label>}
-
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={Boolean(whatsappStatus)}
+              onChange={handleToggleChange}
+              className="p-4"
+              disabled={isWhatsappLoading}
+            />
+            {isWhatsappLoading ? (
+              <span className="text-gray-400"><Dots /> Carregando configuração do WhatsApp</span>
+            ) : whatsappStatus ? (
+              <span className="text-gray-400">Notificações pelo Whatsapp ATIVADAS</span>
+            ) : (
+              <span className="text-gray-400">Notificações pelo Whatsapp DESATIVADAS</span>
+            )}
+          </label>
         </div>
       </div>
     </div>
   );
 }
+

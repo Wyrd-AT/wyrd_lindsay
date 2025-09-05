@@ -9,7 +9,8 @@ import { useIrrigadores } from "../stores/dataStoreIrrigadores";
 import useVetorSw, { parseSwVector } from "../hooks/vetorSW";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
-import SyncProgressBar from "../components/SyncProgressModal copy";
+import SyncProgressBar from "../components/SyncProgressbar";
+import SyncProvider from "../components/SyncProvider";
 
 export default function HomePageRevenda() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function HomePageRevenda() {
 
   // 4) Estado do Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   // 5) Obtendo dados de irrigadores
   const irrigadores = useIrrigadores(companyId);
   const irrigadorIds = useMemo(
@@ -52,51 +53,55 @@ export default function HomePageRevenda() {
 
   return (
     <div className="w-full h-full text-white flex bg-[#313131]">
-      <SyncProgressBar />
-      <Sidebar />
-      <BodyContent>
-        <Header page="home" />
+      <SyncProvider>
 
-        <div className="flex items-center justify-between px-4 mb-4">
-          <h1 className="text-2xl font-bold">Pivôs</h1>
-          <button
-            onClick={openModal}
-            className="bg-[#08cb7c] p-2 rounded-lg font-bold"
-          >
-            + Adicionar Pivô
-          </button>
-        </div>
+        <SyncProgressBar />
+        <Sidebar />
+        <BodyContent>
+          <Header page="home" />
 
-        <div
-          className="w-full flex flex-wrap overflow-auto justify-start 
+          <div className="flex items-center justify-between px-4 mb-4">
+            <h1 className="text-2xl font-bold">Pivôs</h1>
+            <button
+              onClick={openModal}
+              className="bg-[#08cb7c] p-2 rounded-lg font-bold"
+            >
+              + Adicionar Pivô
+            </button>
+          </div>
+
+          <div
+            className="w-full flex flex-wrap overflow-auto justify-start 
                      scrollbar scrollbar-thin scrollbar-thumb-red-500 
                      scrollbar-track-gray-800 py-4 gap-4 px-4"
-        >
-          {irrigadores.length > 0 ? (
-            irrigadores.map(doc => {
-              const { latestSW } = swMap[doc.codigo] || {};
-              const info = latestSW ? parseSwVector(latestSW) : { date: "--", totalAlarmado: 0 };
+          >
+            {irrigadores.length > 0 ? (
+              irrigadores.map(doc => {
+                const { latestSW } = swMap[doc.codigo] || {};
+                const info = latestSW ? parseSwVector(latestSW) : { date: "--", totalAlarmado: 0 };
 
-              return (
-                <IrrigadorCard
-                  key={doc._id}
-                  machineId={doc.codigo}
-                  displayName={doc.irrigador}
-                  alertCount={info.totalAlarmado}
-                  lastAlertDate={info.date}
-                  onClick={() => navigateToIrrigador(doc.codigo)} // Adicionando navegação ao clicar
-                />
-              );
-            })
-          ) : (
-            <div className="text-gray-400">
-              Nenhum pivô cadastrado.
-            </div>
-          )}
-        </div>
+                return (
+                  <IrrigadorCard
+                    key={doc._id}
+                    machineId={doc.codigo}
+                    displayName={doc.irrigador}
+                    alertCount={info.totalAlarmado}
+                    lastAlertDate={info.date}
+                    onClick={() => navigateToIrrigador(doc.codigo)} // Adicionando navegação ao clicar
+                  />
+                );
+              })
+            ) : (
+              <div className="text-gray-400">
+                Nenhum pivô cadastrado.
+              </div>
+            )}
+          </div>
 
-        {isModalOpen && <ModalIrrigador closeModal={closeModal} />}
-      </BodyContent>
+          {isModalOpen && <ModalIrrigador closeModal={closeModal} />}
+        </BodyContent>
+      </SyncProvider>
+
     </div>
   );
 }

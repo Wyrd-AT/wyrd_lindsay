@@ -6,29 +6,67 @@ const STATUS_MAP = {
   '0': 'OK',
   '1': 'Alarmado',
   '2': 'Reconhecido',
-  '3': 'Resolvido',
+  '3': 'Alarme OFF',
   '9': 'Ausente',
 };
 
-// utilitário para parsear um vetor SW
 export function parseSwVector(raw) {
+  const [irrigador, date, painel_1,painel_2, status, ...mts] = raw.split(';');
+  console.log(painel_1)
+  console.log(painel_2)
+  const [status_sirene, status_lampada, status_manutencao] = status.split('');
+  const monitores = mts.map(m => {
+    const [sw_1, sw_2, armadilha, status_mt] = m.split('');
+    return {
+      statusSw1: STATUS_MAP[sw_1],
+      statusSw2: STATUS_MAP[sw_2],
+      armadilha: armadilha,
+      statusTensao: STATUS_MAP[status_mt],
+    };
+  });
+
+  const totalAlarmadoPainel = [painel_1, painel_2].reduce((sum, p) => sum + (STATUS_MAP[p] === 'Alarmado' ? 1 : 0), 0);
+
+  const totalAlarmadoMonitor = monitores.reduce((sum, { statusSw1, statusSw2, statusTensao }) =>
+    sum + (statusSw1 === 'Alarmado' ? 1 : 0)
+    + (statusSw2 === 'Alarmado' ? 1 : 0)
+    + (statusTensao === 'Alarmado' ? 1 : 0)
+    , 0);
+
+  return {
+    irrigador,
+    date,
+    painel_1,
+    painel_2,
+    status_sirene,
+    status_lampada,
+    status_manutencao,
+    monitores,
+
+    totalAlarmado: totalAlarmadoPainel + totalAlarmadoMonitor,
+  };
+  
+}
+
+// utilitário para parsear um vetor SW
+export function parseSwVector1(raw) {
   const [irrigador, date, ...header] = raw.split(';');
-  ////////console.log(irrigador)
-  // paineis: dois primeiros itens de 2 dígitos
+  console.log(irrigador)
   const paineis = header.slice(0, 2);
-  //////////console.log(paineis)
-  const torres =  header.slice(2,3)
+  console.log(paineis)
+  const status = header.slice(2, 3)
+  console.log(torres)
   const monitores = header.slice(3);
 
   const paineisInfo = paineis.map(p => {
     //////////console.log(p)
-    const [p1,p2] = p.split(';');
-    return { statusAlarmeP1: STATUS_MAP[p1], statusAlarmeP2: STATUS_MAP[p2]};
+    const [p1, p2] = p.split(';');
+    return { statusAlarmeP1: STATUS_MAP[p1], statusAlarmeP2: STATUS_MAP[p2] };
   });
 
-  const torreInfo = torres.map(t =>{
-    const [t1,t2] = t.split('')
-    return { statusTorre1: STATUS_MAP[t1], statusTorre2: STATUS_MAP[t2]};
+  const torreInfo = torres.map(t => {
+    const [t1, t2] = t.split('')
+    return { statusTorre1: STATUS_MAP[t1], statusTorre2: STATUS_MAP[t2] };
 
   }
   )
@@ -36,40 +74,40 @@ export function parseSwVector(raw) {
   const monitoresInfo = monitores.map(m => {
     const [s1, s2, arm, tens] = m.split('');
     return {
-      statusSw1:   STATUS_MAP[s1],
-      statusSw2:   STATUS_MAP[s2],
+      statusSw1: STATUS_MAP[s1],
+      statusSw2: STATUS_MAP[s2],
       armadilhaTensao: arm,
       statusTensaoCodigo: tens,
       statusTensao: STATUS_MAP[tens],
     };
   });
 
-  const totalAlarmadoPainel = paineisInfo.reduce((sum, {statusAlarmeP1, statusAlarmeP2}) =>
-    sum + (statusAlarmeP1 === 'Alarmado'?1:0) + (statusAlarmeP2 === 'Alarmado'?1:0)
-  , 0);
+  const totalAlarmadoPainel = paineisInfo.reduce((sum, { statusAlarmeP1, statusAlarmeP2 }) =>
+    sum + (statusAlarmeP1 === 'Alarmado' ? 1 : 0) + (statusAlarmeP2 === 'Alarmado' ? 1 : 0)
+    , 0);
 
-  const totalAlarmadoTorre = torreInfo.reduce((sum, {statusTorre1, statusTorre2}) =>
-    sum + (statusTorre1 === 'Alarmado'?1:0) + (statusTorre2 === 'Alarmado'?1:0)
-  , 0);
+  const totalAlarmadoTorre = torreInfo.reduce((sum, { statusTorre1, statusTorre2 }) =>
+    sum + (statusTorre1 === 'Alarmado' ? 1 : 0) + (statusTorre2 === 'Alarmado' ? 1 : 0)
+    , 0);
 
-  const totalAlarmadoMonitor = monitoresInfo.reduce((sum, {statusSw1, statusSw2, statusTensao}) =>
-    sum + (statusSw1 === 'Alarmado'?1:0)
-        + (statusSw2 === 'Alarmado'?1:0)
-        + (statusTensao === 'Alarmado'?1:0)
-  , 0);
+  const totalAlarmadoMonitor = monitoresInfo.reduce((sum, { statusSw1, statusSw2, statusTensao }) =>
+    sum + (statusSw1 === 'Alarmado' ? 1 : 0)
+    + (statusSw2 === 'Alarmado' ? 1 : 0)
+    + (statusTensao === 'Alarmado' ? 1 : 0)
+    , 0);
 
   return {
     irrigador,
     date,
     paineisInfo,
     monitoresInfo,
-    totalAlarmado: totalAlarmadoPainel + totalAlarmadoMonitor+totalAlarmadoTorre,
+    totalAlarmado: totalAlarmadoPainel + totalAlarmadoMonitor + totalAlarmadoTorre,
   };
 }
 
 export default function useVetorSw(irrigadorIds = []) {
   const { parsedMessages = [], isLoading, error, initialize } = useMessageStore();
-//////////console.log(parsedMessages)
+  //////////console.log(parsedMessages)
   useEffect(() => {
     initialize();
   }, [initialize]);
@@ -107,8 +145,8 @@ export default function useVetorSw(irrigadorIds = []) {
       // escolhe o mais recente pelo segundo campo
       const latest = vectors.length
         ? vectors.reduce((p, c) => {
-            return new Date(p.split(';')[1]) > new Date(c.split(';')[1]) ? p : c;
-          })
+          return new Date(p.split(';')[1]) > new Date(c.split(';')[1]) ? p : c;
+        })
         : null;
       result[id] = { vectorsSW: vectors, latestSW: latest };
     });

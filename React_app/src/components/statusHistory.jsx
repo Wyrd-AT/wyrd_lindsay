@@ -5,6 +5,8 @@ import clsx from "clsx";
 import useMessageStore from "../stores/messageStore";
 import SyncProvider from "./SyncProvider";
 import StatusAlarmModal from "./statusAlarmModal";
+import { useDataStoreManutecoes, useManutecoes } from "../stores/dataStoreTimers1";
+import { parseSwVector } from "../hooks/vetorSW";
 
 // Mapeamento dos códigos para a descrição
 const valueDescriptions = {
@@ -14,6 +16,12 @@ const valueDescriptions = {
   "3": "Alarme OFF",
   "9": "Ausente",
 };
+
+// ★ delay configurável entre MAN e SW (em ms)
+const SW_UPDATE_DELAY_MS = 10000;
+
+// utilzinho para aguardar
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function StatusCard({ title, statuses, onClick }) {
   const allOK = statuses.every((s) => s.value === "0");
@@ -74,12 +82,14 @@ export default function StatusHistory({
   const [responseMsg, setResponseMsg] = useState("");
   const [activeCard, setActiveCard] = useState(null);
 
+  // ★ override local do modo manutenção para refletir no UI imediatamente
+  const [localManOverride, setLocalManOverride] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+
   // 1) Filtra só a máquina selecionada (SW)
   const filteredByMachine = useMemo(() => {
     if (!selectedMachine) return [];
-    return vetoressw.filter(
-      (entry) => entry.split(";")[0] === selectedMachine
-    );
+    return vetoressw.filter((entry) => entry.split(";")[0] === selectedMachine);
   }, [vetoressw, selectedMachine]);
 
   // 2) Encontra a entrada SW mais recente
@@ -97,6 +107,12 @@ export default function StatusHistory({
     if (!latestEntry) return null;
     return new Date(latestEntry.split(";")[1].replace(" ", "T"));
   }, [latestEntry]);
+
+  // ★ parse seguro do vetor SW
+  const parsed_sw = useMemo(
+    () => (latestEntry ? parseSwVector(latestEntry) : null),
+    [latestEntry]
+  );
 
   // 1b) Filtra só a máquina selecionada (Tensões)
   const filteredTensions = useMemo(() => {
@@ -122,85 +138,56 @@ export default function StatusHistory({
     return latestTensionEntry.split(";").slice(2);
   }, [latestTensionEntry]);
 
-  // 3c) Remove as duas primeiras tensões (Painel1 e Painel2)
-  const shiftedTensions = useMemo(
-    () => tensionValues.slice(0),
-    [tensionValues]
-  );
+  // 3c)
+  const shiftedTensions = useMemo(() => tensionValues.slice(0), [tensionValues]);
+
+  // ★ estado efetivo de manutenção (remoto → parsed_sw, com override local)
+  const isInMaintenance = useMemo(() => {
+    if (localManOverride !== null) return localManOverride;
+    return parsed_sw?.status_manutencao === "1";
+  }, [localManOverride, parsed_sw]);
 
   // 4) Monta os cards de status
   const cards = useMemo(() => {
-    if (!filteredByMachine.length || equipamentos.length < 3) return [];
-
-    const header = latestEntry.split(";").slice(2);
-    const [rawSw1, rawSw2, torresRaw, ...restoRaw] = header;
-    const [torre1, torre2] = torresRaw.split("");
-    restoRaw[0] = restoRaw[0] + torre1;
-    restoRaw[7] = restoRaw[7]
-      ? restoRaw[7] + torre2
-      : restoRaw[restoRaw.length - 1] + torre2;
+    if (!parsed_sw || !filteredByMachine.length || equipamentos.length < 3) return [];
 
     const baseCards = [
       {
         title: equipamentos[0],
-        statuses: [{ label: "status", value: rawSw1 }],
+        statuses: [{ label: "status", value: parsed_sw.painel_1 }],
       },
       {
         title: equipamentos[1],
-        statuses: [{ label: "status", value: rawSw2 }],
+        statuses: [{ label: "status", value: parsed_sw.painel_1 }],
       },
     ];
 
     const dynamicCards = equipamentos
       .slice(2)
       .map((name, i) => {
-        if (name === "Ausente") return null;  // opcional: já descarta aqui
+        if (name === "Ausente") return null;
 
-        const raw = restoRaw[i] || "";
-        if (!raw) return null;
+        const monitores = parsed_sw.monitores?.[i] || "";
+        if (!monitores) return null;
 
         const panelTension = shiftedTensions[i];
-
-        if (i === 0 || i === 7) {
-          const [s1, s2, arm, ten, rf] = raw.split("");
-          return {
-            title: name,
-            statuses: [
-              { label: "SW1", value: s1 },
-              { label: "SW2", value: s2 },
-              { label: "Falha por tensão", value: arm },
-              { label: "Tensão SW", value: ten },
-              { label: "RF", value: rf },
-              ...(panelTension != null
-                ? [{ label: "Tensão (V)", value: parseFloat(panelTension).toFixed(2) }]
-                : []),
-            ],
-          };
-        } else {
-          const [s1, s2, arm, ten] = raw.split("");
-          return {
-            title: name,
-            statuses: [
-              { label: "SW1", value: s1 },
-              { label: "SW2", value: s2 },
-              { label: "Falha por tensão", value: arm },
-              { label: "Tensão SW", value: ten },
-              ...(panelTension != null
-                ? [{ label: "Tensão (V)", value: parseFloat(panelTension).toFixed(2) }]
-                : []),
-            ],
-          };
-        }
+        return {
+          title: name,
+          statuses: [
+            { label: "SW1", value: monitores.statusSw1 },
+            { label: "SW2", value: monitores.statusSw2 },
+            { label: "Falha por tensão", value: monitores.armadilha },
+            { label: "Tensão SW", value: monitores.statusTensao },
+            ...(panelTension != null
+              ? [{ label: "Tensão (V)", value: parseFloat(panelTension).toFixed(2) }]
+              : []),
+          ],
+        };
       })
       .filter(Boolean);
 
-    return [...baseCards, ...dynamicCards].filter(card => card.title !== "Ausente");
-  }, [
-    filteredByMachine,
-    equipamentos,
-    latestEntry,
-    shiftedTensions,
-  ]);
+    return [...baseCards, ...dynamicCards].filter((card) => card.title !== "Ausente");
+  }, [filteredByMachine, equipamentos, shiftedTensions, parsed_sw]);
 
   // Timestamp em Brasília
   function getBrasiliaTimestamp() {
@@ -250,6 +237,7 @@ export default function StatusHistory({
     } catch (err) {
       console.error("[StatusHistory] erro ao enviar comando:", err);
       setResponseMsg(`❌ ${failureText}`);
+      throw err; // ★ propaga erro para quem chamou
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -257,38 +245,60 @@ export default function StatusHistory({
   };
 
   // Handlers específicos
-  const handleSolicitarStatus = (e) => {
+  const handleSolicitarStatus = async (e) => {
     e.stopPropagation();
-    sendCommand(
-      "sw",
-      "Status solicitado com sucesso!",
-      "Falha ao solicitar status."
-    );
-  };
-  const handleSirene = (e) => {
-    e.stopPropagation();
-    sendCommand(
-      "sirene",
-      "Sirene disparada com sucesso!",
-      "Falha ao disparar sirene."
-    );
-  };
-  const handleEnviar = (e) => {
-    e.stopPropagation();
-    sendCommand(
-      "ack",
-      "Comando ACK enviado com sucesso!",
-      "Falha ao enviar comando ACK."
-    );
+    await sendCommand("sw", "Status solicitado com sucesso!", "Falha ao solicitar status.");
   };
 
-  const handleDeativarGeral = (e) => {
+  const handleSirene = async (e) => {
     e.stopPropagation();
-    sendCommand(
-      "man",
-      "Comando de manutenção enviado com sucesso!",
-      "Falha ao enviar comando de manutenção."
-    );
+    await sendCommand("sirene", "Sirene disparada com sucesso!", "Falha ao disparar sirene.");
+  };
+
+  const handleEnviar = async (e) => {
+    e.stopPropagation();
+    await sendCommand("ack", "Comando ACK enviado com sucesso!", "Falha ao enviar comando ACK.");
+  };
+
+  /** TOGGLE de manutenção (Desativar/Reativar Geral) */
+  const handleToggleManutencao = async (e) => {
+    e.stopPropagation();
+    if (!selectedMachine) {
+      setResponseMsg("❌ Nenhuma máquina selecionada.");
+      return;
+    }
+
+    // ★ reflete imediatamente no UI
+    const current = isInMaintenance;
+    const next = !current;
+    setLocalManOverride(next);
+
+    setIsSaving(true);
+    try {
+      // 1) Envia MAN
+      await sendCommand(
+        "man",
+        "Manutenção alternada com sucesso!",
+        "Falha ao alternar manutenção."
+      );
+
+      // 2) Aguarda um tempo
+      await sleep(SW_UPDATE_DELAY_MS);
+
+      // 3) Pede atualização SW
+      await sendCommand(
+        "sw",
+        "Atualização solicitada com sucesso!",
+        "Falha ao atualizar."
+      );
+    } catch (err) {
+      // ★ reverte o override local em caso de erro
+      setLocalManOverride(current);
+      console.error("Erro ao alternar manutenção:", err);
+      setResponseMsg("❌ Erro ao alternar modo de manutenção.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -307,36 +317,63 @@ export default function StatusHistory({
             <button
               type="button"
               onClick={handleSolicitarStatus}
-              disabled={loading}
-                            className="px-3 bg-green-600 hover:bg-green-700 rounded text-sm py-1"
-
+              disabled={loading || isSaving}
+              className="px-3 bg-green-600 hover:bg-green-700 rounded text-sm py-1 disabled:opacity-60"
             >
               {loading ? "..." : "Solicitar Status"}
             </button>
             <button
               type="button"
               onClick={handleSirene}
-              disabled={loading}
-              className="px-3 bg-yellow-600 hover:bg-yellow-700 rounded text-sm py-1"
+              disabled={loading || isSaving}
+              className="px-3 bg-yellow-600 hover:bg-yellow-700 rounded text-sm py-1 disabled:opacity-60"
             >
               {loading ? "..." : "Disparar Sirene"}
             </button>
             <button
               type="button"
               onClick={handleEnviar}
-              disabled={loading}
-              className="px-3 bg-blue-600 hover:bg-blue-700 rounded text-sm py-1"
+              disabled={loading || isSaving}
+              className="px-3 bg-blue-600 hover:bg-blue-700 rounded text-sm py-1 disabled:opacity-60"
             >
               {loading ? "Enviando..." : "Desativar Sirene"}
             </button>
-            <button
-              type="button"
-              onClick={handleDeativarGeral}
-              disabled={loading}
-              className="px-3 bg-gray-600 hover:bg-gray-700 rounded text-sm py-1"
-            >
-              {loading ? "Enviando..." : "Desativar Geral"}
-            </button>
+
+            {/* BOTÃO TOGGLE: Desativar/Reativar Geral */}
+            <div className="flex items-center gap-3">
+              {/* SWITCH */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isInMaintenance}
+                aria-label="Alternar manutenção geral"
+                onClick={handleToggleManutencao}
+                disabled={loading || isSaving}
+                className={clsx(
+                  "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  isInMaintenance ? "bg-red-600 hover:bg-red-700" : "bg-gray-600 hover:bg-gray-700"
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={clsx(
+                    "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
+                    isInMaintenance ? "translate-x-7" : "translate-x-1"
+                  )}
+                />
+              </button>
+
+              {/* RÓTULO DINÂMICO */}
+              <span className="text-sm select-none">
+                {loading || isSaving
+                  ? "Enviando..."
+                  : isInMaintenance
+                    ? "Reativar Geral"
+                    : "Desativar Geral"}
+              </span>
+            </div>
           </div>
           {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
         </summary>

@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\OCEAN\Documents\Wyrd\wyrd_lindsay-dev\Lightsail_python_files\venv"
+VIRTUAL_ENV="C:\Users\OCEAN\Documents\Wyrd\wyrd_lindsay-versao_deploy0707\Lightsail_python_files\venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

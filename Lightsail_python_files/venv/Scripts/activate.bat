@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\OCEAN\Documents\Wyrd\wyrd_lindsay-dev\Lightsail_python_files\venv
+set VIRTUAL_ENV=C:\Users\OCEAN\Documents\Wyrd\wyrd_lindsay-versao_deploy0707\Lightsail_python_files\venv
 
 if not defined PROMPT set PROMPT=$P$G
 

@@ -1,11 +1,10 @@
 import React, { useState } from "react";
-import SyncProgressModal from "../components/SyncProgressModal";
 import { useNavigate, Link } from "react-router-dom";
-import SyncProvider from "../components/SyncProvider";
 import { useAuthStore } from "../stores/authStore";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { signIn } from "../api/auth";
-import SyncProgressBar from "../components/SyncProgressModal";
+import SyncProgressBar from "../components/SyncProgressbar";
+import SyncProvider from "../components/SyncProvider";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -26,8 +25,8 @@ export default function Login() {
     if (!validateForm(e.currentTarget)) {
       return;
     }
-      const response = await signIn(email, password);
-      ////console.log(response)
+    const response = await signIn(email, password);
+    ////console.log(response)
 
     try {
       const response = await signIn(email, password);
@@ -82,9 +81,10 @@ export default function Login() {
   };
 
   return (
-    <SyncProvider>
-      <div className="flex min-h-screen items-center justify-center bg-[#272727]">
-        <SyncProgressBar/>
+    <div className="flex min-h-screen items-center justify-center bg-[#272727]">
+      <SyncProvider>
+
+        <SyncProgressBar />
         <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96 relative">
           {/* Logo */}
           <div className="flex justify-center mb-6">
@@ -160,7 +160,8 @@ export default function Login() {
             </Link>
           </p>
         </div>
-      </div>
-    </SyncProvider>
+      </SyncProvider>
+
+    </div>
   );
 }

@@ -29,7 +29,7 @@ function StatsRow() {
         </div>
         <div className="relative w-[234px] h-[116px] bg-[rgba(128,128,128,0.55)] shadow-lg rounded-lg">
           <p className="absolute top-4 left-4 text-sm font-normal">Localização</p>
-          <p className="absolute top-10 left-4 text-2xl font-bold">Fazenda A</p>
+          <p className="absolute top-10 left-4 text-2xl font-bold">Fazenda A</p>  
         </div>
       </div>
     );
