@@ -1,36 +1,25 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { IoClose } from "react-icons/io5";
 import { FiShare2 } from "react-icons/fi";
 import { valueDescriptions } from "./alertHistory";
 import { useAuthStore } from "../stores/authStore";
-import { useAgendamentos, useDataStoreAgendamentos } from "../stores/dataStoreTimers";
 import useMessageStore from "../stores/messageStore";
 import { getBrasiliaTimestamp } from "./messageModal";
 import { whatsappStoreConfig } from "../stores/whatsappStore";
+import { find, upsertDoc } from "../api/couch";
 
 /** Utilitário simples */
 function clamp(n, min, max) {
   return Math.min(max, Math.max(min, n));
 }
 
-function formatHHMMSS(ms) {
-  const total = Math.max(0, Math.floor((ms ?? 0) / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return [h, m, s].map((n) => String(n).padStart(2, "0")).join(":");
-}
-
 /** “...” animando */
 function Dots({ className }) {
   const [dots, setDots] = useState("");
   useEffect(() => {
-    const id = setInterval(() => {
-      setDots((d) => (d.length >= 3 ? "" : d + "."));
-    }, 300);
+    const id = setInterval(() => setDots((d) => (d.length >= 3 ? "" : d + ".")), 300);
     return () => clearInterval(id);
   }, []);
-  // padEnd só pra manter largura estável
   return (
     <span className={className} aria-live="polite">
       {dots.padEnd(3, " ")}
@@ -48,65 +37,20 @@ export default function AlertEdit({
   equipamentos = [],
   machineId,
 }) {
-  const [minutes, setMinutes] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
-  const [localTimerOverride, setLocalTimerOverride] = useState(null);
   const [whatsappStatus, setWhatsappStatus] = useState(false);
-
-  // estados de carregamento
-  const [isTimerLoading, setIsTimerLoading] = useState(false);
   const [isWhatsappLoading, setIsWhatsappLoading] = useState(false);
-  const isAlertLoading = isOpen && !alertData;
 
-  const addTimer = useDataStoreAgendamentos((state) => state.addAgendamento);
-  const updateTimer = useDataStoreAgendamentos((state) => state.updateAgendamento);
-
-  const storeTimer = useAgendamentos(s => alertData?._id ? s.agendamentosById[alertData._id] : null);
-
-
-  const { findAgendamentoByIdOrigem } = useAgendamentos();
-  const { user } = useAuthStore();
-
-
-
-
-  const { whatsappConfig, fetchWhatsappConfig, updateWhatsappStatus } =
-    whatsappStoreConfig((state) => state);
-
-  const effectiveTimer = useMemo(() => {
-    if (localTimerOverride && storeTimer) {
-      const l = new Date(localTimerOverride.updated_at ?? 0).getTime();
-      const s = new Date(storeTimer.updated_at ?? 0).getTime();
-      return l >= s ? localTimerOverride : storeTimer;
-    }
-    return localTimerOverride ?? storeTimer ?? null;
-  }, [localTimerOverride, storeTimer,!isOpen]);
-  const isSolved = effectiveTimer?.status === "solucionado";
-
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  /**
-   * Refaz a leitura do agendamento até que o predicado seja verdadeiro
-   * (ou acabar as tentativas). Retorna o dado mais recente encontrado.
-   */
-  async function refetchPersistedAgendamento(idOrigem, predicate, { tries = 10, delayMs = 150 } = {}) {
-    for (let i = 0; i < tries; i++) {
-      const fresh = findAgendamentoByIdOrigem(idOrigem);
-      if (predicate?.(fresh)) return fresh;
-      await sleep(delayMs);
-    }
-    // última tentativa sem predicate garantir (pelo menos devolve algo)
-    return findAgendamentoByIdOrigem(idOrigem) ?? null;
-  }
+  // WhatsApp store
+  const whatsappConfig = whatsappStoreConfig((s) => s.whatsappConfig);
+  const fetchWhatsappConfig = whatsappStoreConfig((s) => s.fetchWhatsappConfig);
+  const updateWhatsappStatus = whatsappStoreConfig((s) => s.updateWhatsappStatus);
 
   /** WhatsApp: buscar config + hidratar status */
   useEffect(() => {
     if (!isOpen) return;
     setIsWhatsappLoading(true);
-    // algumas stores não retornam Promise; usamos a própria mudança do estado
     if (!whatsappConfig) {
       const maybePromise = fetchWhatsappConfig?.();
-      // se for promise, marcamos o fim depois; se não for, o efeito abaixo ajusta
       Promise.resolve(maybePromise).finally(() => setIsWhatsappLoading(false));
     } else {
       setWhatsappStatus(Boolean(whatsappConfig?.enabled ?? false));
@@ -117,28 +61,49 @@ export default function AlertEdit({
   const handleToggleChange = (e) => {
     const newStatus = e.target.checked;
     setWhatsappStatus(newStatus);
-    updateWhatsappStatus(newStatus);
+    updateWhatsappStatus?.(newStatus);
   };
 
-  /** Quando a store ficar igual ao override, limpe o override */
+  const [agendamento, setAgendamento] = useState(null);
+
+  // buscar agendamento mais recente por id_origem
   useEffect(() => {
-    if (!localTimerOverride || !storeTimer) return;
-    const l = new Date(localTimerOverride.updated_at ?? 0).getTime();
-    const s = new Date(storeTimer.updated_at ?? 0).getTime();
-    // se a store já está no mesmo estado ou mais nova/recente, não precisamos manter override
-    if (s >= l) setLocalTimerOverride(null);
-  }, [storeTimer, localTimerOverride]);
+    let cancelado = false;
+    async function fetchAgendamentoMaisRecente() {
+      if (!alertData?._id) return;
+      try {
+        const result = await find(DB_NAME, {
+          selector: { id_origem: { $eq: alertData._id } },
+          limit: 500,
+        });
+        const docs = result?.docs ?? [];
+        docs.sort((a, b) => Date.parse(b?.updated_at ?? 0) - Date.parse(a?.updated_at ?? 0));
+        if (!cancelado) setAgendamento(docs[0] ?? null);
+      } catch (err) {
+        if (!cancelado) console.error("Erro ao buscar/ordenar:", err);
+      }
+    }
+    fetchAgendamentoMaisRecente();
+    return () => {
+      cancelado = true;
+    };
+  }, [alertData?._id]);
+
+  const effectiveTimer = agendamento;
+
+  const [minutes, setMinutes] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTimerLoading, setIsTimerLoading] = useState(false);
+  const isAlertLoading = isOpen && !alertData;
+  const { user } = useAuthStore();
+  const isSolved = effectiveTimer?.status === "solucionado";
 
   /** Acessibilidade/focus trap + ESC para fechar */
   const dialogRef = useRef(null);
   const titleRef = useRef(null);
-
   useEffect(() => {
     if (!isOpen) return;
-
-    // Foca o título ao abrir
     requestAnimationFrame(() => titleRef.current?.focus());
-
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -146,12 +111,11 @@ export default function AlertEdit({
       }
       if (e.key === "Tab" && dialogRef.current) {
         const focusables = dialogRef.current.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1")]'
         );
         if (!focusables.length) return;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
-
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last.focus();
@@ -165,15 +129,14 @@ export default function AlertEdit({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  /** Resolve nome do monitor */
+  /** Resolve nome do monitor (ajuste de índice) */
   const monitorResolved = useMemo(() => {
     if (!Array.isArray(equipamentos) || equipamentos.length === 0) {
       return String(alertData?.monitor ?? "—");
     }
     const id = Number(alertData?.monitor);
     if (Number.isNaN(id)) return String(alertData?.monitor ?? "—");
-
-    const idx = MONITOR_MAP[id] ?? id + 1; // sua lógica anterior com o map aplicado
+    const idx = MONITOR_MAP[id] ?? id + 1;
     if (idx < 0 || idx >= equipamentos.length) return `#${id}`;
     const item = equipamentos[idx];
     return typeof item === "string" ? item : item?.nome ?? item?.name ?? `#${id}`;
@@ -184,7 +147,7 @@ export default function AlertEdit({
     if (!effectiveTimer?.scheduled_for || isSolved) return null;
     const ts = new Date(effectiveTimer.scheduled_for).getTime();
     return Number.isFinite(ts) ? ts : null;
-  }, [isSolved]);
+  }, [effectiveTimer?.scheduled_for, isSolved]);
 
   /** Contagem regressiva do agendamento atual */
   const [remainingMs, setRemainingMs] = useState(null);
@@ -204,7 +167,7 @@ export default function AlertEdit({
     return () => clearInterval(id);
   }, [scheduledTargetTs, isOpen]);
 
-  /** Prévia da contagem para novo agendamento (quando não há agendamento ativo) */
+  /** Prévia da contagem para novo agendamento */
   const [previewMs, setPreviewMs] = useState(null);
   useEffect(() => {
     const mins = Number(minutes || 0);
@@ -226,7 +189,6 @@ export default function AlertEdit({
 
   const handleEnviar = async (command, monitor, id) => {
     try {
-      // dica: se puder, prefira JSON aqui
       const payload = `${id};${command}${monitor}`;
       const doc = {
         topic: `lindsay/comandos/${id}`,
@@ -240,32 +202,36 @@ export default function AlertEdit({
       await useMessageStore.getState().postMessage(doc);
     } catch (err) {
       console.error("[MensagemModal] erro ao enviar comando:", err);
-    } finally {
-      // noop
     }
   };
 
-  // --- HELPER: cria/atualiza (upsert) o agendamento usando o existente se houver
+  const DB_NAME = "mqtt_data"; // troque se necessário
+
+  // gerador de _id aleatório
+  function genDocId() {
+    try {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+      }
+    } catch (_) {}
+    const ts = Date.now().toString(36);
+    const rnd = Math.random().toString(36).slice(2);
+    return `ag_${ts}_${rnd}`;
+  }
+
+  // upsert do agendamento (com _id aleatório p/ novos)
   async function upsertAgendamento(parsedMinutes) {
     if (!alertData?._id) throw new Error("alertData._id ausente");
-    console.log(effectiveTimer)
 
     const now = new Date();
     const scheduled = new Date(now.getTime() + parsedMinutes * 60_000);
-
-    const existing = findAgendamentoByIdOrigem(alertData._id);
-    console.log(existing)
-
-    const base = {
-      id_origem: alertData._id,
-      created_at: existing?.created_at ?? now.toISOString(),
-      data_solucao: existing?.data_solucao ?? "—",
-      responsavel_solucao: existing?.responsavel_solucao ?? "—",
-    };
+    const existing = effectiveTimer;
+    const docId = existing?._id ?? genDocId();
 
     const doc = {
-      ...(existing ?? {}), // mantém _id para UPDATE se existir
-      ...base,
+      _id: docId,
+      id_origem: alertData._id,
+      created_at: existing?.created_at ?? now.toISOString(),
       ultimo_agendamento: now.toLocaleString("pt-BR"),
       scheduled_for: scheduled.toISOString(),
       responsavel_agendamento:
@@ -276,38 +242,67 @@ export default function AlertEdit({
       data_solucao: "-",
       responsavel_solucao: "-",
     };
+
     setIsTimerLoading(true);
-
     try {
-      existing ? await updateTimer(existing._id, doc) : await addTimer(doc)
-    }
-    catch (err) {
+      await upsertDoc(DB_NAME, doc);
+      setAgendamento(doc);
+    } catch (err) {
       console.error("[MensagemModal] erro ao enviar comando:", err);
+    } finally {
+      setIsTimerLoading(false);
     }
-
-
-    // revalida até a store refletir os mesmos campos-chave
-    const persisted = doc
-
-    setLocalTimerOverride(persisted);
-    setIsTimerLoading(false);
-
-    console.log(persisted)
-
-    return persisted;
+    return doc;
   }
 
+  async function handleSolutionClick() {
+    if (!alertData) return;
+    try {
+      setIsSaving(true);
+      setIsTimerLoading(true);
 
-  // --- HANDLE: Agendar
+      const agora = new Date();
+      const base = effectiveTimer ?? {};
+      const existing = effectiveTimer;
+      const docId = existing?._id ?? genDocId();
+
+      const timerDoc = {
+        _id: docId,
+        id_origem: alertData._id,
+        created_at: base.created_at ?? existing?.created_at ?? agora.toISOString(),
+        ultimo_agendamento: base.ultimo_agendamento ?? existing?.ultimo_agendamento ?? null,
+        scheduled_for: base.scheduled_for ?? existing?.scheduled_for ?? null,
+        responsavel_agendamento:
+          base.responsavel_agendamento ??
+          existing?.responsavel_agendamento ??
+          user?.email ??
+          "Desconhecido",
+        timer_value: base.timer_value ?? existing?.timer_value ?? null,
+        status: "solucionado",
+        updated_at: agora.toISOString(),
+        data_solucao: agora.toLocaleString("pt-BR"),
+        responsavel_solucao: user?.email || "Desconhecido",
+      };
+
+      try {
+        await upsertDoc(DB_NAME, timerDoc);
+        setAgendamento(timerDoc);
+      } catch (err) {
+        console.error("[MensagemModal] erro ao enviar comando:", err);
+      }
+    } catch (err) {
+      console.error("Erro ao salvar solução:", err);
+    } finally {
+      setIsTimerLoading(false);
+      setIsSaving(false);
+    }
+  }
+
+  // HANDLE: Agendar
   async function handleAgendamentoClick() {
     if (!alertData) return;
-
     const parsedMinutes = Math.trunc(Number(minutes));
-    if (!Number.isFinite(parsedMinutes) || parsedMinutes < 1) {
-      // TODO: toast/erro de validação
-      return;
-    }
-
+    if (!Number.isFinite(parsedMinutes) || parsedMinutes < 1) return;
     try {
       setIsSaving(true);
       await upsertAgendamento(parsedMinutes);
@@ -319,89 +314,24 @@ export default function AlertEdit({
     }
   }
 
-  async function handleSolutionClick() {
-    if (!alertData) return;
-
-    try {
-      setIsSaving(true);
-      setIsTimerLoading(true);
-
-      const agora = new Date();
-      const base = effectiveTimer ?? {};
-      const existing = findAgendamentoByIdOrigem(alertData._id);
-
-
-      const timerDoc = {
-        id_origem: alertData._id,
-        ultimo_agendamento: base.ultimo_agendamento ?? null,
-        scheduled_for: base.scheduled_for ?? null,
-        responsavel_agendamento: base.responsavel_agendamento ?? user?.email ?? "Desconhecido",
-        timer_value: base.timer_value ?? null,
-        status: "solucionado",
-        updated_at: agora.toISOString(),
-        created_at: base.created_at ?? agora.toISOString(),
-        data_solucao: agora.toLocaleString("pt-BR"),
-        responsavel_solucao: user?.email || "Desconhecido",
-      };
-
-      try {
-        existing ? await updateTimer(existing._id, timerDoc) : await addTimer(timerDoc)
-      }
-      catch (err) {
-        console.error("[MensagemModal] erro ao enviar comando:", err);
-      }
-
-
-      const persisted = timerDoc
-
-      setLocalTimerOverride(persisted);
-    } catch (err) {
-      console.error("Erro ao salvar solução:", err);
-    } finally {
-      setIsTimerLoading(false);
-      setIsSaving(false);
-    }
-  }
-
-
-
-  useEffect(() => {
-    if (!isOpen || !alertData?._id) return;
-
-    setIsTimerLoading(true);
-    try {
-      const existing = findAgendamentoByIdOrigem(alertData._id);
-      if (existing) {
-        setLocalTimerOverride(existing);
-        if (Number.isFinite(existing.timer_value)) setMinutes(existing.timer_value);
-      } else {
-        setLocalTimerOverride(null);
-      }
-    } catch (err) {
-      console.error("Erro ao hidratar agendamento ao abrir modal:", err);
-    } finally {
-      setIsTimerLoading(false);
-    }
-  }, [isOpen, alertData?._id, findAgendamentoByIdOrigem]);
-
   if (!isOpen) return null;
-
 
   const ultimoAgendamento = effectiveTimer?.ultimo_agendamento || "—";
   const scheduledFor = effectiveTimer?.scheduled_for
-    ? new Date(effectiveTimer.scheduled_for).toLocaleString('pt-BR')
+    ? new Date(effectiveTimer.scheduled_for).toLocaleString("pt-BR")
     : "—";
   const responsavelAg = effectiveTimer?.responsavel_agendamento || "—";
   const timerValor = Number.isFinite(effectiveTimer?.timer_value)
     ? `${effectiveTimer.timer_value} minutos`
     : "—";
-  const dataSolucao = effectiveTimer?.data_solucao && effectiveTimer.data_solucao !== "-"
-    ? effectiveTimer.data_solucao
-    : "—";
-  const responsavelSolucao = effectiveTimer?.responsavel_solucao && effectiveTimer.responsavel_solucao !== "-"
-    ? effectiveTimer.responsavel_solucao
-    : "—";
-
+  const dataSolucao =
+    effectiveTimer?.data_solucao && effectiveTimer.data_solucao !== "-"
+      ? effectiveTimer.data_solucao
+      : "—";
+  const responsavelSolucao =
+    effectiveTimer?.responsavel_solucao && effectiveTimer.responsavel_solucao !== "-"
+      ? effectiveTimer.responsavel_solucao
+      : "—";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -422,15 +352,14 @@ export default function AlertEdit({
             className="text-lg font-semibold outline-none"
             title={String(monitorResolved)}
           >
-            Alarme{" "}
-            {isAlertLoading ? <Dots /> : monitorResolved || "Sem dados"}
+            Alarme {isAlertLoading ? <Dots /> : monitorResolved || "Sem dados"}
           </h2>
           <div className="flex gap-2">
             <button
               type="button"
               className="p-1 rounded hover:bg-[#3a3a3a] focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-label="Compartilhar"
-              onClick={() => {/* implementar */ }}
+              onClick={() => {}}
             >
               <FiShare2 size={20} />
             </button>
@@ -467,9 +396,7 @@ export default function AlertEdit({
           <div>
             <label className="block text-sm text-gray-400">Status</label>
             <div className="text-sm">
-              {isAlertLoading ? (
-                <Dots />
-              ) : valueDescriptions?.[alertData?.status] ?? alertData?.status ?? "Sem dados"}
+              {isAlertLoading ? <Dots /> : valueDescriptions?.[alertData?.status] ?? alertData?.status ?? "Sem dados"}
             </div>
           </div>
         </div>
@@ -485,7 +412,7 @@ export default function AlertEdit({
               onChange={(e) => {
                 const v = e.currentTarget.valueAsNumber;
                 if (Number.isNaN(v)) setMinutes(NaN);
-                else setMinutes(clamp(Math.trunc(v), 1, 10080)); // até 7 dias
+                else setMinutes(clamp(Math.trunc(v), 1, 10080));
               }}
               className="w-20 px-2 text-sm bg-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSaving}
@@ -505,8 +432,16 @@ export default function AlertEdit({
             </button>
           </div>
 
-
-
+          {remainingMs != null && (
+            <p className="mt-2 text-xs text-gray-400">
+              Faltam {Math.ceil(remainingMs / 1000)}s para o disparo atual.
+            </p>
+          )}
+          {previewMs != null && (
+            <p className="mt-1 text-xs text-gray-400">
+              Prévia: {Math.ceil(previewMs / 1000)}s até o próximo agendamento.
+            </p>
+          )}
 
           <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-gray-400">
             <div>
@@ -546,8 +481,8 @@ export default function AlertEdit({
             >
               {isSaving ? "Solucionando..." : "Solucionar Alarme"}
             </button>
-            <div>
-              <div className="mt-2">
+            <div className="mt-2">
+              <div>
                 Data da solução:{" "}
                 <p className="text-white inline">
                   {isTimerLoading ? <Dots /> : dataSolucao || "Sem dados"}
@@ -571,7 +506,9 @@ export default function AlertEdit({
               disabled={isWhatsappLoading}
             />
             {isWhatsappLoading ? (
-              <span className="text-gray-400"><Dots /> Carregando configuração do WhatsApp</span>
+              <span className="text-gray-400">
+                <Dots /> Carregando configuração do WhatsApp
+              </span>
             ) : whatsappStatus ? (
               <span className="text-gray-400">Notificações pelo Whatsapp ATIVADAS</span>
             ) : (
@@ -583,4 +520,3 @@ export default function AlertEdit({
     </div>
   );
 }
-

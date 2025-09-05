@@ -6,7 +6,7 @@ PouchDB.plugin(PouchDBFind);
 
 // Database connections
 export const localDB = new PouchDB('lindsay');
-export const remoteDB = new PouchDB('http://admin:wyrd@54.211.31.145:5984//mqtt_data', { skip_setup: true });
+export const remoteDB = new PouchDB('https://admin:wyrd@db.vpn.ind.br/mqtt_data', { skip_setup: true });
 
 ////////console.log('[Database] Ready for manual sync and changes management.');
 
