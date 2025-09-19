@@ -6,16 +6,10 @@ import useMessageStore from "../stores/messageStore";
 import SyncProvider from "./SyncProvider";
 import StatusAlarmModal from "./statusAlarmModal";
 import { useDataStoreManutecoes, useManutecoes } from "../stores/dataStoreTimers1";
-import { parseSwVector } from "../hooks/vetorSW";
+import { parseSwVector, STATUS_MAP } from "../hooks/vetorSW";
 
 // Mapeamento dos códigos para a descrição
-const valueDescriptions = {
-  "0": "Normal",
-  "1": "Alarmado",
-  "2": "Reconhecido",
-  "3": "Alarme OFF",
-  "9": "Ausente",
-};
+const valueDescriptions = STATUS_MAP;
 
 // ★ delay configurável entre MAN e SW (em ms)
 const SW_UPDATE_DELAY_MS = 10000;
@@ -23,18 +17,22 @@ const SW_UPDATE_DELAY_MS = 10000;
 // utilzinho para aguardar
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function StatusCard({ title, statuses, onClick }) {
-  const allOK = statuses.every((s) => s.value === "0");
+function StatusCard({ title, statuses, onClick, isInMaintenance }) {
+  const allOK = statuses.some((s) => s.value === "0");
   const hasAlarmado = statuses.some((s) => s.value === "1");
   const hasReconhecido = statuses.some((s) => s.value === "2");
+  const hasAlarmeOff = statuses.some((s) => s.value === "3");
+  const hasAusente = statuses.some((s) => s.value === "9");
 
-  const statusLabel = hasAlarmado
+
+
+  const statusLabel = isInMaintenance ? "Em manutenção" : hasAlarmado
     ? "Alarmado"
     : hasReconhecido
       ? "Reconhecido"
       : allOK
-        ? "OK"
-        : "Desconhecido";
+        ? "Normal"
+        : hasAlarmeOff ? "Alarme OFF" : hasAusente ? "Ausente" : "Desconhecido";
 
   const classes = clsx(
     "h-full flex flex-col items-center justify-center rounded border-2 p-2 transition-colors duration-200 cursor-pointer",
@@ -43,7 +41,7 @@ function StatusCard({ title, statuses, onClick }) {
       "bg-red-500 border-transparent text-white": !hasAlarmado && hasReconhecido,
       "bg-[#08cb7c] border-[#08cb7c] text-white": allOK && !hasAlarmado,
       "bg-[#444444] border-transparent text-white":
-        !allOK && !hasAlarmado && !hasReconhecido,
+        !allOK && !hasAlarmado && !hasReconhecido || isInMaintenance,
     }
   );
 
@@ -314,6 +312,76 @@ export default function StatusHistory({
         >
           <div className="flex items-center gap-2">
             <span className="uppercase">Status de Alarmes</span>
+            {/* BOTÃO TOGGLE: Desativar/Reativar Geral */}
+            <div className="flex items-center gap-3">
+              {/* SWITCH */}
+              <span className="group relative select-none uppercase">
+                {loading || isSaving
+                  ? "Enviando..."
+                  : isInMaintenance
+                    ? ": Em Manutenção"
+                    : ": Monitorando"}
+
+
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isInMaintenance}
+                aria-label="Alternar manutenção geral"
+                onClick={handleToggleManutencao}
+                disabled={loading || isSaving}
+                // ⬇️ adicionei "group"
+                className={clsx(
+                  "group relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  isInMaintenance ? "bg-red-600 hover:bg-red-700" : "bg-gray-600 hover:bg-gray-700"
+                )}
+                // fallback nativo (opcional)
+                title={
+                  loading || isSaving
+                    ? "…"
+                    : isInMaintenance
+                      ? "Clique se deseja voltar a monitorar"
+                      : "Clique se deseja entrar em modo de manutenção"
+                }
+                // liga o botão ao tooltip para leitores de tela
+                aria-describedby="tip-switch"
+              >
+                <span
+                  aria-hidden="true"
+                  className={clsx(
+                    "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
+                    isInMaintenance ? "translate-x-7" : "translate-x-1"
+                  )}
+                />
+
+                {/* Tooltip */}
+                <span
+                  id="tip-switch"
+                  role="tooltip"
+                  aria-hidden="true"
+                  className={clsx(
+                    "pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2",
+                    "whitespace-nowrap rounded px-2 py-1 text-xs bg-black text-white",
+                    "opacity-0 transition",
+                    // ⬇️ mostra no hover e no foco via teclado
+                    "group-hover:opacity-100 group-focus-visible:opacity-100"
+                  )}
+                >
+                  {loading || isSaving
+                    ? "…"
+                    : isInMaintenance
+                      ? "Clique se deseja voltar a monitorar"
+                      : "Clique se deseja entrar em modo de manutenção"}
+                </span>
+              </button>
+
+
+              {/* RÓTULO DINÂMICO */}
+
+            </div>
             <button
               type="button"
               onClick={handleSolicitarStatus}
@@ -339,41 +407,7 @@ export default function StatusHistory({
               {loading ? "Enviando..." : "Desativar Sirene"}
             </button>
 
-            {/* BOTÃO TOGGLE: Desativar/Reativar Geral */}
-            <div className="flex items-center gap-3">
-              {/* SWITCH */}
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isInMaintenance}
-                aria-label="Alternar manutenção geral"
-                onClick={handleToggleManutencao}
-                disabled={loading || isSaving}
-                className={clsx(
-                  "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
-                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400",
-                  "disabled:cursor-not-allowed disabled:opacity-60",
-                  isInMaintenance ? "bg-red-600 hover:bg-red-700" : "bg-gray-600 hover:bg-gray-700"
-                )}
-              >
-                <span
-                  aria-hidden="true"
-                  className={clsx(
-                    "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
-                    isInMaintenance ? "translate-x-7" : "translate-x-1"
-                  )}
-                />
-              </button>
 
-              {/* RÓTULO DINÂMICO */}
-              <span className="text-sm select-none">
-                {loading || isSaving
-                  ? "Enviando..."
-                  : isInMaintenance
-                    ? "Reativar Geral"
-                    : "Desativar Geral"}
-              </span>
-            </div>
           </div>
           {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
         </summary>
@@ -396,7 +430,7 @@ export default function StatusHistory({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {cards.map((c) => (
-            <StatusCard key={c.title} {...c} onClick={() => setActiveCard(c)} />
+            <StatusCard key={c.title} {...c} onClick={() => setActiveCard(c)} isInMaintenance={isInMaintenance} />
           ))}
         </div>
       </details>

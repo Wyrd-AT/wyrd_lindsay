@@ -5,7 +5,8 @@ import axios from "axios";
 
 /* ---- Axios instance ---- */
 export const couch = axios.create({
-  baseURL: "https://admin:wyrd@db.vpn.ind.br",
+  //baseURL: "https://admin:wyrd@db.vpn.ind.br",
+  baseURL: "http://admin:wyrd@54.211.31.145:5984",
   auth: {
     username: "admin",
     password: "wyrd"
@@ -22,11 +23,17 @@ export const couch = axios.create({
 
 /** Lê um documento por _id */
 export const getDoc = async (db, id, { rev } = {}) => {
-  const { data } = await couch.get(`/${db}/${encodeURIComponent(id)}`, {
+  const res = await couch.get(`/${db}/${encodeURIComponent(id)}`, {
     params: rev ? { rev } : undefined
   });
-  return data;
+  if (res.status >= 400) {
+    const err = new Error(`Couch GET ${id} failed: ${res.status}`);
+    err.response = res;
+    throw err;
+  }
+  return res.data;
 };
+
 
 /** Lista documentos via _all_docs (GET) ou por chaves (POST) */
 export const getDocAll = async (

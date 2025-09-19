@@ -2,8 +2,8 @@
 import { useEffect, useMemo } from 'react';
 import useMessageStore from '../stores/messageStore';
 
-const STATUS_MAP = {
-  '0': 'OK',
+export const STATUS_MAP = {
+  '0': 'Normal',
   '1': 'Alarmado',
   '2': 'Reconhecido',
   '3': 'Alarme OFF',
