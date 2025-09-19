@@ -398,14 +398,7 @@ export default function StatusHistory({
             >
               {loading ? "..." : "Disparar Sirene"}
             </button>
-            <button
-              type="button"
-              onClick={handleEnviar}
-              disabled={loading || isSaving}
-              className="px-3 bg-blue-600 hover:bg-blue-700 rounded text-sm py-1 disabled:opacity-60"
-            >
-              {loading ? "Enviando..." : "Desativar Sirene"}
-            </button>
+            
 
 
           </div>

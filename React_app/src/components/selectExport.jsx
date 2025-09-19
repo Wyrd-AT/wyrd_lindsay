@@ -77,12 +77,7 @@ export default function SelectExport({
 
       {/* botões de ação */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={onExport}
-          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-        >
-          <IoMdDownload />
-        </button>
+
         <button
           onClick={onMessage}
           className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
