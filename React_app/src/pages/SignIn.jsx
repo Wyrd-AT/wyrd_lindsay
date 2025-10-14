@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { signIn } from "../api/auth";
 import SyncProgressBar from "../components/SyncProgressbar";
 import SyncProvider from "../components/SyncProvider";
+import { useMQTT } from "../hooks/MQTTProvider";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -13,6 +14,18 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+
+  const { isConnected, subscribe, messages } = useMQTT();
+
+  useEffect(() => {
+    if (isConnected) {
+      subscribe("lindsay/pivo01")
+        .then(() => console.log("Inscrito com sucesso!"))
+        .catch((err) => console.error("Erro: ", err));
+    }
+  }, [isConnected, subscribe]);
+
+  messages && console.log(messages);
 
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);
@@ -30,7 +43,11 @@ export default function Login() {
 
     try {
       const response = await signIn(email, password);
-      if (response && response.AuthenticationResult && response.AuthenticationResult.AccessToken) {
+      if (
+        response &&
+        response.AuthenticationResult &&
+        response.AuthenticationResult.AccessToken
+      ) {
         login({ email }, response.AuthenticationResult.AccessToken);
         navigate("/home");
       } else {
@@ -68,10 +85,16 @@ export default function Login() {
     const input = e.target;
     switch (input.id) {
       case "email":
-        input.setCustomValidity(input.validity.typeMismatch ? "Please enter a valid email address" : "");
+        input.setCustomValidity(
+          input.validity.typeMismatch
+            ? "Please enter a valid email address"
+            : "",
+        );
         break;
       case "password":
-        input.setCustomValidity(input.value ? "" : "Please enter your password");
+        input.setCustomValidity(
+          input.value ? "" : "Please enter your password",
+        );
         break;
     }
   };
@@ -83,22 +106,31 @@ export default function Login() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#272727]">
       <SyncProvider>
-
         <SyncProgressBar />
         <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96 relative">
           {/* Logo */}
           <div className="flex justify-center mb-6">
-            <img src="/fieldnet.svg" alt="FieldNet Logo" width="150" height="50" />
+            <img
+              src="/fieldnet.svg"
+              alt="FieldNet Logo"
+              width="150"
+              height="50"
+            />
           </div>
 
           {/* Title */}
-          <h2 className="text-[#4ade80] text-2xl font-semibold text-center mb-4">Sign in</h2>
+          <h2 className="text-[#4ade80] text-2xl font-semibold text-center mb-4">
+            Sign in
+          </h2>
           <hr className="border-[#4ade80] mb-4" />
 
           {/* Form */}
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label htmlFor="email" className="text-gray-400 block text-sm font-medium mb-1">
+              <label
+                htmlFor="email"
+                className="text-gray-400 block text-sm font-medium mb-1"
+              >
                 Email *
               </label>
               <input
@@ -115,7 +147,10 @@ export default function Login() {
             </div>
 
             <div className="mb-4 relative">
-              <label htmlFor="password" className="text-gray-400 block text-sm font-medium mb-1">
+              <label
+                htmlFor="password"
+                className="text-gray-400 block text-sm font-medium mb-1"
+              >
                 Password *
               </label>
               <input
@@ -140,28 +175,36 @@ export default function Login() {
             {error && <p className="text-red-500">{error}</p>}
 
             <div className="w-full flex flex-col justify-center items-center mt-4">
-              <button type="submit" className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition mb-2">
+              <button
+                type="submit"
+                className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition mb-2"
+              >
                 Sign In
               </button>
-              <Link to="/signup" className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition">
-                <button className="w-full  text-white ">
-                  Create Account
-                </button>
+              <Link
+                to="/signup"
+                className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition"
+              >
+                <button className="w-full  text-white ">Create Account</button>
               </Link>
             </div>
 
-            <p className="text-sm text-gray-500 mt-2">* All fields are required</p>
+            <p className="text-sm text-gray-500 mt-2">
+              * All fields are required
+            </p>
           </form>
 
           <p className=" text-sm text-gray-500 mt-2">
             Forgot your password?{" "}
-            <Link to="/forgot-password" className="text-[#4ade80] hover:underline">
+            <Link
+              to="/forgot-password"
+              className="text-[#4ade80] hover:underline"
+            >
               Click here to reset it
             </Link>
           </p>
         </div>
       </SyncProvider>
-
     </div>
   );
 }

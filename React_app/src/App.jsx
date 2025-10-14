@@ -1,6 +1,11 @@
 // src/App.jsx
 import React, { useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
 import SyncProvider from "./components/SyncProvider";
 import SyncProgressModal from "./components/SyncProgressModal";
@@ -19,7 +24,7 @@ import { useAuthStore } from "./stores/authStore";
 import ProtectedRoute from "./api/ProtectedRoute";
 import { startSyncHandler } from "./api/database";
 import SyncProgressBar from "./components/SyncProgressbar";
-
+import { MQTTProvider } from "./hooks/MQTTProvider";
 
 export default function App() {
   const { isAuthenticated } = useAuthStore();
@@ -28,28 +33,31 @@ export default function App() {
     if (isAuthenticated) {
       startSyncHandler();
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated]);
   return (
     // 1) Starta a replicação e contador de sync
     <SyncProvider>
-      <Router>
-        {/* 2) Modal global de progresso de sync */}
-        <SyncProgressBar />
+      <MQTTProvider brokerUrl="ws://54.211.31.145:9001">
+        <Router>
+          {/* 2) Modal global de progresso de sync */}
+          <SyncProgressBar />
 
-        <Routes>
-          <Route path="/" element={ <Login />} />
-          <Route path="/signup" element={isAuthenticated ? <Navigate to="/home" /> : <SignUp />} />
-          <Route path="/forgot-password" element={ <ForgotPassword />} />
-          <Route element={<ProtectedRoute />}>
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route
+              path="/signup"
+              element={isAuthenticated ? <Navigate to="/home" /> : <SignUp />}
+            />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/home" element={<HomePageRevenda />} />
 
-            <Route path="/home" element={<HomePageRevenda />} />
-
-            <Route path="/maquina/:machineId" element={<Maquina />} />
-
-          </Route>
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Router>
+              <Route path="/maquina/:machineId" element={<Maquina />} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Router>
+      </MQTTProvider>
     </SyncProvider>
   );
 }
