@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { startSyncHandler } from '../api/database';
-import { incrementSyncActiveCount } from '../stores/syncCounterStore';
+import { startSyncHandler } from '../api/old/database';
+import { incrementSyncActiveCount } from '../stores/old/syncCounterStore';
 
 export default function SyncProvider({ children }) {
   useEffect(() => {

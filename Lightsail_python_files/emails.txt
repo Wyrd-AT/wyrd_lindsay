@@ -1,0 +1,3 @@
+# Lista de e-mails para receber notificações
+# Um e-mail por linha
+# exemplo@dominio.com

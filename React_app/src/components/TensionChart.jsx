@@ -1,4 +1,3 @@
-// src/components/TensionChart.jsx
 import React, { useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { format } from 'date-fns';
 import {

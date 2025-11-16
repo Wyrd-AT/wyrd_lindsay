@@ -2,8 +2,8 @@ import couchdb
 import paho.mqtt.client as mqtt
 import threading
 
-COUCHDB_URL = "http://admin:wyrd@54.211.31.145:5984/"
-DATABASE_NAME = "mqtt_data"
+COUCHDB_URL = "http://admin:wyrd@3.91.165.0:5984/"
+DATABASE_NAME = "lindsay-data"
 MQTT_BROKER = "127.0.0.1"
 MQTT_PORT = 1883
 DEFAULT_MQTT_TOPIC = "default_topic"

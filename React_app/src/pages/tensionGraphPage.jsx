@@ -2,9 +2,9 @@
 import React, { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useParsedMessages } from "../hooks/useParsedMessages";
-import TensionGraph from "../components/tensionGraph";
-import SideBar from "../components/sidebar";
-import BodyContent from "../components/body";
+import TensionGraph from "../components/old/tensionGraph";
+import SideBar from "../components/old/sidebar";
+import BodyContent from "../components/old/body";
 
 // Mapeamento de IDs para nomes curtos
 const irrigadorIdMap = {

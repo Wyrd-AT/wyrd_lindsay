@@ -17,7 +17,7 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_FROM = os.getenv("TWILIO_FROM", "whatsapp:+14155238886")
 
 COUCHDB_URL = os.getenv("COUCHDB_URL", "http://admin:wyrd@127.0.0.1:5984")
-DATABASE = os.getenv("COUCHDB_DB", "mqtt_data")
+DATABASE = os.getenv("COUCHDB_DB", "lindsay-data")
 MQTT_BROKER = os.getenv("MQTT_BROKER", "127.0.0.1")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "#")

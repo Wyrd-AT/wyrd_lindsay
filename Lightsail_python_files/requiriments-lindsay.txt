@@ -1,0 +1,23 @@
+# Lindsay Android - Backend Requirements
+# Sistema MQTT -> CouchDB com Push Notifications
+
+# Core dependencies
+python-dotenv>=1.0.0
+requests>=2.31.0
+pydantic>=2.5.0
+
+# CouchDB
+couchdb>=1.2
+
+# MQTT
+paho-mqtt>=1.6.1
+
+# Twilio (WhatsApp)
+twilio>=8.10.0
+
+# Expo Push Notifications
+exponent-server-sdk>=2.0.0
+
+# Timezone support
+tzdata>=2023.3
+

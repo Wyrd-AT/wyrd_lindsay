@@ -31,7 +31,7 @@ def send_message(msg: str, to: list[str]):
 
 
 COUCHDB_URL = "http://admin:wyrd@127.0.0.1:5984"
-DATABASE = "mqtt_data"
+DATABASE = "lindsay-data"
 MQTT_BROKER = "127.0.0.1"
 MQTT_TOPIC = "#"
 
