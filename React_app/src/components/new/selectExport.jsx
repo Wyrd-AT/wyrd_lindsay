@@ -5,7 +5,6 @@ import { FaRegEnvelope, FaTimes } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router-dom";
 
 export default function SelectExport({
-  machines = [],                // ["111111", "222222", ...]
   getDisplayName = (id) => id,  // função para exibir "IRRIGADOR X"
   onclick_details,
   onExport,
@@ -14,60 +13,11 @@ export default function SelectExport({
   selectedMachine,
   redirectBase = "/maquina"
 }) {
-  const navigate = useNavigate();
-  const location = useLocation();
 
-  // 1) monta as opções com ID real como value, e displayName como label
-  const options = useMemo(
-  () =>
-    machines
-      .filter((id) => typeof id === "string" && id.trim() !== "") // 🧹 remove undefined, null ou string vazia
-      .map((id) => ({
-        value: id,
-        label: getDisplayName(id) || `Irrigador ${id}` // fallback se função falhar
-      })),
 
-  [machines, getDisplayName]
-);
 
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [inputValue, setInputValue] = useState("");
 
-  // 2) define valor inicial com base na URL
-  useEffect(() => {
-    if (!options.length) return;
-    const last = location.pathname.split("/").pop();
-    const match = options.find((o) => o.value === last);
-    setSelectedOption(match || options[0]);
-  }, [location.pathname, options]);
-
-  // 3) onChange de seleção
-  const handleChange = (opt) => {
-    setSelectedOption(opt);
-    onMachineChange?.(opt?.value || "");
-    navigate(`${redirectBase}/${opt?.value}`);
-  };
-
-  // 4) Clear apenas o texto do input
-  const ClearIndicator = (props) => {
-    const {
-      innerProps: { ref, ...restInner } = {}
-    } = props;
-    return (
-      <components.ClearIndicator {...props}>
-        <FaTimes
-          {...restInner}
-          ref={ref}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setInputValue("");
-          }}
-        />
-      </components.ClearIndicator>
-    );
-  };
-  ////console.log((selectedMachine??[1])[0])
+  
 
   return (
     <div className="w-full  py-2 flex justify-between items-center bg-[#13131]">

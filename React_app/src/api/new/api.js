@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { useAuthStore } from '../../stores/old/authStore';
+import { useAuthStore } from '../../stores/new/authStore';
 
 const COGNITO_BASE_URL = 'https://cognito-idp.sa-east-1.amazonaws.com/';
 export const COGNITO_CLIENT_ID = '2smqfkuv4iu3d0lb65g7kgd24k';

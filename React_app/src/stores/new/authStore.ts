@@ -13,6 +13,7 @@ export interface AuthState {
   user: User | null;
   token: string | null;
   companyId: string | null;
+  equipamentos?: string[];
 
   // Actions
   login: (user: User, token: string) => void;

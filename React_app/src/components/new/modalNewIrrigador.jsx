@@ -8,6 +8,9 @@ import { useDataStoreIrrigadores } from '../../stores/new/dataStoreIrrigadores'
 export const ModalIrrigador = ({ closeModal }) => {
   const nameRef = useRef()
   const apelidoRef = useRef()
+  const whatsappRef = useRef()
+  const smsRef = useRef()
+  const emailRef = useRef()
   const { isAuthenticated, user } = useAuthStore();
     const navigate = useNavigate();
   
@@ -54,14 +57,22 @@ export const ModalIrrigador = ({ closeModal }) => {
     setIsSaving(true)
     setError(null)
 
+    const whatsapp = whatsappRef.current.value.trim()
+    const sms = smsRef.current.value.trim()
+    const email = emailRef.current.value.trim()
+
     const payload = {
       origin: 'app',
       table: 'irrigadores',
       codigo: nome,
       irrigador:apelido,
       equipamentos,
-      companyId:companyId
-
+      companyId:companyId,
+      contacts: {
+        whatsapp: whatsapp || null,
+        sms: sms || null,
+        email: email || null
+      }
     }
 
     try {
@@ -135,6 +146,46 @@ export const ModalIrrigador = ({ closeModal }) => {
             disabled={isSaving}
           />
         </label>
+
+        <fieldset className="mb-4 p-4 border border-gray-600 rounded-md">
+          <legend className="text-white mb-2 px-2">Contatos para Notificação</legend>
+
+          <label className="block text-white mb-3">
+            <span className="text-sm text-gray-300">WhatsApp (formato internacional):</span>
+            <input
+              ref={whatsappRef}
+              name="whatsapp"
+              type="text"
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              placeholder="+5511999999999"
+              disabled={isSaving}
+            />
+          </label>
+
+          <label className="block text-white mb-3">
+            <span className="text-sm text-gray-300">SMS (formato internacional):</span>
+            <input
+              ref={smsRef}
+              name="sms"
+              type="text"
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              placeholder="+5511988888888"
+              disabled={isSaving}
+            />
+          </label>
+
+          <label className="block text-white">
+            <span className="text-sm text-gray-300">E-mail:</span>
+            <input
+              ref={emailRef}
+              name="email"
+              type="email"
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              placeholder="email@example.com"
+              disabled={isSaving}
+            />
+          </label>
+        </fieldset>
 
         <fieldset className="mb-4">
           <legend className="text-white mb-2">Equipamentos</legend>

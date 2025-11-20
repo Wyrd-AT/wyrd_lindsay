@@ -9,7 +9,10 @@ export type DeviceCard = { id: string; title: string; statuses: { label: string;
 export interface Irrigador { codigo: string; equipamentos?: string[]; }
 
 export interface OverviewProps {
-    pivoId: string;
+    pivoId:  string | null;
+    companyId: string | null;
+    email?: string;
+    equipamentoNames?: string[];
 }
 
 
@@ -67,7 +70,7 @@ export function monitoresToVoltageMap(doc?: RecentTensaoDoc): Map<number, number
 }
 
 export async function sendCommand(
-    command: 'sw' | 'sirene' | 'ack' | 'man',
+    command: 'update' | 'sirene' | 'ack' | 'man',
     successText: string,
     failureText: string,
     pivoId: string | null,

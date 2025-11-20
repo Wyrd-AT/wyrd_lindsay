@@ -1,79 +1,78 @@
 // app/(pivo)/[pivoId]/overview.tsx
-import React, { useEffect, useMemo, useState } from 'react';
-
-
-// 👉 dados: usar as funções que fizemos
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import clsx from 'clsx';
 import { FiChevronDown, FiChevronUp } from 'react-icons/fi';
-import { useIrrigadores } from '../../stores/new/dataStoreIrrigadores';
-import useMessageStore from '../../stores/new/messageStore';
 import { getRecentAll, RecentSWDoc, RecentTensaoDoc } from '../../hooks/new/getRecent';
-import { useAuthStore } from '../../stores/new/authStore';
 import { StatusCard } from './statusCard';
 import StatusAlarmModal from './statusAlarmModal';
 import { DeviceCard, Irrigador, monitoresToVoltageMap, OverviewProps, parseBrToMs, parseSwVectorOverview, sendCommand } from '../../helpers/helperOverview';
+import { useWhatsappPerIrrigador } from '../../hooks/new/useWhatsappPerIrrigador';
+import { useChangesListener } from '../../hooks/new/useChangesListener';
 
 
+export default function Overview({ pivoId,companyId,email,equipamentoNames = [] }: OverviewProps) {
 
-
-
-const SW_UPDATE_DELAY_MS = 10000;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-export default function Overview({ pivoId }: OverviewProps) {
-    const navigate = useNavigate();
-
-
-    const { isAuthenticated, user } = useAuthStore();
-    useEffect(() => {
-        if (!isAuthenticated) {
-            navigate("/login");
-        }
-    }, [isAuthenticated, navigate]);
-
-
-    const email = user?.email ?? '';
-    const domainAndTld = email.split('@')[1] ?? '';
-    const companyId = domainAndTld.split('.')[0] ?? '';
-    const [isOpen, setIsOpen] = useState(true);
-    const [activeCard, setActiveCard] = useState(null);
-
-
+    const [activeCard, setActiveCard] = useState<DeviceCard | null>(null);
     const [loading, setLoading] = useState(false);
     const [responseMsg, setResponseMsg] = useState('');
     const [localManOverride, setLocalManOverride] = useState<null | boolean>(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    const irrigadores = useIrrigadores(companyId);
+
+    /* ----------------- WhatsApp por irrigador ----------------- */
+    const {
+        enabled: whatsappEnabled,
+        loading: whatsappLoading,
+        toggle: toggleWhatsapp
+    } = useWhatsappPerIrrigador(pivoId, email);
 
     /* ----------------- Carregar snapshots via getRecentAll ----------------- */
     const [swDoc, setSwDoc] = useState<RecentSWDoc | null>(null);
     const [tA, setTA] = useState<RecentTensaoDoc | null>(null);
     const [tB, setTB] = useState<RecentTensaoDoc | null>(null);
-    const [loadingAny, setLoadingAny] = useState(false);
-    const [errorAny, setErrorAny] = useState<string | null>(null);
 
-    useEffect(() => {
-        let alive = true;
-        (async () => {
-            if (!pivoId) return;
-            setLoadingAny(true);
-            setErrorAny(null);
-            try {
-                const all = await getRecentAll('lindsay-data', String(pivoId));
-                if (!alive) return;
-                setSwDoc(all.sw ?? null);
-                setTA(all.tensao.A ?? null);
-                setTB(all.tensao.B ?? null);
-            } catch (e: any) {
-                if (alive) setErrorAny(e?.message ?? 'Falha ao carregar snapshots recentes');
-            } finally {
-                if (alive) setLoadingAny(false);
-            }
-        })();
-        return () => { alive = false; };
+    // Função para carregar dados do CouchDB
+    const loadData = useCallback(async () => {
+        if (!pivoId) return;
+
+        try {
+            const all = await getRecentAll('lindsay-data', String(pivoId));
+            setSwDoc(all.sw ?? null);
+            setTA(all.tensao.A ?? null);
+            setTB(all.tensao.B ?? null);
+        } catch (e: any) {
+            console.error(e?.message ?? 'Falha ao carregar snapshots recentes');
+        }
     }, [pivoId]);
+
+    // Carrega dados inicialmente
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    // Listener de mudanças do CouchDB para atualização automática
+    useChangesListener({
+        db: 'lindsay-data',
+        onChange: (changes) => {
+            // Verifica se alguma mudança é relevante para este pivoId
+            const hasRelevantChange = changes.some(change => {
+                // Verifica se o documento pertence a este pivoId
+                const docId = change.id;
+                return docId.includes(String(pivoId));
+            });
+
+            if (hasRelevantChange) {
+                console.log('Detectada mudança relevante no CouchDB, atualizando dados...');
+                loadData();
+            }
+        },
+        includeDocs: false, // Não precisa do doc completo, só do ID para verificar
+        pollInterval: 5000, // Verifica a cada 5 segundos
+        pause: !pivoId, // Pausa se não tiver pivoId
+        onError: (error) => {
+            console.error('Erro no listener de mudanças:', error);
+        }
+    });
 
     const parsed_sw = useMemo(() => parseSwVectorOverview(swDoc?.data), [swDoc]);
 
@@ -97,18 +96,7 @@ export default function Overview({ pivoId }: OverviewProps) {
         return '—';
     }, [swDoc]);
 
-    const selectedDoc = useMemo<Irrigador | undefined>(
-        () => (irrigadores as Irrigador[]).find((doc) => String(doc.codigo) === String(pivoId)),
-        [irrigadores, pivoId]
-    );
 
-    if (!selectedDoc) {
-        return (
-            <div style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#313131' }}>
-                <p style={{ color: '#fff' }}>Carregando dados da máquina...</p>
-            </div>
-        );
-    }
 
     /* ----------------- Tensão: média de A e B por monitor ----------------- */
     const voltA = useMemo(() => monitoresToVoltageMap(tA || undefined), [tA]);
@@ -138,13 +126,7 @@ export default function Overview({ pivoId }: OverviewProps) {
     const isInMaintenance = useMemo(
         () => (localManOverride !== null ? localManOverride : parsed_sw?.status_manutencao === '1'),
         [localManOverride, parsed_sw]
-    );
-
-    const equipamentoNames = useMemo(() => {
-        const arr = Array.isArray(selectedDoc.equipamentos) ? selectedDoc.equipamentos : [];
-        if (arr.length >= 2) return arr;
-        return ['Painel 1', 'Painel 2'];
-    }, [selectedDoc.equipamentos]);
+    )
 
     /* ----------------- cards ----------------- */
     const cards: DeviceCard[] = useMemo(() => {
@@ -183,7 +165,7 @@ export default function Overview({ pivoId }: OverviewProps) {
     /* ----------------- ações & modal (inalterado) ----------------- */
     const handleSolicitarStatus = () => {
         try {
-        sendCommand('sw', 'Status solicitado com sucesso!', 'Falha ao solicitar status.', pivoId, setResponseMsg, setLoading, loading);
+        sendCommand('update', 'Status solicitado com sucesso!', 'Falha ao solicitar status.', pivoId, setResponseMsg, setLoading, loading);
         } finally {
             setIsSaving(false);
         }}
@@ -214,26 +196,27 @@ export default function Overview({ pivoId }: OverviewProps) {
 
     return (
         <>
-            <details
+            <div
                 className="bg-[#222] text-white p-4 rounded-md w-full mt-4"
-                open={isOpen}
-                onToggle={(e) => setIsOpen(e.target.open)}
+
             >
                 <summary
                     className="flex items-center justify-between cursor-pointer font-semibold text-lg mb-2 select-none"
-                    onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center gap-2">
-                        <span className="uppercase">Status de Alarmes</span>
+                        <span className="uppercase">Status de Alarmes :</span>
                         {/* BOTÃO TOGGLE: Desativar/Reativar Geral */}
                         <div className="flex items-center gap-3">
                             {/* SWITCH */}
-                            <span className="group relative select-none uppercase">
+                            <span className={clsx(
+                                "text-md font-medium uppercase",
+                                isInMaintenance ?"text-gray-500": "text-green-400" 
+                            )}>
                                 {loading || isSaving
                                     ? "Enviando..."
                                     : isInMaintenance
-                                        ? ": Em Manutenção"
-                                        : ": Monitorando"}
+                                        ? " Em Manutenção"
+                                        : " Monitorando"}
 
 
                             </span>
@@ -246,10 +229,12 @@ export default function Overview({ pivoId }: OverviewProps) {
                                 disabled={loading || isSaving}
                                 // ⬇️ adicionei "group"
                                 className={clsx(
-                                    "group relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
-                                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-gray-400",
+                                    "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
+                                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400",
                                     "disabled:cursor-not-allowed disabled:opacity-60",
-                                    isInMaintenance ? "bg-red-600 hover:bg-red-700" : "bg-gray-600 hover:bg-gray-700"
+                                    isInMaintenance
+                                        ?  "bg-gray-600 hover:bg-gray-700":"bg-green-600 hover:bg-green-700"
+                                        
                                 )}
                                 // fallback nativo (opcional)
                                 title={
@@ -266,7 +251,7 @@ export default function Overview({ pivoId }: OverviewProps) {
                                     aria-hidden="true"
                                     className={clsx(
                                         "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
-                                        isInMaintenance ? "translate-x-7" : "translate-x-1"
+                                        isInMaintenance ?  "translate-x-0": "translate-x-6"
                                     )}
                                 />
 
@@ -312,10 +297,52 @@ export default function Overview({ pivoId }: OverviewProps) {
                             {loading ? "..." : "Disparar Sirene"}
                         </button>
 
-
+                        {/* Toggle WhatsApp para este irrigador */}
+                        <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4">
+                            <span className="text-sm text-gray-300">
+                                WhatsApp/SMS:
+                            </span>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={whatsappEnabled}
+                                aria-label="Alternar notificações WhatsApp/SMS"
+                                onClick={toggleWhatsapp}
+                                disabled={whatsappLoading}
+                                className={clsx(
+                                    "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
+                                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400",
+                                    "disabled:cursor-not-allowed disabled:opacity-60",
+                                    whatsappEnabled
+                                        ? "bg-green-600 hover:bg-green-700"
+                                        : "bg-gray-600 hover:bg-gray-700"
+                                )}
+                                title={
+                                    whatsappLoading
+                                        ? "Atualizando..."
+                                        : whatsappEnabled
+                                            ? "Notificações ATIVADAS - Clique para desativar"
+                                            : "Notificações DESATIVADAS - Clique para ativar"
+                                }
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    className={clsx(
+                                        "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
+                                        whatsappEnabled ? "translate-x-6" : "translate-x-0"
+                                    )}
+                                />
+                            </button>
+                            <span className={clsx(
+                                "text-xs font-medium uppercase",
+                                whatsappEnabled ? "text-green-400" : "text-gray-500"
+                            )}>
+                                {whatsappLoading ? "..." : whatsappEnabled ? "Ativo" : "Inativo"}
+                            </span>
+                        </div>
 
                     </div>
-                    {isOpen ? <FiChevronUp size={20} /> : <FiChevronDown size={20} />}
+
                 </summary>
 
                 {responseMsg && <div className="mt-2 text-sm">{responseMsg}</div>}
@@ -332,7 +359,7 @@ export default function Overview({ pivoId }: OverviewProps) {
                         <StatusCard key={c.title} {...c} onClick={() => setActiveCard(c)} isInMaintenance={isInMaintenance} />
                     ))}
                 </div>
-            </details>
+            </div>
 
             {activeCard && (
                 <StatusAlarmModal

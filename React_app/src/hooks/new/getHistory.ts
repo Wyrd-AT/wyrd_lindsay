@@ -1,3 +1,4 @@
+import { Monitor } from './../../helpers/helperOverview';
 // getHistory.ts
 // Histórico completo via Mango (_find) com paginação/ordenação/filtros.
 
@@ -57,16 +58,20 @@ export interface SWRawDoc {
 }
 
 export interface EventDoc {
-  _id: string;
-  table: "events";
+  armadilha: string;
+  description: string;
+  estado: string;
+  eventType: string; 
   irrigadorId: string;
+  monitor: string | number;
+  responsible: string;
+  status: string;
+  table: "events";
   timestamp: string;
   timestamp_formatted: string;
-  eventType: string;        // ex.: "A" no seu documento
-  eventCode?: string;       // opcional — não aparece no seu exemplo
-  status: string;
-  description: string;
-  responsible: string;
+  _id: string;
+  _rev: string;  
+  
 }
 
 /** Monta selector com range por timestamp se fornecido. */
@@ -190,18 +195,35 @@ export async function getEventsHistory(
   if (table) sel.table = table;
   buildSelector(sel, fromISO, toISO);
 
-  const sortSpec = [{ timestamp: sort === "asc" ? "asc" : "desc" }];
+  try {
+    // PASSO 1: Buscar TODOS os documentos (SEM sort para evitar erro 400)
+    const { docs: allDocs } = await find(db, {
+      selector: sel,
+      limit: 100000, // Limite alto para pegar todos os dados
+    });
 
-  const { effectiveLimit, safeSkip, safeLimit } = withClientSideSkip(limit, skip);
+    console.log(`Fetched ${allDocs.length} event docs for ${irrigadorId || 'all'}`);
 
-  const { docs } = await find(db, {
-    selector: sel,
-    limit: effectiveLimit,
-    // use_index: "idx_events_irrigador_ts",
-  });
-  const arr = Array.isArray(docs) ? (docs as EventDoc[]) : ([] as EventDoc[]);
-  return arr.slice(safeSkip, safeSkip + safeLimit);
+    // PASSO 2: Ordenar no cliente por timestamp
+    const sortedDocs = (allDocs as EventDoc[]).sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return sort === 'asc' ? timeA - timeB : timeB - timeA;
+    });
 
+    // PASSO 3: Aplicar paginação
+    const start = skip;
+    const end = skip + limit;
+    const paginatedDocs = sortedDocs.slice(start, end);
+
+    console.log(`Returning ${paginatedDocs.length} docs (skip: ${skip}, limit: ${limit}, total: ${sortedDocs.length})`);
+
+    return paginatedDocs;
+  } catch (error: any) {
+    console.error('Error in getEventsHistory:', error);
+    console.error('Error response:', error.response?.data);
+    throw error;
+  }
 }
 
 /** (Opcional) Garante índices Mango pra ordenar por timestamp. Rode 1x num fluxo admin. */

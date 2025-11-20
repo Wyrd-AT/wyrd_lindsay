@@ -207,7 +207,7 @@ export interface ChangesResponse<T = CouchDoc> {
 
 // ==================== Configuration ====================
 
-const COUCH_HOST = "http://3.91.165.0:5984/"; // substituir pela variável de ambiente apropriada
+export const COUCH_HOST = "http://3.91.165.0:5984/"; // substituir pela variável de ambiente apropriada
 const USER =  'admin';
 const PASS =  'wyrd';
 

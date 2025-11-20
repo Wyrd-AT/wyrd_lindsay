@@ -15,6 +15,7 @@ import { useAuthStore } from "../../stores/new/authStore";
 import { getRecentAll, RecentSWDoc } from '../../hooks/new/getRecent';
 import { pingCouch } from "../../api/new/couch";
 import { parseSwVector } from "../../helpers/helperHomePage";
+import { useChangesListener } from "../../hooks/new/useChangesListener";
 
 
 
@@ -95,6 +96,29 @@ export default function HomePageRevenda() {
 
   useEffect(() => { doPing(); }, [fetchSW]);
 
+  // Monitora mudanças no CouchDB e atualiza automaticamente
+  useChangesListener({
+    db: 'lindsay-data',
+    onChange: async (changes) => {
+      // Verifica se alguma mudança afeta os documentos recentes (sw_recente ou tensao_recente)
+      const hasRelevantChange = changes.some(change =>
+        change.id.startsWith('recente_sw::') ||
+        change.id.startsWith('recente_tensao::')
+      );
+
+      if (hasRelevantChange) {
+        console.log('[HomePageRevenda] Mudanças detectadas, atualizando dados...');
+        // Recarrega os dados do SW
+        await fetchSW();
+      }
+    },
+    includeDocs: false, // não precisamos do documento completo, só o ID
+    pollInterval: 5000, // verifica a cada 5 segundos
+    pause: couchOk !== true, // pausa se o CouchDB não estiver OK
+    onError: (error) => {
+      console.error('[HomePageRevenda] Erro ao monitorar mudanças:', error);
+    }
+  });
 
   // 2) Redireciona se não estiver logado
 

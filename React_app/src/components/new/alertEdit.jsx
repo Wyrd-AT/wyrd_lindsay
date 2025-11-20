@@ -2,13 +2,16 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { IoClose } from "react-icons/io5";
 import { FiShare2 } from "react-icons/fi";
 import PizZip from "pizzip";
+
 import { valueDescriptions } from "./alertHistory";
-import { useAuthStore } from "../../stores/old/authStore";
-import useMessageStore from "../../stores/old/messageStore";
-import { getBrasiliaTimestamp } from "./messageModal";
-import { whatsappStoreConfig } from "../../stores/old/whatsappStore";
-import { find, getDoc, getDocAll, upsertDoc } from "../../api/old/couch";
-import { appendHistoryEvent, currentId, getById, historyIdMonthly, setCurrent } from "../../hooks/old/useAgendamentos";
+import { getBrasiliaTimestamp } from "./messageModal"
+
+import { useAuthStore } from "../../stores/new/authStore";
+import useMessageStore from "../../stores/new/messageStore";
+;
+import { whatsappStoreConfig } from "../../stores/new/whatsappStore";
+import { find, getDoc, getDocAll, upsertDoc } from "../../api/new/couch";
+import { appendHistoryEvent, currentId, getById, historyIdMonthly, setCurrent } from "../../hooks/new/useAgendamentos";
 import Docxtemplater from "docxtemplater";
 import { saveAs } from "file-saver";
 
@@ -557,8 +560,15 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
       }
     }
 
-    async function handleEnviar(command, monitor, id) {
+    async function handleEnviar(command, monitor, id, overrideMinutes = null) {
       try {
+        const now = new Date();
+        // Se overrideMinutes for fornecido (ex: 0 para envio imediato), usa ele. Senão usa o valor do state.
+        const parsedMinutes = overrideMinutes !== null ? overrideMinutes : (Number.isFinite(minutes) ? minutes : 0);
+        const scheduled_for = parsedMinutes > 0
+          ? new Date(now.getTime() + parsedMinutes * 60_000).toISOString()
+          : null;
+
         const payload = `${id};${command}${monitor ?? ""}`;
         const doc = {
           topic: `lindsay/comandos/${id}`,
@@ -566,14 +576,25 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
           origin: "app",
           table: "command",
           qos: 0,
-          timer: minutes,
+
+          // Campos de agendamento
+          timer_minutes: parsedMinutes,
+          scheduled_for: scheduled_for,
+          scheduled: false,  // Será marcado como true pelo Python quando agendar
+          executed: false,   // Será marcado como true pelo Python quando executar
+          timer_ref: alertData?._id ? `timer:${alertData._id}:current` : null,
+
+          // Metadados
+          created_at: now.toISOString(),
+          created_by: user?.email || "Desconhecido",
+          status: parsedMinutes > 0 ? "pending" : "immediate",
           timestamp: getBrasiliaTimestamp(),
         };
+
         await useMessageStore.getState().postMessage(doc);
       } catch (err) {
         setErrorMsg("Falha ao enviar comando para a máquina.");
-        // log paralelo
-        console.error("[MensagemModal] erro ao enviar comando:", err);
+        console.error("[AlertEdit] erro ao enviar comando:", err);
       }
     }
 
@@ -633,7 +654,8 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
         });
         const curr = await getById(DB_NAME, currentId(alertData._id));
         setAgendamento(curr);
-        await handleEnviar("ack", "", machineId);
+        // Sempre envia comando imediatamente (timer_minutes = 0), ignorando valor do input
+        await handleEnviar("ack", "", machineId, 0);
 
       } catch (err) {
         setErrorMsg("Erro ao marcar alarme como solucionado.");
@@ -866,32 +888,6 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
             </div>
           </div>
 
-          {/* WhatsApp */}
-          <div className="p-4 border-t border-[#444]">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(whatsappStatus)}
-                onChange={handleToggleChange}
-                className="p-4"
-                disabled={isWhatsappLoading}
-                aria-label="Alternar notificações pelo WhatsApp"
-              />
-              {isWhatsappLoading ? (
-                <span className="text-gray-400">
-                  <Dots /> Carregando configuração do WhatsApp
-                </span>
-              ) : whatsappStatus ? (
-                <span className="text-gray-400">
-                  Notificações pelo WhatsApp ATIVADAS
-                </span>
-              ) : (
-                <span className="text-gray-400">
-                  Notificações pelo WhatsApp DESATIVADAS
-                </span>
-              )}
-            </label>
-          </div>
         </div>
       </div>
     );

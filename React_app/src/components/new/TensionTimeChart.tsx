@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -11,8 +11,12 @@ import {
   Legend,
   CartesianGrid,
 } from 'recharts';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { useTensionData } from '../../hooks/new/useTensionData';
 import type { Period } from '../../types/tension';
+import { IoMdDownload } from 'react-icons/io';
+import { IoReload } from 'react-icons/io5';
 
 const COLORS = [
   '#8884d8', '#82ca9d', '#ffc658', '#ff7300',
@@ -41,12 +45,45 @@ export function TensionTimeChart({
   equipmentNames,
 }: TensionTimeChartProps) {
 
+  const chartRef = useRef<HTMLDivElement>(null);
+
   const { points, loading, error, refresh } = useTensionData({
     irrigadorId,
     period,
     limit,
     equipmentNames,
   });
+
+  const handleDownloadPDF = async () => {
+    if (!chartRef.current) return;
+
+    try {
+      // Captura o elemento como canvas
+      const canvas = await html2canvas(chartRef.current, {
+        backgroundColor: '#222222',
+        scale: 2, // Aumenta a qualidade da imagem
+      });
+
+      // Converte canvas para imagem
+      const imgData = canvas.toDataURL('image/png');
+
+      // Cria o PDF
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height],
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+
+      // Gera o nome do arquivo com data e hora atual
+      const fileName = `grafico_tensao_${irrigadorId}_${format(new Date(), 'dd-MM-yyyy_HH-mm-ss')}.pdf`;
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('Erro ao gerar o PDF. Por favor, tente novamente.');
+    }
+  };
 
   // Formato final para o Recharts
   const chartData = useMemo(
@@ -135,15 +172,25 @@ export function TensionTimeChart({
   const chartTitle = title || `Tensão pelo Tempo - Irrigador ${irrigadorId}`;
 
   return (
-    <div className=" bg-[#222222] p-6 rounded-b-lg">
+    <div className=" bg-[#222222] p-6 rounded-b-lg" ref={chartRef}>
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-semibold text-white">{chartTitle}</h3>
-        <button
-          onClick={refresh}
-          className="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-600"
-        >
-          Atualizar
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleDownloadPDF}
+             className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+            title="Baixar o gráfico em PDF"
+          >
+            <IoMdDownload />
+          </button>
+          <button
+            onClick={refresh}
+            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+          >
+            <IoReload />
+
+          </button>
+        </div>
       </div>
 
       <ResponsiveContainer width={width} height={height}>

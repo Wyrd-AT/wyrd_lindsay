@@ -45,8 +45,9 @@ function convertEventToAlert(doc: EventDoc): AlertItem | null {
     // Extrair informações do eventType ou description
     // Formato esperado: "A01" onde A=tipo, 01=monitor
     const eventType = doc.eventType || '';
-    const alarme = eventType[0] || 'A';
-    const monitor = eventType.substring(1, 3) || '00';
+    const alarme = eventType[0];
+    console.log(" EventType:", doc);
+    const monitor = doc.monitor || '';
 
     // Extrair status do description ou usar padrão
     const statusMatch = doc.description?.match(/status:(\d+)/i);

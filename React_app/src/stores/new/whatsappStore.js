@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { remoteDB } from "../../api/old/database";
+import { couch } from "../../api/new/couch";
 
 const DOC_ID = "whatsapp";
 
@@ -12,7 +12,7 @@ export const whatsappStoreConfig = create((set) => ({
     set({ isFetchingConfig: true });
 
     try {
-      const doc = await remoteDB.get(DOC_ID);
+      const doc = await couch.get(DOC_ID);
       //console.log(doc);
       set({
         whatsappConfig: doc,
