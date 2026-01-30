@@ -1,0 +1,92 @@
+# ===================================
+# PYTHON / MQTT / COUCHDB
+# ===================================
+
+# Variáveis de ambiente (NUNCA commitar!)
+.env
+.env.*
+!.env.example
+
+# Arquivos sensíveis
+numbers.txt
+credentials.json
+*.key
+*.pem
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Ambientes virtuais
+venv/
+env/
+ENV/
+.venv/
+
+# Instalação e build
+pip-log.txt
+pip-delete-this-directory.txt
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Pytest
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# Pytype
+.pytype/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dados locais
+*.sqlite
+*.db
+local_data/
+
+# Arquivos temporários
+*.tmp
+*.bak
+*.backup
