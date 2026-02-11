@@ -1,5 +1,5 @@
 // couch.ts (ESM) — CouchDB client com tipagens TypeScript
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError } from "axios";
 
 // ==================== Error Types ====================
 
@@ -9,17 +9,23 @@ export class CouchDBError extends Error {
     public statusCode?: number,
     public reason?: string,
     public error?: string,
-    public originalError?: any
+    public originalError?: any,
   ) {
     super(message);
-    this.name = 'CouchDBError';
+    this.name = "CouchDBError";
   }
 }
 
 export class IndexError extends CouchDBError {
-  constructor(message: string, statusCode?: number, reason?: string, error?: string, originalError?: any) {
+  constructor(
+    message: string,
+    statusCode?: number,
+    reason?: string,
+    error?: string,
+    originalError?: any,
+  ) {
     super(message, statusCode, reason, error, originalError);
-    this.name = 'IndexError';
+    this.name = "IndexError";
   }
 }
 
@@ -36,42 +42,42 @@ interface CouchErrorResponse {
 function mapCouchError(status: number, errorData?: CouchErrorResponse): string {
   const errorMap: Record<number, Record<string, string>> = {
     400: {
-      'invalid_json': 'JSON inválido enviado ao servidor',
-      'bad_request': 'Requisição inválida',
-      'illegal_database_name': 'Nome de banco de dados inválido',
-      'default': 'Requisição malformada'
+      invalid_json: "JSON inválido enviado ao servidor",
+      bad_request: "Requisição inválida",
+      illegal_database_name: "Nome de banco de dados inválido",
+      default: "Requisição malformada",
     },
     401: {
-      'unauthorized': 'Credenciais inválidas ou ausentes',
-      'default': 'Não autorizado'
+      unauthorized: "Credenciais inválidas ou ausentes",
+      default: "Não autorizado",
     },
     403: {
-      'forbidden': 'Acesso negado',
-      'default': 'Permissão insuficiente'
+      forbidden: "Acesso negado",
+      default: "Permissão insuficiente",
     },
     404: {
-      'not_found': 'Recurso não encontrado',
-      'no_db_file': 'Banco de dados não existe',
-      'missing': 'Documento não encontrado',
-      'default': 'Não encontrado'
+      not_found: "Recurso não encontrado",
+      no_db_file: "Banco de dados não existe",
+      missing: "Documento não encontrado",
+      default: "Não encontrado",
     },
     409: {
-      'conflict': 'Conflito de documento (versão desatualizada)',
-      'file_exists': 'Banco de dados já existe',
-      'default': 'Conflito detectado'
+      conflict: "Conflito de documento (versão desatualizada)",
+      file_exists: "Banco de dados já existe",
+      default: "Conflito detectado",
     },
     412: {
-      'missing_rev': 'Revisão (_rev) obrigatória não fornecida',
-      'default': 'Pré-condição falhou'
+      missing_rev: "Revisão (_rev) obrigatória não fornecida",
+      default: "Pré-condição falhou",
     },
     500: {
-      'internal_server_error': 'Erro interno do servidor CouchDB',
-      'default': 'Erro interno do servidor'
+      internal_server_error: "Erro interno do servidor CouchDB",
+      default: "Erro interno do servidor",
     },
     503: {
-      'service_unavailable': 'Serviço CouchDB temporariamente indisponível',
-      'default': 'Serviço indisponível'
-    }
+      service_unavailable: "Serviço CouchDB temporariamente indisponível",
+      default: "Serviço indisponível",
+    },
   };
 
   const statusErrors = errorMap[status];
@@ -79,8 +85,8 @@ function mapCouchError(status: number, errorData?: CouchErrorResponse): string {
     return `Erro HTTP ${status}`;
   }
 
-  const errorType = errorData?.error || 'default';
-  return statusErrors[errorType] || statusErrors['default'];
+  const errorType = errorData?.error || "default";
+  return statusErrors[errorType] || statusErrors["default"];
 }
 
 /**
@@ -93,18 +99,18 @@ function handleCouchError(err: any, context: string): never {
     const reason = errorData?.reason;
     const error = errorData?.error;
 
-    const message = `${context}: ${mapCouchError(status || 500, errorData)}${reason ? ` - ${reason}` : ''}`;
+    const message = `${context}: ${mapCouchError(status || 500, errorData)}${reason ? ` - ${reason}` : ""}`;
 
     throw new CouchDBError(message, status, reason, error, err);
   }
 
   // Erro não-Axios (rede, timeout, etc)
   throw new CouchDBError(
-    `${context}: ${err.message || 'Erro desconhecido'}`,
+    `${context}: ${err.message || "Erro desconhecido"}`,
     undefined,
     undefined,
     undefined,
-    err
+    err,
   );
 }
 
@@ -162,13 +168,13 @@ export interface ViewResponse<T = any> {
 export interface IndexOptions {
   fields: string[];
   name?: string;
-  type?: 'json' | 'text';
+  type?: "json" | "text";
 }
 
 export interface FindOptions {
   selector?: Record<string, any>;
   fields?: string[];
-  sort?: Array<Record<string, 'asc' | 'desc'>>;
+  sort?: Array<Record<string, "asc" | "desc">>;
   limit?: number;
   skip?: number;
   bookmark?: string;
@@ -184,7 +190,7 @@ export interface FindResponse<T = CouchDoc> {
 export interface ChangesOptions {
   since?: string | number;
   limit?: number;
-  feed?: 'normal' | 'longpoll' | 'continuous';
+  feed?: "normal" | "longpoll" | "continuous";
   include_docs?: boolean;
   filter?: string;
   timeout?: number;
@@ -207,8 +213,8 @@ export interface ChangesResponse<T = CouchDoc> {
 // ==================== Configuration ====================
 
 export const COUCH_HOST = "https://admin:wyrd@db.vpn.ind.br/"; // substituir pela variável de ambiente apropriada
-const USER =  'admin';
-const PASS =  'wyrd';
+const USER = "admin";
+const PASS = "wyrd";
 
 // ==================== Axios Instance ====================
 
@@ -220,10 +226,10 @@ export const couch: AxiosInstance = axios.create({
 
 // Basic Auth interceptor
 couch.interceptors.request.use((cfg) => {
-  cfg.headers.set('Content-Type', 'application/json');
+  cfg.headers.set("Content-Type", "application/json");
   // Usa btoa nativo do navegador (disponível em todos os navegadores modernos)
   const credentials = btoa(`${USER}:${PASS}`);
-  cfg.headers.set('Authorization', `Basic ${credentials}`);
+  cfg.headers.set("Authorization", `Basic ${credentials}`);
   return cfg;
 });
 
@@ -234,11 +240,11 @@ couch.interceptors.request.use((cfg) => {
  */
 export async function pingCouch(): Promise<boolean> {
   try {
-    const up = await couch.get('/_up');
+    const up = await couch.get("/_up");
     return up.status === 200;
   } catch {
     try {
-      const dbs = await couch.get('/_all_dbs');
+      const dbs = await couch.get("/_all_dbs");
       return Array.isArray(dbs.data);
     } catch {
       return false;
@@ -255,7 +261,7 @@ export async function pingCouch(): Promise<boolean> {
 export async function getChanges<T = CouchDoc>(
   db: string,
   params: ChangesOptions = {},
-  { clientTimeout = 65000 }: { clientTimeout?: number } = {}
+  { clientTimeout = 65000 }: { clientTimeout?: number } = {},
 ): Promise<ChangesResponse<T>> {
   const res = await couch.get(`/${db}/_changes`, {
     params,
@@ -273,7 +279,7 @@ export async function getChanges<T = CouchDoc>(
 export async function getDoc<T = CouchDoc>(
   db: string,
   id: string,
-  { rev }: { rev?: string } = {}
+  { rev }: { rev?: string } = {},
 ): Promise<T> {
   const res = await couch.get(`/${db}/${encodeURIComponent(id)}`, {
     params: rev ? { rev } : undefined,
@@ -293,7 +299,7 @@ export async function getDoc<T = CouchDoc>(
  */
 export async function getDocAll<T = CouchDoc>(
   db: string,
-  options: AllDocsOptions = {}
+  options: AllDocsOptions = {},
 ): Promise<AllDocsResponse<T>> {
   const {
     include_docs = true,
@@ -309,7 +315,7 @@ export async function getDocAll<T = CouchDoc>(
     const { data } = await couch.post(
       `/${db}/_all_docs`,
       { keys },
-      { params: { include_docs } }
+      { params: { include_docs } },
     );
     return data;
   }
@@ -334,9 +340,10 @@ export async function getView<T = any>(
   db: string,
   ddoc: string,
   view: string,
-  options: ViewOptions = {}
+  options: ViewOptions = {},
 ): Promise<ViewResponse<T>> {
-  const { key, startkey, endkey, limit, descending, include_docs, reduce } = options;
+  const { key, startkey, endkey, limit, descending, include_docs, reduce } =
+    options;
 
   const params: any = {};
   if (key !== undefined) params.key = JSON.stringify(key);
@@ -349,7 +356,7 @@ export async function getView<T = any>(
 
   const { data } = await couch.get(
     `/${db}/_design/${encodeURIComponent(ddoc)}/_view/${encodeURIComponent(view)}`,
-    { params }
+    { params },
   );
   return data;
 }
@@ -380,22 +387,38 @@ export async function getView<T = any>(
  */
 export async function createIndex(
   db: string,
-  options: IndexOptions
+  options: IndexOptions,
 ): Promise<{ result: string; id: string; name: string }> {
   // Validação de parâmetros
-  if (!db || typeof db !== 'string') {
-    throw new IndexError('Nome do banco inválido', 400, 'Database name is required');
+  if (!db || typeof db !== "string") {
+    throw new IndexError(
+      "Nome do banco inválido",
+      400,
+      "Database name is required",
+    );
   }
 
-  if (!options.fields || !Array.isArray(options.fields) || options.fields.length === 0) {
-    throw new IndexError('Campos do índice inválidos', 400, 'Index fields must be a non-empty array');
+  if (
+    !options.fields ||
+    !Array.isArray(options.fields) ||
+    options.fields.length === 0
+  ) {
+    throw new IndexError(
+      "Campos do índice inválidos",
+      400,
+      "Index fields must be a non-empty array",
+    );
   }
 
-  const { fields, name, type = 'json' } = options;
+  const { fields, name, type = "json" } = options;
 
   // Validação de tipo de índice
-  if (type !== 'json' && type !== 'text') {
-    throw new IndexError(`Tipo de índice inválido: "${type}"`, 400, 'Index type must be "json" or "text"');
+  if (type !== "json" && type !== "text") {
+    throw new IndexError(
+      `Tipo de índice inválido: "${type}"`,
+      400,
+      'Index type must be "json" or "text"',
+    );
   }
 
   const payload = { index: { fields }, name, type };
@@ -411,31 +434,33 @@ export async function createIndex(
         response.status,
         errorData?.reason,
         errorData?.error,
-        response
+        response,
       );
     }
 
     const data = response.data;
 
     // Log diferenciado baseado no resultado
-    if (data.result === 'created') {
-      console.log(`✅ Índice criado com sucesso: ${data.name || name || 'sem nome'}`, {
+    if (data.result === "created") {
+      console.log(
+        `✅ Índice criado com sucesso: ${data.name || name || "sem nome"}`,
+        {
+          id: data.id,
+          db,
+          fields,
+        },
+      );
+    } else if (data.result === "exists") {
+      console.log(`ℹ️ Índice já existe: ${data.name || name || "sem nome"}`, {
         id: data.id,
         db,
-        fields
-      });
-    } else if (data.result === 'exists') {
-      console.log(`ℹ️ Índice já existe: ${data.name || name || 'sem nome'}`, {
-        id: data.id,
-        db,
-        fields
+        fields,
       });
     } else {
       console.warn(`⚠️ Resposta inesperada ao criar índice:`, data);
     }
 
     return data;
-
   } catch (err: any) {
     // Se já é IndexError, apenas repassa
     if (err instanceof IndexError) {
@@ -454,9 +479,17 @@ export async function createIndex(
  */
 export async function find<T = CouchDoc>(
   db: string,
-  options: FindOptions = {}
+  options: FindOptions = {},
 ): Promise<FindResponse<T>> {
-  const { selector = {}, fields, sort, limit = 25, skip, bookmark, use_index } = options;
+  const {
+    selector = {},
+    fields,
+    sort,
+    limit = 25,
+    skip,
+    bookmark,
+    use_index,
+  } = options;
 
   const body: any = { selector, limit };
   if (fields) body.fields = fields;
@@ -476,22 +509,23 @@ export async function find<T = CouchDoc>(
  */
 export async function upsertDoc<T extends CouchDoc = CouchDoc>(
   db: string,
-  doc: T
+  doc: T,
 ): Promise<{ ok: boolean; id: string; rev: string }> {
-  if (!doc?._id) throw new Error('doc precisa ter _id');
+  if (!doc?._id) throw new Error("doc precisa ter _id");
 
   try {
     const current = await getDoc<T>(db, doc._id);
-    const { data } = await couch.put(
-      `/${db}/${encodeURIComponent(doc._id)}`,
-      { ...current, ...doc, _rev: current._rev }
-    );
+    const { data } = await couch.put(`/${db}/${encodeURIComponent(doc._id)}`, {
+      ...current,
+      ...doc,
+      _rev: current._rev,
+    });
     return data;
   } catch (err: any) {
     if (err.response?.status === 404) {
       const { data } = await couch.put(
         `/${db}/${encodeURIComponent(doc._id)}`,
-        doc
+        doc,
       );
       return data;
     }
@@ -508,11 +542,11 @@ export async function upsertDoc<T extends CouchDoc = CouchDoc>(
 export async function getAttachment(
   db: string,
   id: string,
-  attachmentName: string
+  attachmentName: string,
 ): Promise<ArrayBuffer> {
   const res = await couch.get(
     `/${db}/${encodeURIComponent(id)}/${encodeURIComponent(attachmentName)}`,
-    { responseType: 'arraybuffer' }
+    { responseType: "arraybuffer" },
   );
   return res.data;
 }
@@ -522,10 +556,13 @@ export async function getAttachment(
 export interface DesignDoc {
   _id: string;
   _rev?: string;
-  views: Record<string, {
-    map: string;
-    reduce?: string;
-  }>;
+  views: Record<
+    string,
+    {
+      map: string;
+      reduce?: string;
+    }
+  >;
   language?: string;
 }
 
@@ -538,14 +575,14 @@ export interface DesignDoc {
 export async function upsertDesignDoc(
   db: string,
   ddocName: string,
-  views: DesignDoc['views']
+  views: DesignDoc["views"],
 ): Promise<{ ok: boolean; id: string; rev: string }> {
   const ddocId = `_design/${ddocName}`;
 
   const newDoc: DesignDoc = {
     _id: ddocId,
     views,
-    language: 'javascript'
+    language: "javascript",
   };
 
   try {
@@ -553,10 +590,10 @@ export async function upsertDesignDoc(
     const existing = await getDoc<DesignDoc>(db, ddocId);
 
     // Atualiza com a rev existente
-    const { data } = await couch.put(
-      `/${db}/${encodeURIComponent(ddocId)}`,
-      { ...newDoc, _rev: existing._rev }
-    );
+    const { data } = await couch.put(`/${db}/${encodeURIComponent(ddocId)}`, {
+      ...newDoc,
+      _rev: existing._rev,
+    });
     console.log(`✅ Design document atualizado: ${ddocName}`);
     return data;
   } catch (err: any) {
@@ -564,7 +601,7 @@ export async function upsertDesignDoc(
     if (err.response?.status === 404) {
       const { data } = await couch.put(
         `/${db}/${encodeURIComponent(ddocId)}`,
-        newDoc
+        newDoc,
       );
       console.log(`✅ Design document criado: ${ddocName}`);
       return data;
@@ -588,8 +625,8 @@ export async function queryView<T = any>(
   options: ViewOptions & {
     inclusive_end?: boolean;
     skip?: number;
-    stale?: 'ok' | 'update_after';
-  } = {}
+    stale?: "ok" | "update_after";
+  } = {},
 ): Promise<ViewResponse<T>> {
   const {
     key,
@@ -601,7 +638,7 @@ export async function queryView<T = any>(
     reduce,
     inclusive_end = true,
     skip,
-    stale
+    stale,
   } = options;
 
   const params: any = {};
@@ -619,7 +656,7 @@ export async function queryView<T = any>(
   try {
     const { data } = await couch.get(
       `/${db}/_design/${encodeURIComponent(ddoc)}/_view/${encodeURIComponent(view)}`,
-      { params }
+      { params },
     );
     return data;
   } catch (err) {
@@ -632,28 +669,32 @@ export async function queryView<T = any>(
  * Execute uma vez na inicialização da aplicação
  */
 export async function ensureHistoryViews(db: string): Promise<void> {
-  const views: DesignDoc['views'] = {
+  const views: DesignDoc["views"] = {
     // View para tensao_raw: chave = [irrigadorId, tipo, timestamp]
-    'tensao_by_irrigador': {
-      map: "function(doc) { if (doc.table === 'tensao_raw' && doc.irrigadorId && doc.timestamp) { emit([doc.irrigadorId, doc.tipo || '', doc.timestamp], null); } }"
+    tensao_by_irrigador: {
+      map: "function(doc) { if (doc.table === 'tensao_raw' && doc.irrigadorId && doc.timestamp) { emit([doc.irrigadorId, doc.tipo || '', doc.timestamp], null); } }",
     },
 
     // View para sw_raw: chave = [irrigadorId, timestamp]
-    'sw_by_irrigador': {
-      map: "function(doc) { if (doc.table === 'sw_raw' && doc.irrigadorId && doc.timestamp) { emit([doc.irrigadorId, doc.timestamp], null); } }"
+    sw_by_irrigador: {
+      map: "function(doc) { if (doc.table === 'sw_raw' && doc.irrigadorId && doc.timestamp) { emit([doc.irrigadorId, doc.timestamp], null); } }",
     },
 
     // View para events: chave = [irrigadorId, eventType, timestamp]
-    'events_by_irrigador': {
-      map: "function(doc) { if (doc.table === 'events' && doc.timestamp) { emit([doc.irrigadorId || '', doc.eventType || '', doc.timestamp], null); } }"
+    events_by_irrigador: {
+      map: "function(doc) { if (doc.table === 'events' && doc.timestamp) { emit([doc.irrigadorId || '', doc.eventType || '', doc.timestamp], null); } }",
     },
 
     // View para events por timestamp (todos os irrigadores)
-    'events_by_timestamp': {
-      map: "function(doc) { if (doc.table === 'events' && doc.timestamp) { emit(doc.timestamp, null); } }"
-    }
+    events_by_timestamp: {
+      map: "function(doc) { if (doc.table === 'events' && doc.timestamp) { emit(doc.timestamp, null); } }",
+    },
+
+    alert_history: {
+      map: "function (doc) { if (doc.table === 'events' && doc.timestamp !== undefined && doc.irrigadorId !== undefined) { emit([doc.irrigadorId, doc.timestamp], null); } }",
+    },
   };
 
-  await upsertDesignDoc(db, 'history', views);
-  console.log('✅ Views de histórico criadas/atualizadas com sucesso');
+  await upsertDesignDoc(db, "history", views);
+  console.log("✅ Views de histórico criadas/atualizadas com sucesso");
 }

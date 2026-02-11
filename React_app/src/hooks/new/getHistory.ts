@@ -1,17 +1,21 @@
-import { Monitor } from './../../helpers/helperOverview';
+import { Monitor } from "./../../helpers/helperOverview";
 // getHistory.ts
 // Histórico completo via Views CouchDB para melhor performance.
 
-import { createIndex, queryView, ensureHistoryViews } from "../../api/new/couch";
+import {
+  createIndex,
+  queryView,
+  ensureHistoryViews,
+} from "../../api/new/couch";
 
 export type SortOrder = "asc" | "desc";
 
 export interface PageOpts {
-  limit?: number;    // default 200
-  skip?: number;     // default 0
-  sort?: SortOrder;  // default "desc"
-  fromISO?: string;  // filtrar timestamp >= fromISO
-  toISO?: string;    // filtrar timestamp <= toISO
+  limit?: number; // default 200
+  skip?: number; // default 0
+  sort?: SortOrder; // default "desc"
+  fromISO?: string; // filtrar timestamp >= fromISO
+  toISO?: string; // filtrar timestamp <= toISO
 }
 
 export interface TensaoRawDoc {
@@ -61,7 +65,7 @@ export interface EventDoc {
   armadilha: string;
   description: string;
   estado: string;
-  eventType: string; 
+  eventType: string;
   irrigadorId: string;
   monitor: string | number;
   responsible: string;
@@ -70,8 +74,7 @@ export interface EventDoc {
   timestamp: string;
   timestamp_formatted: string;
   _id: string;
-  _rev: string;  
-  
+  _rev: string;
 }
 
 // Re-exporta para inicialização das views
@@ -81,7 +84,7 @@ export { ensureHistoryViews };
 export async function getTensaoHistory(
   db: string,
   irrigadorId: string,
-  opts: PageOpts & { tipo?: "A" | "B" } = {}
+  opts: PageOpts & { tipo?: "A" | "B" } = {},
 ): Promise<TensaoRawDoc[]> {
   const { sort = "asc", fromISO, toISO, tipo, limit = 50000 } = opts;
 
@@ -91,33 +94,40 @@ export async function getTensaoHistory(
   const endTimestamp = toISO || "\ufff0"; // \ufff0 = maior que qualquer string
 
   try {
-    const result = await queryView<TensaoRawDoc>(db, "history", "tensao_by_irrigador", {
-      startkey: sort === "asc"
-        ? [irrigadorId, tipoKey, startTimestamp]
-        : [irrigadorId, tipoKey, endTimestamp],
-      endkey: sort === "asc"
-        ? [irrigadorId, tipoKey, endTimestamp]
-        : [irrigadorId, tipoKey, startTimestamp],
-      include_docs: true,
-      descending: sort === "desc",
-      limit, // Limite para evitar timeout em períodos grandes
-      stale: "update_after", // Retorna resultado imediato, atualiza índice em background
-    });
+    const result = await queryView<TensaoRawDoc>(
+      db,
+      "history",
+      "tensao_by_irrigador",
+      {
+        startkey:
+          sort === "asc"
+            ? [irrigadorId, tipoKey, startTimestamp]
+            : [irrigadorId, tipoKey, endTimestamp],
+        endkey:
+          sort === "asc"
+            ? [irrigadorId, tipoKey, endTimestamp]
+            : [irrigadorId, tipoKey, startTimestamp],
+        include_docs: true,
+        descending: sort === "desc",
+        limit, // Limite para evitar timeout em períodos grandes
+        stale: "update_after", // Retorna resultado imediato, atualiza índice em background
+      },
+    );
 
     // Extrair docs das rows
     const docs = result.rows
-      .map(row => row.doc)
+      .map((row) => row.doc)
       .filter((doc): doc is TensaoRawDoc => doc !== undefined);
 
     // Se tipo não foi especificado, a view retorna todos os tipos
     if (tipo) {
-      return docs.filter(doc => doc.tipo === tipo);
+      return docs.filter((doc) => doc.tipo === tipo);
     }
 
     return docs;
   } catch (error: any) {
-    console.error('Error in getTensaoHistory:', error);
-    console.error('Error response:', error.response?.data);
+    console.error("Error in getTensaoHistory:", error);
+    console.error("Error response:", error.response?.data);
     throw error;
   }
 }
@@ -126,7 +136,7 @@ export async function getTensaoHistory(
 export async function getSWHistory(
   db: string,
   irrigadorId: string,
-  opts: PageOpts = {}
+  opts: PageOpts = {},
 ): Promise<SWRawDoc[]> {
   const { limit = 200, skip = 0, sort = "desc", fromISO, toISO } = opts;
 
@@ -136,12 +146,14 @@ export async function getSWHistory(
 
   try {
     const result = await queryView<SWRawDoc>(db, "history", "sw_by_irrigador", {
-      startkey: sort === "asc"
-        ? [irrigadorId, startTimestamp]
-        : [irrigadorId, endTimestamp],
-      endkey: sort === "asc"
-        ? [irrigadorId, endTimestamp]
-        : [irrigadorId, startTimestamp],
+      startkey:
+        sort === "asc"
+          ? [irrigadorId, startTimestamp]
+          : [irrigadorId, endTimestamp],
+      endkey:
+        sort === "asc"
+          ? [irrigadorId, endTimestamp]
+          : [irrigadorId, startTimestamp],
       include_docs: true,
       descending: sort === "desc",
       limit: limit + skip, // Pega um pouco mais para o skip
@@ -149,24 +161,23 @@ export async function getSWHistory(
     });
 
     return result.rows
-      .map(row => row.doc)
+      .map((row) => row.doc)
       .filter((doc): doc is SWRawDoc => doc !== undefined);
   } catch (error: any) {
-    console.error('Error in getSWHistory:', error);
+    console.error("Error in getSWHistory:", error);
     throw error;
   }
 }
 
-type GetEventsHistoryOpts =
-  PageOpts & {
-    irrigadorId?: string;
-    table?: "events" | "alarme" | "evento"; // default "events"
-    eventType?: string; // opcional para filtrar
-  };
+type GetEventsHistoryOpts = PageOpts & {
+  irrigadorId?: string;
+  table?: "events" | "alarme" | "evento"; // default "events"
+  eventType?: string; // opcional para filtrar
+};
 
 export async function getEventsHistory(
   db: string,
-  opts: GetEventsHistoryOpts = {}
+  opts: GetEventsHistoryOpts = {},
 ): Promise<EventDoc[]> {
   const {
     limit = 300,
@@ -188,12 +199,14 @@ export async function getEventsHistory(
       // Caso 1: Temos irrigadorId E eventType - busca exata
       // View key: [irrigadorId, eventType, timestamp]
       result = await queryView<EventDoc>(db, "history", "events_by_irrigador", {
-        startkey: sort === "asc"
-          ? [irrigadorId, eventType, startTimestamp]
-          : [irrigadorId, eventType, endTimestamp],
-        endkey: sort === "asc"
-          ? [irrigadorId, eventType, endTimestamp]
-          : [irrigadorId, eventType, startTimestamp],
+        startkey:
+          sort === "asc"
+            ? [irrigadorId, eventType, startTimestamp]
+            : [irrigadorId, eventType, endTimestamp],
+        endkey:
+          sort === "asc"
+            ? [irrigadorId, eventType, endTimestamp]
+            : [irrigadorId, eventType, startTimestamp],
         include_docs: true,
         descending: sort === "desc",
         limit: limit + skip,
@@ -204,12 +217,14 @@ export async function getEventsHistory(
       // Caso 2: Só temos irrigadorId - busca todos eventTypes desse irrigador
       // Usar range de "" até "\ufff0" no eventType
       result = await queryView<EventDoc>(db, "history", "events_by_irrigador", {
-        startkey: sort === "asc"
-          ? [irrigadorId, "", startTimestamp]
-          : [irrigadorId, "\ufff0", endTimestamp],
-        endkey: sort === "asc"
-          ? [irrigadorId, "\ufff0", endTimestamp]
-          : [irrigadorId, "", startTimestamp],
+        startkey:
+          sort === "asc"
+            ? [irrigadorId, "", startTimestamp]
+            : [irrigadorId, "\ufff0", endTimestamp],
+        endkey:
+          sort === "asc"
+            ? [irrigadorId, "\ufff0", endTimestamp]
+            : [irrigadorId, "", startTimestamp],
         include_docs: true,
         descending: sort === "desc",
         limit: limit + skip,
@@ -230,18 +245,65 @@ export async function getEventsHistory(
     }
 
     let docs = result.rows
-      .map(row => row.doc)
+      .map((row) => row.doc)
       .filter((doc): doc is EventDoc => doc !== undefined);
 
     // Filtrar por eventType no cliente se necessário (caso 2 e 3)
     if (eventType && !irrigadorId) {
-      docs = docs.filter(doc => doc.eventType === eventType);
+      docs = docs.filter((doc) => doc.eventType === eventType);
     }
 
     return docs;
   } catch (error: any) {
-    console.error('Error in getEventsHistory:', error);
-    console.error('Error response:', error.response?.data);
+    console.error("Error in getEventsHistory:", error);
+    console.error("Error response:", error.response?.data);
+    throw error;
+  }
+}
+
+export async function getAlertHistory(
+  db: string,
+  opts: GetEventsHistoryOpts = {},
+): Promise<EventDoc[]> {
+  const {
+    limit = 300,
+    skip = 0,
+    sort = "desc",
+    fromISO,
+    toISO,
+    irrigadorId,
+  } = opts;
+
+  if (!irrigadorId) {
+    throw new Error(
+      "O parâmetro 'irrigadorId' é obrigatório para esta consulta.",
+    );
+  }
+
+  const startTimestamp = fromISO || "";
+  const endTimestamp = toISO || "\ufff0";
+
+  try {
+    const startKey = [irrigadorId, startTimestamp];
+    const endKey = [irrigadorId, endTimestamp];
+
+    const result = await queryView<EventDoc>(db, "history", "alert_history", {
+      startkey: sort === "asc" ? startKey : endKey,
+      endkey: sort === "asc" ? endKey : startKey,
+      include_docs: true,
+      descending: sort === "desc",
+      limit: limit + skip,
+      skip: skip,
+      stale: "update_after",
+    });
+
+    let docs = result.rows
+      .map((row) => row.doc)
+      .filter((doc): doc is EventDoc => doc !== undefined);
+
+    return docs;
+  } catch (error: any) {
+    console.error("Error in getAlertHistory:", error);
     throw error;
   }
 }

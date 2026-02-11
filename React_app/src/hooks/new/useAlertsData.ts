@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { getEventsHistory, EventDoc } from './getHistory';
+import { useState, useEffect, useCallback } from "react";
+import { getAlertHistory, EventDoc } from "./getHistory";
 
 interface UseAlertsDataOptions {
   irrigadorId?: string;
   pageSize?: number;
-  table?: 'events' | 'alarme' | 'evento';
+  table?: "events" | "alarme" | "evento";
 }
 
 export interface AlertItem {
@@ -44,10 +44,10 @@ function convertEventToAlert(doc: EventDoc): AlertItem | null {
 
     // Extrair informações do eventType ou description
     // Formato esperado: "A01" onde A=tipo, 01=monitor
-    const eventType = doc.eventType || '';
+    const eventType = doc.eventType || "";
     const alarme = eventType[0];
     console.log(" EventType:", doc);
-    const monitor = doc.monitor || '';
+    const monitor = doc.monitor || "";
 
     // Extrair status do description ou usar padrão
     const statusMatch = doc.description?.match(/status:(\d+)/i);
@@ -56,25 +56,25 @@ function convertEventToAlert(doc: EventDoc): AlertItem | null {
     return {
       _id: doc._id,
       irrigadorId: doc.irrigadorId,
-      date: timestamp.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
+      date: timestamp.toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
       }),
-      time: timestamp.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+      time: timestamp.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
       }),
       monitor,
       alarme,
       status,
       timestamp,
       description: doc.description,
-      responsible: doc.responsible
+      responsible: doc.responsible,
     };
   } catch (error) {
-    console.error('Error converting event to alert:', error);
+    console.error("Error converting event to alert:", error);
     return null;
   }
 }
@@ -82,9 +82,11 @@ function convertEventToAlert(doc: EventDoc): AlertItem | null {
 export function useAlertsData({
   irrigadorId,
   pageSize = 50,
-  table = 'events'
+  table = "events",
 }: UseAlertsDataOptions = {}): UseAlertsDataResult {
-  const [pageCache, setPageCache] = useState<Map<number, AlertItem[]>>(new Map());
+  const [pageCache, setPageCache] = useState<Map<number, AlertItem[]>>(
+    new Map(),
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,11 +108,11 @@ export function useAlertsData({
         //console.log('Fetching total alerts count for irrigadorId:', irrigadorId);
 
         // Buscar com limite alto apenas para contar
-        const docs = await getEventsHistory('lindsay-data', {
+        const docs = await getAlertHistory("lindsay-data", {
           irrigadorId,
           table,
-          sort: 'desc',
-          limit: 10000
+          sort: "desc",
+          limit: 10000,
         });
 
         if (cancelled) return;
@@ -127,7 +129,7 @@ export function useAlertsData({
         }
       } catch (err: any) {
         if (!cancelled) {
-          console.error('Error fetching total count:', err);
+          console.error("Error fetching total count:", err);
         }
       }
     }
@@ -156,28 +158,32 @@ export function useAlertsData({
         //console.log(`Fetching page ${currentPage} (skip: ${(currentPage - 1) * pageSize}, limit: ${pageSize})`);
 
         // Buscar APENAS a página atual
-        const docs = await getEventsHistory('lindsay-data', {
+        const docs = await getAlertHistory("lindsay-data", {
           irrigadorId,
           table,
-          sort: 'desc',
+          sort: "desc",
           limit: pageSize,
-          skip: (currentPage - 1) * pageSize
+          skip: (currentPage - 1) * pageSize,
         });
 
         if (cancelled) return;
 
-        console.log(`Fetched ${docs.length} event docs for page ${currentPage}`);
+        console.log(
+          `Fetched ${docs.length} event docs for page ${currentPage}`,
+        );
 
         // Converter para AlertItem
         const converted = docs
           .map(convertEventToAlert)
           .filter((alert): alert is AlertItem => alert !== null);
 
-        console.log(`Converted to ${converted.length} alerts for page ${currentPage}`);
+        console.log(
+          `Converted to ${converted.length} alerts for page ${currentPage}`,
+        );
 
         if (!cancelled) {
           // Adicionar ao cache
-          setPageCache(prev => {
+          setPageCache((prev) => {
             const newCache = new Map(prev);
             newCache.set(currentPage, converted);
             return newCache;
@@ -185,8 +191,8 @@ export function useAlertsData({
         }
       } catch (err: any) {
         if (!cancelled) {
-          console.error('Error fetching alerts:', err);
-          setError(err?.message ?? 'Erro ao carregar alertas');
+          console.error("Error fetching alerts:", err);
+          setError(err?.message ?? "Erro ao carregar alertas");
         }
       } finally {
         if (!cancelled) {
@@ -205,20 +211,23 @@ export function useAlertsData({
   const alerts = pageCache.get(currentPage) || [];
   const totalPages = Math.ceil(totalAlerts / pageSize);
 
-  const goToPage = useCallback((page: number) => {
-    const validPage = Math.max(1, Math.min(page, totalPages));
-    setCurrentPage(validPage);
-  }, [totalPages]);
+  const goToPage = useCallback(
+    (page: number) => {
+      const validPage = Math.max(1, Math.min(page, totalPages));
+      setCurrentPage(validPage);
+    },
+    [totalPages],
+  );
 
   const nextPage = useCallback(() => {
     if (currentPage < totalPages) {
-      setCurrentPage(prev => prev + 1);
+      setCurrentPage((prev) => prev + 1);
     }
   }, [currentPage, totalPages]);
 
   const prevPage = useCallback(() => {
     if (currentPage > 1) {
-      setCurrentPage(prev => prev - 1);
+      setCurrentPage((prev) => prev - 1);
     }
   }, [currentPage]);
 
@@ -232,6 +241,6 @@ export function useAlertsData({
     goToPage,
     nextPage,
     prevPage,
-    refresh
+    refresh,
   };
 }
