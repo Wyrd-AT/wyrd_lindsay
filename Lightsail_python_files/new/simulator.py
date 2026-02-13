@@ -146,6 +146,7 @@ def gerar_evento_alerta(
         monitor: Número do monitor (01-14, 17, 18)
         estado: Estado do alarme (0=OK, 1=Alarmado, 2=Reconhecido, 3=Resolvido, 9=Ausente)
         armadilha: Flag de armadilha (opcional)
+            Payload no formato: EMBEST;2025-01-20T10:30:00;E171
 
     Returns:
         Payload no formato: LIND01;2025-01-20T10:30:00;A011

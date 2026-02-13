@@ -73,7 +73,9 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM")
 TWILIO_SMS_FROM = os.getenv("TWILIO_SMS_FROM")
+TWILIO_VOICE_FROM = os.getenv("TWILIO_VOICE_FROM")  # Número para chamadas de voz
 TWILIO_TEMPLATE_SID = os.getenv("TWILIO_TEMPLATE_SID")
+TWILIO_TWIML_URL = os.getenv("TWILIO_TWIML_URL")  # URL do TwiML para mensagem de voz
 
 # Configurações SendGrid (Email)
 SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
@@ -286,6 +288,128 @@ def send_sms(msg: str, to: List[str], irrigador_nome: Optional[str] = None) -> D
                 "type": "sms"
             })
             log("error", f"Erro inesperado ao enviar SMS para {phone}: {type(e).__name__} - {str(e)}")
+
+    return results
+
+def send_voice_call(msg: str, to: List[str], irrigador_nome: Optional[str] = None, twiml_url: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Envia chamada de voz via Twilio para múltiplos números.
+
+    Args:
+        msg: Corpo da mensagem de voz (será convertido em TwiML com síntese de voz)
+        to: Lista de números no formato internacional (+5511999999999)
+        irrigador_nome: Nome do irrigador para incluir na mensagem (opcional)
+        twiml_url: URL do TwiML customizado para a chamada (opcional)
+
+    Returns:
+        dict com 'success' (list), 'failed' (list), 'invalid' (list)
+    """
+    results = {"success": [], "failed": [], "invalid": []}
+
+    if not to:
+        log("warn", "Nenhum número para enviar chamada de voz")
+        return results
+
+    equipamento_info = f" ({irrigador_nome})" if irrigador_nome else ""
+    log("info", f"Iniciando envio de chamadas de voz{equipamento_info} para {len(to)} número(s)")
+
+    if not TWILIO_VOICE_FROM:
+        log("error", "TWILIO_VOICE_FROM não configurado. Não é possível enviar chamadas de voz.")
+        return results
+    else:
+        log("info", f"Usando remetente de voz: {TWILIO_VOICE_FROM}")
+
+    if not twilio_client:
+        log("error", "Cliente Twilio não inicializado")
+        return results
+    else:
+        log("info", "Cliente Twilio inicializado para chamadas de voz")
+
+    # Prepara URL do TwiML
+    if twiml_url is None:
+        twiml_url = TWILIO_TWIML_URL
+
+    if not twiml_url:
+        # Se não houver URL customizado, cria TwiML inline com síntese de voz
+        # Adiciona nome do irrigador à mensagem se fornecido
+        if irrigador_nome:
+            msg = f"Alerta do {irrigador_nome}. {msg}"
+
+        # Limita mensagem a 1000 caracteres para síntese de voz
+        if len(msg) > 1000:
+            msg = msg[:997] + "..."
+            log("warn", "Mensagem de voz truncada para 1000 caracteres")
+        else:
+            log("info", f"Mensagem de voz com {len(msg)} caracteres")
+
+    for i, phone in enumerate(to):
+        # Valida formato do número
+        if not validate_phone_number(phone):
+            results["invalid"].append({"phone": phone, "reason": "Formato inválido"})
+            log("warn", f"Número inválido ignorado: {phone}")
+            continue
+        else:
+            log("info", f"Número válido para chamada de voz: {phone}")
+
+        # Rate limiting
+        if i > 0:
+            import time
+            time.sleep(RATE_LIMIT_DELAY)
+
+        try:
+            # Garante que número tem +
+            phone_formatted = phone if phone.startswith("+") else f"+{phone}"
+
+            # Se houver URL customizado, usa direto
+            if twiml_url:
+                log("debug", f"Usando TwiML URL customizado: {twiml_url}")
+                call = twilio_client.calls.create(
+                    from_=TWILIO_VOICE_FROM,
+                    to=phone_formatted,
+                    url=twiml_url
+                )
+            else:
+                # Cria TwiML com síntese de voz (texto-para-fala)
+                twiml_body = f'<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="woman" language="pt-BR">{msg}</Say><Gather numDigits="1" timeout="5"><Say voice="woman" language="pt-BR">Pressione 1 para confirmar, ou aguarde para encerrar.</Say></Gather></Response>'
+
+                log("debug", f"Enviando chamada com síntese de voz para {phone}")
+                call = twilio_client.calls.create(
+                    from_=TWILIO_VOICE_FROM,
+                    to=phone_formatted,
+                    twiml=twiml_body
+                )
+
+            results["success"].append({
+                "phone": phone,
+                "call_sid": call.sid,
+                "status": call.status,
+                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                "type": "voice_call",
+                "direction": call.direction,
+                "duration": call.duration
+            })
+            log("ok", f"Chamada de voz enviada para {phone} (SID: {call.sid})")
+
+        except TwilioException as e:
+            error_code = getattr(e, 'code', None)
+            results["failed"].append({
+                "phone": phone,
+                "error": str(e),
+                "error_code": error_code,
+                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                "type": "voice_call"
+            })
+            log("error", f"Falha ao enviar chamada de voz para {phone} [Code: {error_code}]: {str(e)}")
+
+        except Exception as e:
+            results["failed"].append({
+                "phone": phone,
+                "error": f"Erro inesperado: {str(e)}",
+                "error_code": None,
+                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                "type": "voice_call"
+            })
+            log("error", f"Erro inesperado ao enviar chamada de voz para {phone}: {type(e).__name__} - {str(e)}")
 
     return results
 
@@ -731,6 +855,14 @@ def send_notification(msg: str, contacts: Dict[str, List[str]], template_params:
         all_results["failed"].extend(sms_results["failed"])
         all_results["invalid"].extend(sms_results["invalid"])
         all_results["modes_used"].append("sms")
+
+    if "voice" in modes and phones:
+        log("info", "Enviando via Chamada de Voz...")
+        voice_results = send_voice_call(msg, phones, irrigador_nome)
+        all_results["success"].extend(voice_results["success"])
+        all_results["failed"].extend(voice_results["failed"])
+        all_results["invalid"].extend(voice_results["invalid"])
+        all_results["modes_used"].append("voice")
 
     if "email" in modes and emails:
         log("info", "Enviando via E-mail...")

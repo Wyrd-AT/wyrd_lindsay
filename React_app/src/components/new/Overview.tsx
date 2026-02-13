@@ -17,6 +17,7 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
     const [responseMsg, setResponseMsg] = useState('');
     const [localManOverride, setLocalManOverride] = useState<null | boolean>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSireneActive, setIsSireneActive] = useState(false);
 
 
     /* ----------------- WhatsApp por irrigador ----------------- */
@@ -169,13 +170,20 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
         } finally {
             setIsSaving(false);
         }}
-    const handleSirene = async () => {
+    const handleToggleSirene = async () => {
+        const current = isSireneActive;
+        const next = !current;
+        setIsSireneActive(next);
+        setIsSaving(true);
         try {
-            await sendCommand('sirene', 'Sirene disparada com sucesso!', 'Falha ao disparar sirene.', pivoId, setResponseMsg, setLoading, loading);
+            const successMsg = next ? 'Sirene disparada com sucesso!' : 'Sirene desativada com sucesso!';
+            const failureMsg = next ? 'Falha ao disparar sirene.' : 'Falha ao desativar sirene.';
+            await sendCommand('sirene', successMsg, failureMsg, pivoId, setResponseMsg, setLoading, loading);
+        } catch (error) {
+            setIsSireneActive(current);
         } finally {
             setIsSaving(false);
         }
-        sendCommand('sirene', 'Sirene disparada com sucesso!', 'Falha ao disparar sirene.', pivoId, setResponseMsg, setLoading, loading);
     }
     const handleToggleManutencao = async () => {
         const current = isInMaintenance;
@@ -288,14 +296,34 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                         >
                             {loading ? "..." : "Solicitar Status"}
                         </button>
-                        <button
-                            type="button"
-                            onClick={handleSirene}
-                            disabled={loading || isSaving}
-                            className="px-3 bg-yellow-600 hover:bg-yellow-700 rounded text-sm py-1 disabled:opacity-60"
-                        >
-                            {loading ? "..." : "Disparar Sirene"}
-                        </button>
+                        {/* Toggle Sirene */}
+                        <div className="flex items-center gap-2 ml-2">
+                            <span className="text-sm text-gray-300">
+                                Sirene:
+                            </span>
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={isSireneActive}
+                                aria-label="Alternar sirene"
+                                onClick={handleToggleSirene}
+                                disabled={loading || isSaving}
+                                className={clsx(
+                                    "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
+                                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400",
+                                    "disabled:cursor-not-allowed disabled:opacity-60",
+                                    isSireneActive
+                                        ? "bg-yellow-600 hover:bg-yellow-700"
+                                        : "bg-gray-600 hover:bg-gray-700"
+                                )}
+                                title={isSaving ? "Atualizando..." : isSireneActive ? "Sirene ATIVA - Clique para desativar" : "Sirene INATIVA - Clique para ativar"}
+                            >
+                                <span className={clsx(
+                                    "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
+                                    isSireneActive ? "translate-x-6" : "translate-x-0"
+                                )} />
+                            </button>
+                        </div>
 
                         {/* Toggle WhatsApp para este irrigador */}
                         <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4">

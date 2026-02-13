@@ -1,10 +1,13 @@
 // src/components/SideBar.jsx
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { BiHomeAlt, BiUser } from "react-icons/bi";
 import { FiLogOut } from "react-icons/fi";
+import { useAuthStore } from "../../stores/new/authStore";
 
 export default function SideBar() {
+  const navigate = useNavigate();
+  const { logout } = useAuthStore();
   return (
     <div
       className="
@@ -50,7 +53,8 @@ export default function SideBar() {
       {/* Logout */}
       <button
         onClick={() => {
-          //////////console.log("Logout!");
+          logout();
+          navigate("/");
         }}
         className="text-white hover:text-green-500 mb-4"
       >

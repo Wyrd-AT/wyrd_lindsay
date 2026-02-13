@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { signUp } from "../../api/new/auth";
+import TermsOfUseModal from "../../blocks/TermsOfUseModal";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -13,6 +14,13 @@ const SignUp = () => {
   const [error, setError] = useState("");
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+
+  useEffect(() => {
+    // Garante que o modal de termos seja exibido quando a página carrega
+    setShowTermsModal(true);
+  }, []);
 
 
   const toggleShowPassword = () => {
@@ -83,8 +91,23 @@ const SignUp = () => {
     navigate("/"); // Redireciona para a página de login após cadastro bem-sucedido
   };
 
+  const handleAcceptTerms = () => {
+    setTermsAccepted(true);
+    setShowTermsModal(false);
+  };
+
+  const handleRejectTerms = () => {
+    navigate("/"); // Volta para home se rejeitar os termos
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#272727]">
+      {showTermsModal && (
+        <TermsOfUseModal
+          onAccept={handleAcceptTerms}
+          onReject={handleRejectTerms}
+        />
+      )}
       <div className="w-3/5 h-full flex align-middle justify-center items-center">
         <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96 relative">
           <div className="flex justify-center mb-6">
@@ -173,10 +196,16 @@ const SignUp = () => {
               {error && <p className="text-red-500">{error}</p>}
               <button
                 onClick={handleRegister}
-                className="w-full bg-[#4ade80] text-white py-2 px-4 rounded text-center hover:bg-[#36b55c] transition mb-2"
+                disabled={!termsAccepted}
+                className="w-full bg-[#4ade80] text-white py-2 px-4 rounded text-center hover:bg-[#36b55c] disabled:bg-gray-500 disabled:cursor-not-allowed transition mb-2"
               >
-                Criar Usuário
+                {!termsAccepted ? "Aceite os Termos para Continuar" : "Criar Usuário"}
               </button>
+              {!termsAccepted && (
+                <p className="text-gray-400 text-sm text-center">
+                  Você precisa aceitar os termos de uso para se cadastrar
+                </p>
+              )}
             </form>
           ) : (
             <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
