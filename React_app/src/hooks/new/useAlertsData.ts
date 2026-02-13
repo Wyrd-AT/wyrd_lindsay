@@ -37,7 +37,7 @@ interface UseAlertsDataResult {
 /**
  * Converte EventDoc do CouchDB para AlertItem
  */
-function convertEventToAlert(doc: EventDoc): AlertItem | null {
+export function convertEventToAlert(doc: EventDoc): AlertItem | null {
   try {
     const timestamp = new Date(doc.timestamp);
     if (!Number.isFinite(timestamp.getTime())) return null;

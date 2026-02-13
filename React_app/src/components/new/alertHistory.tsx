@@ -1,17 +1,39 @@
 import React, { useMemo, useState } from "react";
-import { useAlertsData } from "../../hooks/new/useAlertsData.js";
-import { FiChevronDown, FiChevronUp, FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import {
+  useAlertsData,
+  convertEventToAlert,
+} from "../../hooks/new/useAlertsData.js";
+import {
+  FiChevronDown,
+  FiChevronUp,
+  FiChevronLeft,
+  FiChevronRight,
+} from "react-icons/fi";
 import AlertEdit from "./alertEdit.jsx";
 import { useChangesListener } from "../../hooks/new/useChangesListener";
 import { IoReload } from "react-icons/io5";
-import { valueDescriptions, alarmTypeDescriptions } from "../../constants/alertDescriptions";
+import {
+  valueDescriptions,
+  alarmTypeDescriptions,
+} from "../../constants/alertDescriptions";
+
+import { getAlertHistory } from "../../hooks/new/getHistory.js";
+
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { IoMdDownload } from "react-icons/io";
+import logoImg from "../../assets/fieldnet.webp";
+import { format } from "date-fns";
 
 type AlertHistoryProps = {
   machineId: string;
   equipamentos: (string | { nome?: string; name?: string })[];
 };
 
-export default function AlertHistory({ machineId, equipamentos }: AlertHistoryProps) {
+export default function AlertHistory({
+  machineId,
+  equipamentos,
+}: AlertHistoryProps) {
   // Novo hook com paginação
   const {
     alerts,
@@ -23,15 +45,19 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
     goToPage,
     nextPage,
     prevPage,
-    refresh
+    refresh,
   } = useAlertsData({
     irrigadorId: machineId,
-    pageSize: 50
+    pageSize: 50,
   });
 
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [collapsedSections, setCollapsedSections] = useState<
+    Record<string, boolean>
+  >({});
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [editingAlert, setEditingAlert] = useState<typeof alerts[number] | null>(null);
+  const [editingAlert, setEditingAlert] = useState<
+    (typeof alerts)[number] | null
+  >(null);
 
   // Estados para filtros
   const [filterType] = useState<string>("");
@@ -40,25 +66,115 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
   const [filterDateStart] = useState<string>("");
   const [filterDateEnd] = useState<string>("");
 
+  const [isDownloading, setIsDownloading] = useState(false);
+  const handleDownloadFullPdf = async () => {
+    try {
+      setIsDownloading(true);
+
+      const docs = await getAlertHistory("lindsay-data", {
+        irrigadorId: machineId,
+        table: "events",
+        sort: "desc",
+        limit: 100000,
+      });
+
+      const fullData = docs
+        .map((doc) => convertEventToAlert(doc))
+        .filter((item) => item !== null);
+
+      if (fullData.length === 0) {
+        alert("Sem dados para exportar.");
+        setIsDownloading(false);
+        return;
+      }
+
+      const doc = new jsPDF();
+
+      try {
+        doc.addImage(logoImg, "WEBP", 5, 0, 80, 40);
+      } catch (e) {
+        console.warn("Erro ao carregar logo", e);
+      }
+
+      doc.setFontSize(10);
+      doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 40);
+
+      const getMonitorNameForPdf = (rawMonitor: any) => {
+        if (!Array.isArray(equipamentos) || equipamentos.length === 0) {
+          return String(rawMonitor ?? "—");
+        }
+        const id = Number(rawMonitor);
+        if (Number.isNaN(id)) return String(rawMonitor ?? "—");
+
+        let idx;
+        if (id === 17) idx = 0;
+        else if (id === 18) idx = 1;
+        else idx = id + 1;
+
+        if (idx < 0 || idx >= equipamentos.length) return `Ausente`;
+        const eq = equipamentos[idx];
+        return typeof eq === "string"
+          ? eq
+          : (eq?.nome ?? eq?.name ?? `Ausente`);
+      };
+      // -------------------------------------------------------------
+
+      const tableBody = fullData.map((item) => {
+        const monitorDesc = getMonitorNameForPdf(item.monitor);
+        const tipoDesc = alarmTypeDescriptions[item.alarme] || item.alarme;
+        const statusDesc = valueDescriptions[item.status] ?? item.status;
+
+        return [
+          item.date,
+          item.time,
+          item.irrigadorId,
+          monitorDesc, // Nome do monitor
+          tipoDesc, // Descrição do erro
+          statusDesc, // Status por extenso
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 45,
+        head: [["Data", "Hora", "Pivô", "Monitor", "Tipo", "Status"]],
+        body: tableBody,
+        theme: "striped",
+        headStyles: { fillColor: [50, 50, 50] }, // Cabeçalho cinza escuro
+        styles: { fontSize: 8 },
+      });
+
+      const fileName = `historico_alertas_${machineId}_${format(new Date(), "dd-MM-yyyy_HH-mm-ss")}.pdf`;
+
+      doc.save(fileName);
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao gerar PDF");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   // Listener de mudanças do CouchDB para atualização automática de alertas
   useChangesListener({
-    db: 'lindsay-data',
+    db: "lindsay-data",
     onChange: (changes) => {
       // Verifica se alguma mudança é de evento/alerta para este irrigador
-      const hasAlertChange = changes.some(change => {
+      const hasAlertChange = changes.some((change) => {
         const docId = change.id;
-        // Documentos de eventos geralmente começam com 'event:' ou 'alarm:'
+        // Documentos de eventos geralmente começam com '' ou 'alarm:'
         // ou contêm o ID do irrigador
         return (
-          docId.startsWith('event:') ||
-          docId.startsWith('alarm:') ||
-          docId.startsWith('evento:') ||
+          docId.startsWith("event:") ||
+          docId.startsWith("alarm:") ||
+          docId.startsWith("evento:") ||
           docId.includes(machineId)
         );
       });
 
       if (hasAlertChange) {
-        console.log('Novo alerta detectado no CouchDB, atualizando histórico...');
+        console.log(
+          "Novo alerta detectado no CouchDB, atualizando histórico...",
+        );
         refresh();
       }
     },
@@ -66,8 +182,8 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
     pollInterval: 5000, // Verifica a cada 5 segundos
     pause: !machineId, // Pausa se não tiver machineId
     onError: (error) => {
-      console.error('Erro no listener de mudanças de alertas:', error);
-    }
+      console.error("Erro no listener de mudanças de alertas:", error);
+    },
   });
 
   const resolveMonitorName = useMemo(() => {
@@ -97,7 +213,7 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
 
   // Aplicar filtros aos alertas
   const filteredAlerts = useMemo(() => {
-    return alerts.filter(alert => {
+    return alerts.filter((alert) => {
       // Filtro por tipo de alarme
       if (filterType && alert.alarme !== filterType) {
         return false;
@@ -137,7 +253,15 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
 
       return true;
     });
-  }, [alerts, filterType, filterStatus, filterMonitor, filterDateStart, filterDateEnd, resolveMonitorName]);
+  }, [
+    alerts,
+    filterType,
+    filterStatus,
+    filterMonitor,
+    filterDateStart,
+    filterDateEnd,
+    resolveMonitorName,
+  ]);
 
   const agrupadoPorData = useMemo(() => {
     return filteredAlerts.reduce((acc: Record<string, typeof alerts>, item) => {
@@ -164,48 +288,63 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
   }
 
   const toggleSection = (data: string): void =>
-    setCollapsedSections((prev: Record<string, boolean>) => ({ ...prev, [data]: !prev[data] }));
+    setCollapsedSections((prev: Record<string, boolean>) => ({
+      ...prev,
+      [data]: !prev[data],
+    }));
 
-  const handleRowClick = (alert: typeof alerts[number]): void => {
+  const handleRowClick = (alert: (typeof alerts)[number]): void => {
     setEditingAlert(alert);
     setIsEditOpen(true);
   };
-
-
 
   const handleCloseEdit = () => {
     setIsEditOpen(false);
     setEditingAlert(null);
   };
 
-
   return (
     <div className="overflow-x-auto bg-[#222222] mt-4 p-4 rounded">
       <div className="min-w-full flex justify-between align-middle items-center mb-2">
-        <h2 className="text-xl font-semibold text-white ">Histórico de Alertas </h2>
-        <button
-          onClick={refresh}
-          className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+        <h2 className="text-xl font-semibold text-white ">
+          Histórico de Alertas{" "}
+        </h2>
+        <div className="flex gap-2">
+          <button
+            onClick={handleDownloadFullPdf}
+            disabled={isDownloading}
+            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
           >
-          <IoReload />
-
-        </button>
+            <IoMdDownload />
+          </button>
+          <button
+            onClick={refresh}
+            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+          >
+            <IoReload />
+          </button>
+        </div>
       </div>
       <table className="min-w-full table-auto border-collapse">
         <thead>
           <tr className="bg-[#444444]">
-            {["Hora", "Código pivô", "Monitor", "Tipo", "Status"].map((col, i) => (
-              <th key={i} className="px-4 py-2 text-left font-semibold text-white">
-                {col}
-              </th>
-            ))}
+            {["Hora", "Código pivô", "Monitor", "Tipo", "Status"].map(
+              (col, i) => (
+                <th
+                  key={i}
+                  className="px-4 py-2 text-left font-semibold text-white"
+                >
+                  {col}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
           {Object.entries(agrupadoPorData).map(([data, itens]) => {
             // ⚠️ FILTRA "Ausente"
             const itensVisiveis = itens.filter(
-              (item) => resolveMonitorName(item.monitor) !== "Ausente"
+              (item) => resolveMonitorName(item.monitor) !== "Ausente",
             );
 
             // se não houver nada visível nessa data, nem mostra a seção
@@ -214,12 +353,19 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
             const isCollapsed = collapsedSections[data];
             return (
               <React.Fragment key={data}>
-                <tr onClick={() => toggleSection(data)} className="cursor-pointer">
+                <tr
+                  onClick={() => toggleSection(data)}
+                  className="cursor-pointer"
+                >
                   <td
                     className="px-4 py-2 font-semibold text-white bg-[#333333]"
                     colSpan={5}
                   >
-                    {isCollapsed ? <FiChevronDown size={20} /> : <FiChevronUp size={20} />}
+                    {isCollapsed ? (
+                      <FiChevronDown size={20} />
+                    ) : (
+                      <FiChevronUp size={20} />
+                    )}
                     {" " + data}
                   </td>
                 </tr>
@@ -232,7 +378,9 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
                       onClick={() => handleRowClick(item)}
                     >
                       <td className="px-4 py-2 text-white">{item.time}</td>
-                      <td className="px-4 py-2 text-white">{item.irrigadorId}</td>
+                      <td className="px-4 py-2 text-white">
+                        {item.irrigadorId}
+                      </td>
                       <td className="px-4 py-2 text-white">
                         {resolveMonitorName(item.monitor)}
                       </td>
@@ -253,10 +401,7 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
       {/* Controles de Paginação */}
       <div className="mt-6 flex items-center justify-between border-t border-gray-700 pt-4">
         <div className="flex items-center gap-4">
-
-          <span className="text-gray-400">
-            Total: {totalAlerts} alertas
-          </span>
+          <span className="text-gray-400">Total: {totalAlerts} alertas</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -285,21 +430,23 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
 
             {/* Páginas ao redor da atual */}
             {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(page =>
-                page === currentPage ||
-                page === currentPage - 1 ||
-                page === currentPage + 1 ||
-                page === currentPage - 2 ||
-                page === currentPage + 2
+              .filter(
+                (page) =>
+                  page === currentPage ||
+                  page === currentPage - 1 ||
+                  page === currentPage + 1 ||
+                  page === currentPage - 2 ||
+                  page === currentPage + 2,
               )
-              .map(page => (
+              .map((page) => (
                 <button
                   key={page}
                   onClick={() => goToPage(page)}
-                  className={`px-3 py-1 rounded ${page === currentPage
-                    ? 'bg-green-500 text-white font-bold hover:bg-green-700'
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
-                    }`}
+                  className={`px-3 py-1 rounded ${
+                    page === currentPage
+                      ? "bg-green-500 text-white font-bold hover:bg-green-700"
+                      : "bg-gray-700 text-white hover:bg-gray-600"
+                  }`}
                 >
                   {page}
                 </button>
@@ -308,7 +455,9 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
             {/* Última página */}
             {currentPage < totalPages - 2 && (
               <>
-                {currentPage < totalPages - 3 && <span className="text-gray-500">...</span>}
+                {currentPage < totalPages - 3 && (
+                  <span className="text-gray-500">...</span>
+                )}
                 <button
                   onClick={() => goToPage(totalPages)}
                   className="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600"
@@ -331,7 +480,6 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
           <span className="ml-4 text-gray-400">
             Página {currentPage} de {totalPages}
           </span>
-
         </div>
       </div>
 
@@ -344,5 +492,4 @@ export default function AlertHistory({ machineId, equipamentos }: AlertHistoryPr
       />
     </div>
   );
-
 }
