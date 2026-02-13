@@ -1,6 +1,6 @@
-import React, { useMemo, useRef } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import React, { useMemo, useRef } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   ResponsiveContainer,
   LineChart,
@@ -10,19 +10,31 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-} from 'recharts';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import { useTensionData } from '../../hooks/new/useTensionData';
-import type { Period } from '../../types/tension';
-import { IoMdDownload } from 'react-icons/io';
-import { IoReload } from 'react-icons/io5';
+} from "recharts";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { useTensionData } from "../../hooks/new/useTensionData";
+import type { Period } from "../../types/tension";
+import { IoMdDownload } from "react-icons/io";
+import { IoReload } from "react-icons/io5";
+import { FaFileExcel } from "react-icons/fa"; // Ícone específico do Excel
+import * as XLSX from "xlsx";
 
 const COLORS = [
-  '#8884d8', '#82ca9d', '#ffc658', '#ff7300',
-  '#d0ed57', '#8dd1e1', '#a4de6c', '#d08484',
-  '#84d0d8', '#b584d0', '#d0b584', '#84b5d0',
-  '#b5d084', '#d084b5'
+  "#8884d8",
+  "#82ca9d",
+  "#ffc658",
+  "#ff7300",
+  "#d0ed57",
+  "#8dd1e1",
+  "#a4de6c",
+  "#d08484",
+  "#84d0d8",
+  "#b584d0",
+  "#d0b584",
+  "#84b5d0",
+  "#b5d084",
+  "#d084b5",
 ];
 
 interface TensionTimeChartProps {
@@ -37,14 +49,13 @@ interface TensionTimeChartProps {
 
 export function TensionTimeChart({
   irrigadorId,
-  period = 'last24h',
+  period = "last24h",
   limit = 1000,
-  width = '100%',
+  width = "100%",
   height = 400,
   title,
   equipmentNames,
 }: TensionTimeChartProps) {
-
   const chartRef = useRef<HTMLDivElement>(null);
 
   const { points, loading, error, refresh } = useTensionData({
@@ -54,41 +65,76 @@ export function TensionTimeChart({
     equipmentNames,
   });
 
+  console.log("Pontos do gráfico: ");
+  console.log(points);
+
   const handleDownloadPDF = async () => {
     if (!chartRef.current) return;
 
     try {
       // Captura o elemento como canvas
       const canvas = await html2canvas(chartRef.current, {
-        backgroundColor: '#222222',
+        backgroundColor: "#222222",
         scale: 2, // Aumenta a qualidade da imagem
       });
 
       // Converte canvas para imagem
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL("image/png");
 
       // Cria o PDF
       const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-        unit: 'px',
+        orientation: canvas.width > canvas.height ? "landscape" : "portrait",
+        unit: "px",
         format: [canvas.width, canvas.height],
       });
 
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
 
       // Gera o nome do arquivo com data e hora atual
-      const fileName = `grafico_tensao_${irrigadorId}_${format(new Date(), 'dd-MM-yyyy_HH-mm-ss')}.pdf`;
+      const fileName = `grafico_tensao_${irrigadorId}_${format(new Date(), "dd-MM-yyyy_HH-mm-ss")}.pdf`;
       pdf.save(fileName);
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      alert('Erro ao gerar o PDF. Por favor, tente novamente.');
+      console.error("Erro ao gerar PDF:", error);
+      alert("Erro ao gerar o PDF. Por favor, tente novamente.");
     }
+  };
+
+  const handleDownloadExcel = () => {
+    if (!points || points.length === 0) return;
+
+    const rows = points.map((item) => {
+      // Definimos a primeira coluna com o nome que você escolheu
+      const row = {
+        "Data/Hora": new Date(item.timestampMs).toLocaleString("pt-BR"),
+      };
+
+      // Varremos o objeto values para criar as colunas de tensão
+      if (item.values) {
+        Object.keys(item.values).forEach((key) => {
+          // Criamos o nome da coluna dinamicamente: "Monitor 1 (V)"
+          const columnName = `${key} (V)`;
+          row[columnName] = item.values[key];
+        });
+      }
+
+      return row;
+    });
+
+    // Geração do arquivo
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+
+    const fileName = `dados_tensao_${irrigadorId}_${format(new Date(), "dd-MM-yyyy_HH-mm-ss")}.xlsx`;
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, irrigadorId);
+
+    XLSX.writeFile(workbook, fileName);
   };
 
   // Formato final para o Recharts
   const chartData = useMemo(
-    () => points.map(p => ({ timestamp: p.timestamp, ...p.values })),
-    [points]
+    () => points.map((p) => ({ timestamp: p.timestamp, ...p.values })),
+    [points],
   );
 
   const monitorKeys = useMemo(() => {
@@ -98,9 +144,9 @@ export function TensionTimeChart({
 
     chartData.forEach((entry) => {
       Object.keys(entry).forEach((key) => {
-        if (key === 'timestamp') return;
+        if (key === "timestamp") return;
         const value = entry[key];
-        if (typeof value === 'number') {
+        if (typeof value === "number") {
           keySet.add(key);
         }
       });
@@ -112,11 +158,10 @@ export function TensionTimeChart({
       .sort();
   }, [chartData, equipmentNames]);
 
-
   // Somente equipamentos com nome
   const visibleEquipments = equipmentNames
-    .filter(n => n && n.trim() !== '')
-    .map(n => n.trim());
+    .filter((n) => n && n.trim() !== "")
+    .map((n) => n.trim());
 
   // Domínio Y automático
   const yDomain = useMemo(() => {
@@ -125,10 +170,10 @@ export function TensionTimeChart({
     let min = Infinity;
     let max = -Infinity;
 
-    chartData.forEach(entry => {
-      monitorKeys.forEach(key => {
+    chartData.forEach((entry) => {
+      monitorKeys.forEach((key) => {
         const v = entry[key];
-        if (typeof v === 'number') {
+        if (typeof v === "number") {
           min = Math.min(min, v);
           max = Math.max(max, v);
         }
@@ -141,7 +186,10 @@ export function TensionTimeChart({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center  bg-[#222222] rounded-b-lg" style={{ height }}>
+      <div
+        className="flex items-center justify-center  bg-[#222222] rounded-b-lg"
+        style={{ height }}
+      >
         <p className="text-gray-400">Carregando dados...</p>
       </div>
     );
@@ -149,7 +197,10 @@ export function TensionTimeChart({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4" style={{ height }}>
+      <div
+        className="flex flex-col items-center justify-center gap-4"
+        style={{ height }}
+      >
         <p className="text-red-400">Erro ao carregar dados: {error}</p>
         <button
           onClick={refresh}
@@ -177,8 +228,16 @@ export function TensionTimeChart({
         <h3 className="text-xl font-semibold text-white">{chartTitle}</h3>
         <div className="flex gap-2">
           <button
+            onClick={handleDownloadExcel}
+            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+            title="Baixar dados em Excel"
+          >
+            <FaFileExcel style={{ color: "#FFFFFF" }} />
+          </button>
+
+          <button
             onClick={handleDownloadPDF}
-             className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
             title="Baixar o gráfico em PDF"
           >
             <IoMdDownload />
@@ -188,7 +247,6 @@ export function TensionTimeChart({
             className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
           >
             <IoReload />
-
           </button>
         </div>
       </div>
@@ -199,37 +257,44 @@ export function TensionTimeChart({
 
           <XAxis
             dataKey="timestamp"
-            tickFormatter={(ts) => format(new Date(ts), 'dd/MM HH:mm', { locale: ptBR })}
+            tickFormatter={(ts) =>
+              format(new Date(ts), "dd/MM HH:mm", { locale: ptBR })
+            }
             stroke="#999"
-            tick={{ fill: '#999' }}
+            tick={{ fill: "#999" }}
           />
 
           <YAxis
             domain={yDomain}
             label={{
-              value: 'Tensão (V)',
+              value: "Tensão (V)",
               angle: -90,
-              position: 'insideLeft',
-              style: { fill: '#999' },
+              position: "insideLeft",
+              style: { fill: "#999" },
             }}
             stroke="#999"
-            tick={{ fill: '#999' }}
+            tick={{ fill: "#999" }}
             tickFormatter={(v) => v.toFixed(1)}
           />
 
           <Tooltip
             contentStyle={{
-              backgroundColor: '#222222',
-              border: '1px solid #444',
-              borderRadius: '4px',
+              backgroundColor: "#222222",
+              border: "1px solid #444",
+              borderRadius: "4px",
             }}
-            labelStyle={{ color: '#fff' }}
-            itemStyle={{ color: '#fff' }}
-            labelFormatter={(ts) => format(new Date(ts), 'dd/MM/yyyy HH:mm:ss', { locale: ptBR })}
-            formatter={(value: any, name: string) => [`${value.toFixed(2)} V`, name]}
+            labelStyle={{ color: "#fff" }}
+            itemStyle={{ color: "#fff" }}
+            labelFormatter={(ts) =>
+              format(new Date(ts), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })
+            }
+            formatter={(value: any, name: string) => [
+              `${value.toFixed(2)} V`,
+              name,
+            ]}
           />
 
-          <Legend wrapperStyle={{ color: '#999' }} iconType="line" />
+          <Legend wrapperStyle={{ color: "#999" }} iconType="line" />
 
           {monitorKeys.map((key, idx) => (
             <Line
@@ -249,7 +314,7 @@ export function TensionTimeChart({
       <div className="mt-4 text-sm text-gray-400">
         <p>Total de pontos: {chartData.length}</p>
         <p>Período: {period}</p>
-        <p>Equipamentos: {visibleEquipments.join(', ')}</p>
+        <p>Equipamentos: {visibleEquipments.join(", ")}</p>
       </div>
     </div>
   );
