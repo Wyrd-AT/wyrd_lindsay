@@ -7,7 +7,7 @@ import {
     upsertDoc
 } from '../../api/new/couch.ts';
 
-const DB = 'lindsay-data'; // <<< corrigido: hífen
+const DB = 'lindsay-data'; // banco de dados principal
 
 const TIME_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
 const MAX_PARSED = Infinity;                     // limite máximo em memória

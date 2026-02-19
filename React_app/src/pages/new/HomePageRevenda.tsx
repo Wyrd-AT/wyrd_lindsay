@@ -1,5 +1,5 @@
 // src/pages/HomePageRevenda.jsx
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 
@@ -48,36 +48,49 @@ export default function HomePageRevenda() {
   const [todosSW, setTodosSW] = useState<Record<string, RecentSWDoc>>({});
   const [loadingSW, setLoadingSW] = useState(false);
   const [errorSW, setErrorSW] = useState<string | null>(null);
+  const fetchSWTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isFetchingRef = useRef(false);
 
   const fetchSW = useCallback(async () => {
-    if (!irrigadorIds?.length || couchOk !== true) return;
-    setLoadingSW(true);
-    setErrorSW(null);
-    try {
-      const results = await Promise.all(
-        irrigadorIds.map(async (id) => {
-          const all = await getRecentAll('lindsay-data', id);
-          return { id, sw: all.sw || null };
-        })
-      );
-      const map: Record<string, RecentSWDoc> = {};
-      for (const r of results) {
-        if (!r.sw) continue;
-        const prev = map[r.id];
-        const currMs = Date.parse(r.sw.updated_at || r.sw.data?.timestamp || '') || 0;
-        const prevMs = prev ? (Date.parse(prev.updated_at || prev.data?.timestamp || '') || 0) : -1;
-        if (!prev || currMs > prevMs) map[r.id] = r.sw;
-      }
-      setTodosSW(map);
-    } catch (e: any) {
-      setErrorSW(e?.message ?? 'Falha ao carregar vetores recentes');
-    } finally {
-      setLoadingSW(false);
+    if (!irrigadorIds?.length || couchOk !== true || isFetchingRef.current) return;
+    
+    // Debounce: cancela requisição anterior se ainda estiver pendente
+    if (fetchSWTimeoutRef.current) {
+      clearTimeout(fetchSWTimeoutRef.current);
     }
+    
+    fetchSWTimeoutRef.current = setTimeout(async () => {
+      if (isFetchingRef.current) return; // Evita requisições simultâneas
+      isFetchingRef.current = true;
+      setLoadingSW(true);
+      setErrorSW(null);
+      try {
+        const results = await Promise.all(
+          irrigadorIds.map(async (id) => {
+            const all = await getRecentAll('lindsay-data', id);
+            return { id, sw: all.sw || null };
+          })
+        );
+        const map: Record<string, RecentSWDoc> = {};
+        for (const r of results) {
+          if (!r.sw) continue;
+          const prev = map[r.id];
+          const currMs = Date.parse(r.sw.updated_at || r.sw.data?.timestamp || '') || 0;
+          const prevMs = prev ? (Date.parse(prev.updated_at || prev.data?.timestamp || '') || 0) : -1;
+          if (!prev || currMs > prevMs) map[r.id] = r.sw;
+        }
+        setTodosSW(map);
+      } catch (e: any) {
+        setErrorSW(e?.message ?? 'Falha ao carregar vetores recentes');
+      } finally {
+        setLoadingSW(false);
+        isFetchingRef.current = false;
+        fetchSWTimeoutRef.current = null;
+      }
+    }, 500); // Debounce de 500ms
   }, [irrigadorIds, couchOk]);
 
-
-  const doPing = async () => {
+  const doPing = useCallback(async () => {
     try {
       setCouchOk(null);
       const res = await pingCouch() as boolean | { ok?: boolean; status?: number };
@@ -92,11 +105,20 @@ export default function HomePageRevenda() {
       setCouchOk(false);
       setErrorSW('Não foi possível conectar ao servidor (CouchDB).');
     }
-  };
+  }, [fetchSW]);
 
-  useEffect(() => { doPing(); }, [fetchSW]);
+  // Executa apenas uma vez na montagem do componente
+  useEffect(() => { 
+    doPing(); 
+    return () => {
+      if (fetchSWTimeoutRef.current) {
+        clearTimeout(fetchSWTimeoutRef.current);
+      }
+    };
+  }, []); // Removido fetchSW da dependência para evitar loops
 
   // Monitora mudanças no CouchDB e atualiza automaticamente
+  // Usa longpoll para reduzir requisições (mais eficiente)
   useChangesListener({
     db: 'lindsay-data',
     onChange: async (changes) => {
@@ -113,7 +135,8 @@ export default function HomePageRevenda() {
       }
     },
     includeDocs: false, // não precisamos do documento completo, só o ID
-    pollInterval: 5000, // verifica a cada 5 segundos
+    pollInterval: 15000, // Aumentado para 15 segundos (era 5s)
+    useLongpoll: true, // Usa longpoll para reduzir requisições
     pause: couchOk !== true, // pausa se o CouchDB não estiver OK
     onError: (error) => {
       console.error('[HomePageRevenda] Erro ao monitorar mudanças:', error);

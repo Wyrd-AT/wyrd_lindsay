@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
-import { signUp } from "../../api/new/auth";
+import { signUp, confirmSignUp, registerRevenda } from "../../api/new/auth";
 import TermsOfUseModal from "../../blocks/TermsOfUseModal";
 
 const SignUp = () => {
@@ -10,6 +10,10 @@ const SignUp = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [userType, setUserType] = useState("cliente"); // Tipo de usuário: admin, revenda, cliente
+  const [domain, setDomain] = useState(""); // Domínio para revenda
+  const [cnpj, setCnpj] = useState(""); // CNPJ para revenda (novo)
+  const [phoneNumber, setPhoneNumber] = useState(""); // Telefone opcional
   const [confirmationCode, setConfirmationCode] = useState("");
   const [error, setError] = useState("");
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -51,11 +55,56 @@ const SignUp = () => {
     if (!validateForm()) return;
 
     try {
-      await signUp(email, password, "1"); // Registro usando o serviço de autenticação
+      // CASO 1: Registro de Revenda (novo fluxo)
+      if (userType === 'revenda') {
+        try {
+          const response = await registerRevenda(
+            email,
+            password,
+            name,
+            domain || email.split('@')[1],
+            cnpj
+          );
+
+          console.log("✅ Revenda registrada com sucesso:", response);
+
+          // Mostrar mensagem de sucesso
+          setError(""); // Limpar erros
+          setShowSuccessPopup(true);
+
+          // Redirecionar após 3 segundos
+          setTimeout(() => {
+            navigate("/");
+          }, 3000);
+
+        } catch (error) {
+          console.error("Revenda registration error:", error);
+          setError(error.message || "Erro ao registrar revenda. Tente novamente.");
+        }
+        return;
+      }
+
+      // CASO 2: Registro de Cliente ou Admin (fluxo original)
+      const customAttributes = {
+        name: name,
+        type: userType,
+        status: userType === 'admin' ? 'active' : 'pending', // Admin ativo, outros pendentes
+      };
+
+      // Adicionar telefone se fornecido
+      if (phoneNumber) {
+        customAttributes.phone_number = phoneNumber;
+      }
+
+      // Extrair company_id do email (domínio)
+      const companyId = email.split('@')[1]?.split('.')[0] || '1';
+
+      await signUp(email, password, companyId, customAttributes);
       setStep(2); // Avança para a etapa de confirmação
+
     } catch (error) {
       console.error("Registration error:", error);
-      setError("Registration failed. Please try again.");
+      setError(error.message || "Erro ao registrar. Tente novamente.");
     }
   };
 
@@ -71,16 +120,21 @@ const SignUp = () => {
 
   const validateForm = () => {
     if (name.length < 2) {
-      setError("Name must be at least 2 characters long");
+      setError("Nome deve ter pelo menos 2 caracteres");
       return false;
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Mais robusto para validação de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address");
+      setError("Por favor, insira um email válido");
       return false;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters long");
+      setError("A senha deve ter pelo menos 8 caracteres");
+      return false;
+    }
+    // Validação específica para revenda
+    if (userType === 'revenda' && !domain && !email.includes('@')) {
+      setError("Revenda deve ter um domínio válido");
       return false;
     }
     return true;
@@ -140,6 +194,70 @@ const SignUp = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   pattern="[^\s@]+@[^\s@]+\.[^\s@]+"
+                  className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="userType" className="text-gray-400 block text-sm font-medium mb-1">Tipo de Usuário *</label>
+                <select
+                  id="userType"
+                  value={userType}
+                  onChange={(e) => setUserType(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="cliente">Cliente</option>
+                  <option value="revenda">Revenda</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {userType === 'admin' && '⚠️ Admin será criado com status ativo'}
+                  {userType === 'revenda' && '⚠️ Revenda precisa de aprovação do admin'}
+                  {userType === 'cliente' && '⚠️ Cliente precisa de aprovação da revenda'}
+                </p>
+              </div>
+              {userType === 'revenda' && (
+                <>
+                  <div>
+                    <label htmlFor="domain" className="text-gray-400 block text-sm font-medium mb-1">Domínio (opcional)</label>
+                    <input
+                      id="domain"
+                      type="text"
+                      value={domain}
+                      onChange={(e) => setDomain(e.target.value)}
+                      placeholder={email ? email.split('@')[1] : "exemplo.com"}
+                      className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se não informado, será usado o domínio do email
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="cnpj" className="text-gray-400 block text-sm font-medium mb-1">CNPJ *</label>
+                    <input
+                      id="cnpj"
+                      type="text"
+                      value={cnpj}
+                      onChange={(e) => setCnpj(e.target.value)}
+                      placeholder="XX.XXX.XXX/0001-XX"
+                      pattern="\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"
+                      required
+                      className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Formato: XX.XXX.XXX/0001-XX
+                    </p>
+                  </div>
+                </>
+              )}
+              <div>
+                <label htmlFor="phoneNumber" className="text-gray-400 block text-sm font-medium mb-1">Telefone (opcional)</label>
+                <input
+                  id="phoneNumber"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  placeholder="+55 11 99999-9999"
                   className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>

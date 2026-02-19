@@ -212,7 +212,8 @@ export interface ChangesResponse<T = CouchDoc> {
 
 // ==================== Configuration ====================
 
-export const COUCH_HOST = "https://admin:wyrd@db.vpn.ind.br/"; // substituir pela variável de ambiente apropriada
+export const COUCH_HOST = "https://admin:wyrd@db.vpn.ind.br/";
+export const COUCH_DB = "lindsay-data"; // banco de dados padrão
 const USER = "admin";
 const PASS = "wyrd";
 

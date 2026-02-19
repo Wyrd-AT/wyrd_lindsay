@@ -16,6 +16,17 @@ from pydantic import BaseModel, ValidationError
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioException
 
+# Retry logic with tenacity (NOVA: Phase 1 - Retry Logic)
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+    wait_fixed
+)
+import logging
+
 # Importações para e-mail via SendGrid (Twilio)
 try:
     from sendgrid import SendGridAPIClient
@@ -46,6 +57,10 @@ from push_notifications import (
 # =============================================================================
 load_dotenv()
 
+# Configure logging for tenacity retry decorator
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 BR_TZ = ZoneInfo("America/Sao_Paulo")
 
 COUCHDB_URL = os.getenv("COUCHDB_URL")
@@ -60,8 +75,9 @@ MQTT_USERNAME = os.getenv("MQTT_USERNAME") or None
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD") or None
 
 # Fila/worker
-WORKER_COUNT = int(os.getenv("WORKER_COUNT", "2"))
-QUEUE_MAXSIZE = int(os.getenv("QUEUE_MAXSIZE", "1000"))
+# FASE 1 - Performance optimization: aumentar workers e queue size
+WORKER_COUNT = int(os.getenv("WORKER_COUNT", "8"))  # Aumentado de 2 para 8 (recomendado)
+QUEUE_MAXSIZE = int(os.getenv("QUEUE_MAXSIZE", "5000"))  # Aumentado de 1000 para 5000
 QUEUE_PUT_TIMEOUT = float(os.getenv("QUEUE_PUT_TIMEOUT", "0.01"))  # seg; 0.0 ~ try-nowait
 ON_QUEUE_FULL = os.getenv("ON_QUEUE_FULL", "drop")  # "drop" | "block"
 
@@ -920,6 +936,12 @@ def query_couchdb(query: Dict[str, Any]):
         log("error", f"Erro ao executar query: {e}")
         return None
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    retry=retry_if_exception_type((couchdb.http.ResourceConflict, Exception)),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def upsert_doc(doc_id: str, doc_data: Dict[str, Any]) -> Optional[str]:
     db = get_couch_db()
     if db is None:
@@ -955,6 +977,13 @@ def upsert_doc(doc_id: str, doc_data: Dict[str, Any]) -> Optional[str]:
         log("error", f"Falha no upsert de {doc_id}: {e}")
         return None
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((requests.exceptions.RequestException, Exception)),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True
+)
 def insert_doc(doc_data: Dict[str, Any]) -> Optional[str]:
     db = get_couch_db()
     if db is None:
@@ -969,6 +998,11 @@ def insert_doc(doc_data: Dict[str, Any]) -> Optional[str]:
         log("error", f"Falha no insert: {e}")
         return None
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=5),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def update_monthly_history(irrigador_id: str, data_type: str, doc_id: str) -> None:
     db = get_couch_db()
     if db is None:
@@ -1800,6 +1834,12 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
 # =============================================================================
 mqtt_publisher_client: Optional[mqtt.Client] = None
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=4),
+    retry=retry_if_exception_type((Exception,)),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool:
     """
     Publica um alerta diretamente no MQTT para apps escutarem em tempo real.
@@ -1831,35 +1871,23 @@ def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool
 
         # Monta mensagem MQTT
         mqtt_message = {
-            "alertId": alert_data.get("alertId"),
             "irrigadorId": irrigador_id,
-            "tipo": event_type,
-            "mensagem": get_alarm_description(event_type),
-            "monitor": alert_data.get("monitor", "00"),
-            "timestamp": alert_data.get("timestamp", ""),
+            "alertId": alert_data.get("alertId"),
             "severity": severity,
+            "eventType": event_type,
+            "description": get_alarm_description(event_type),
+            "timestamp": alert_data.get("timestamp", datetime.datetime.now().isoformat()),
+            "monitor": alert_data.get("monitor"),
         }
 
-        # Publica no tópico específico do irrigador com QoS 1 e retain=True
-        topic = f"lindsay/{irrigador_id}/alerts"
-        payload = json.dumps(mqtt_message)
+        # Publica no tópico de alertas
+        topic = f"irrigadores/{irrigador_id}/alerta"
+        mqtt_publisher_client.publish(topic, json.dumps(mqtt_message), qos=1)
+        log("info", f"Alerta publicado no MQTT: {irrigador_id} - Severidade: {severity}")
 
-        result = mqtt_publisher_client.publish(
-            topic=topic,
-            payload=payload,
-            qos=1,  # At-least-once delivery
-            retain=True  # Última mensagem fica retida para novos clientes
-        )
-
-        if result.rc == mqtt.MQTT_ERR_SUCCESS:
-            log("ok", f"Alerta publicado no MQTT: {topic}")
-            return True
-        else:
-            log("error", f"Erro ao publicar no MQTT: rc={result.rc}")
-            return False
-
+        return True
     except Exception as e:
-        log("error", f"Exceção ao publicar alerta no MQTT: {e}")
+        log("error", f"Erro ao publicar alerta no MQTT: {str(e)}")
         return False
 
 def get_alarm_description(event_type: str) -> str:
@@ -1878,6 +1906,12 @@ def get_alarm_description(event_type: str) -> str:
 # =============================================================================
 mqtt_publisher_client: Optional[mqtt.Client] = None
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=4),
+    retry=retry_if_exception_type((Exception,)),
+    before_sleep=before_sleep_log(logger, logging.WARNING)
+)
 def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool:
     """
     Publica um alerta diretamente no MQTT para apps escutarem em tempo real.
@@ -1909,35 +1943,23 @@ def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool
 
         # Monta mensagem MQTT
         mqtt_message = {
-            "alertId": alert_data.get("alertId"),
             "irrigadorId": irrigador_id,
-            "tipo": event_type,
-            "mensagem": get_alarm_description(event_type),
-            "monitor": alert_data.get("monitor", "00"),
-            "timestamp": alert_data.get("timestamp", ""),
+            "alertId": alert_data.get("alertId"),
             "severity": severity,
+            "eventType": event_type,
+            "description": get_alarm_description(event_type),
+            "timestamp": alert_data.get("timestamp", datetime.datetime.now().isoformat()),
+            "monitor": alert_data.get("monitor"),
         }
 
-        # Publica no tópico específico do irrigador com QoS 1 e retain=True
-        topic = f"lindsay/{irrigador_id}/alerts"
-        payload = json.dumps(mqtt_message)
+        # Publica no tópico de alertas
+        topic = f"irrigadores/{irrigador_id}/alerta"
+        mqtt_publisher_client.publish(topic, json.dumps(mqtt_message), qos=1)
+        log("info", f"Alerta publicado no MQTT: {irrigador_id} - Severidade: {severity}")
 
-        result = mqtt_publisher_client.publish(
-            topic=topic,
-            payload=payload,
-            qos=1,  # At-least-once delivery
-            retain=True  # Última mensagem fica retida para novos clientes
-        )
-
-        if result.rc == mqtt.MQTT_ERR_SUCCESS:
-            log("ok", f"Alerta publicado no MQTT: {topic}")
-            return True
-        else:
-            log("error", f"Erro ao publicar no MQTT: rc={result.rc}")
-            return False
-
+        return True
     except Exception as e:
-        log("error", f"Exceção ao publicar alerta no MQTT: {e}")
+        log("error", f"Erro ao publicar alerta no MQTT: {str(e)}")
         return False
 
 def get_alarm_description(event_type: str) -> str:

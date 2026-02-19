@@ -10,7 +10,6 @@ export default function Login() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const login = useAuthStore((state) => state.login);
 
 
 
@@ -25,19 +24,43 @@ export default function Login() {
     setError(""); // Clear previous errors
 
     if (!validateForm(e.currentTarget)) {
+      console.warn("⚠️ Form validation failed");
       return;
     }
 
-
     try {
       const response = await signIn(email, password);
+      console.log("Login response:", response);
       if (
         response &&
         response.AuthenticationResult &&
         response.AuthenticationResult.AccessToken
       ) {
-        login({ email }, response.AuthenticationResult.AccessToken);
-        navigate("/home");
+        // ✅ auth.js JÁ chamou login(user, token) com type + status
+        // Não chamar novamente aqui para não sobrescrever!
+
+        // ✅ Redirecionar baseado no tipo de usuário
+        // Aguardar um tick para o estado atualizar
+        setTimeout(() => {
+          const authState = useAuthStore.getState();
+          const userType = authState.user?.type;
+
+          console.log('🔐 Login bem-sucedido, redirecionando...');
+          console.log('   User type:', userType);
+          console.log('   User status:', authState.user?.status);
+
+          // Redirecionar para o dashboard apropriado
+          if (userType === 'admin') {
+            navigate("/admin");
+          } else if (userType === 'revenda') {
+            navigate("/revenda");
+          } else if (userType === 'cliente') {
+            navigate("/cliente");
+          } else {
+            console.warn('⚠️ User type desconhecido:', userType, '- usando fallback /home');
+            navigate("/home");
+          }
+        }, 100);
       } else {
         setError("Invalid response from server");
       }

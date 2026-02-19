@@ -52,6 +52,17 @@ export default {
           '3': 'hsl(var(--chart-3))',
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))'
+        },
+        dashboard: {
+          'bg-primary': 'var(--dashboard-bg-primary)',
+          'bg-secondary': 'var(--dashboard-bg-secondary)',
+          'bg-tertiary': 'var(--dashboard-bg-tertiary)',
+          'text-primary': 'var(--dashboard-text-primary)',
+          'text-secondary': 'var(--dashboard-text-secondary)',
+          'text-tertiary': 'var(--dashboard-text-tertiary)',
+          'accent': 'var(--dashboard-accent)',
+          'accent-hover': 'var(--dashboard-accent-hover)',
+          'border': 'var(--dashboard-border)'
         }
       },
       // --- ADIÇÃO AQUI ---

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -27,7 +29,16 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem
+    --radius: 0.5rem;
+    --dashboard-bg-primary: #272727;
+    --dashboard-bg-secondary: #444444;
+    --dashboard-bg-tertiary: #555555;
+    --dashboard-text-primary: #FBFBFB;
+    --dashboard-text-secondary: #CCCCCC;
+    --dashboard-text-tertiary: #999999;
+    --dashboard-accent: #08cb7c;
+    --dashboard-accent-hover: #06a063;
+    --dashboard-border: #555555;
   }
   .dark {
     --background: 224 71.4% 4.1%;
@@ -62,5 +73,6 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 }

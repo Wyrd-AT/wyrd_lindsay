@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+// FASE 1 - Performance: Added useMemo for expensive transformations
 import { getAlertHistory, EventDoc } from "./getHistory";
 
 interface UseAlertsDataOptions {
@@ -207,9 +208,16 @@ export function useAlertsData({
     };
   }, [irrigadorId, table, currentPage, pageSize, refreshCounter, pageCache]);
 
-  // Obter dados da página atual do cache
-  const alerts = pageCache.get(currentPage) || [];
-  const totalPages = Math.ceil(totalAlerts / pageSize);
+  // FASE 1 - Performance: Memoize cache lookup and pagination calculations
+  const alerts = useMemo(
+    () => pageCache.get(currentPage) || [],
+    [pageCache, currentPage]
+  );
+
+  const totalPages = useMemo(
+    () => Math.ceil(totalAlerts / pageSize),
+    [totalAlerts, pageSize]
+  );
 
   const goToPage = useCallback(
     (page: number) => {

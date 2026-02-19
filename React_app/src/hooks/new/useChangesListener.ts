@@ -19,7 +19,7 @@ export interface UseChangesListenerOptions {
   onChange: (changes: ChangeEvent[]) => void;
   /** Filtro opcional (ex: "_view" ou função de filtro) */
   filter?: string;
-  /** Intervalo de polling em ms (padrão: 5000ms = 5s) */
+  /** Intervalo de polling em ms (padrão: 15000ms = 15s) */
   pollInterval?: number;
   /** Se deve incluir documentos completos */
   includeDocs?: boolean;
@@ -27,6 +27,8 @@ export interface UseChangesListenerOptions {
   pause?: boolean;
   /** Callback de erro */
   onError?: (error: Error) => void;
+  /** Usar longpoll ao invés de polling normal (mais eficiente) */
+  useLongpoll?: boolean;
 }
 
 /**
@@ -50,10 +52,11 @@ export function useChangesListener(options: UseChangesListenerOptions) {
     db,
     onChange,
     filter,
-    pollInterval = 5000,
+    pollInterval = 15000, // Aumentado de 5s para 15s
     includeDocs = true,
     pause = false,
-    onError
+    onError,
+    useLongpoll = true // Usar longpoll por padrão (mais eficiente)
   } = options;
 
   const lastSeqRef = useRef<string | number>('now');
@@ -66,18 +69,23 @@ export function useChangesListener(options: UseChangesListenerOptions) {
     isPollingRef.current = true;
 
     try {
+      // Longpoll é mais eficiente: mantém conexão aberta até haver mudanças ou timeout
+      // Reduz requisições desnecessárias quando não há mudanças
       const params: ChangesOptions = {
         since: lastSeqRef.current,
-        feed: 'normal', // Usa polling normal ao invés de longpoll
+        feed: useLongpoll ? 'longpoll' : 'normal',
         include_docs: includeDocs,
-        limit: 1000 // Limita a 1000 mudanças por vez
+        limit: 1000, // Limita a 1000 mudanças por vez
+        timeout: useLongpoll ? Math.min(pollInterval, 30000) : undefined // Max 30s para longpoll
       };
 
       if (filter) {
         params.filter = filter;
       }
 
-      const response = await getChanges(db, params, { clientTimeout: 10000 }); // 10s timeout
+      // Timeout maior para longpoll (ele espera por mudanças)
+      const clientTimeout = useLongpoll ? Math.min(pollInterval + 5000, 35000) : 10000;
+      const response = await getChanges(db, params, { clientTimeout });
 
       if (response.results && response.results.length > 0) {
         // Atualiza o último seq processado
@@ -93,8 +101,10 @@ export function useChangesListener(options: UseChangesListenerOptions) {
       }
 
     } catch (error: any) {
-      // Ignora erros de timeout se não houver mudanças
-      const isTimeout = error?.code === 'ECONNABORTED' || error?.message?.includes('timeout');
+      // Ignora erros de timeout se não houver mudanças (comum em longpoll)
+      const isTimeout = error?.code === 'ECONNABORTED' || 
+                       error?.message?.includes('timeout') ||
+                       error?.code === 'ETIMEDOUT';
 
       if (!isTimeout) {
         console.error('[useChangesListener] Erro ao buscar mudanças:', error);
@@ -109,7 +119,7 @@ export function useChangesListener(options: UseChangesListenerOptions) {
         poll();
       }, pollInterval);
     }
-  }, [db, filter, includeDocs, pause, pollInterval, onChange, onError]);
+  }, [db, filter, includeDocs, pause, pollInterval, onChange, onError, useLongpoll]);
 
   useEffect(() => {
     if (!pause) {

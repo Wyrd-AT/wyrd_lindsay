@@ -19,6 +19,11 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
     const [isSaving, setIsSaving] = useState(false);
     const [isSireneActive, setIsSireneActive] = useState(false);
 
+    // FASE 1 - Performance: Adaptive polling
+    // Starts at 10s, increases to 20s, then 30s if no changes detected
+    const [pollInterval, setPollInterval] = useState(10000); // Aumentado de 5s para 10s
+    const [noChangeCount, setNoChangeCount] = useState(0);
+
 
     /* ----------------- WhatsApp por irrigador ----------------- */
     const {
@@ -52,6 +57,7 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
     }, [loadData]);
 
     // Listener de mudanças do CouchDB para atualização automática
+    // FASE 1 - Performance: Adaptive polling (5s → 15s → 30s)
     useChangesListener({
         db: 'lindsay-data',
         onChange: (changes) => {
@@ -64,11 +70,30 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
 
             if (hasRelevantChange) {
                 console.log('Detectada mudança relevante no CouchDB, atualizando dados...');
+                // Reset polling interval when change detected
+                setPollInterval(10000); // Aumentado de 5s para 10s
+                setNoChangeCount(0);
                 loadData();
+            } else {
+                // No relevant change: gradually increase polling interval
+                setNoChangeCount(prev => {
+                    const next = prev + 1;
+                    if (next === 3) {
+                        // After 3 polls with no changes, increase to 20s
+                        setPollInterval(20000); // Aumentado de 15s para 20s
+                        console.log('ℹ️ No changes detected, increasing poll interval to 20s');
+                    } else if (next >= 6) {
+                        // After 6 polls with no changes, increase to 30s
+                        setPollInterval(30000);
+                        console.log('ℹ️ No changes detected, increasing poll interval to 30s');
+                    }
+                    return next;
+                });
             }
         },
         includeDocs: false, // Não precisa do doc completo, só do ID para verificar
-        pollInterval: 5000, // Verifica a cada 5 segundos
+        pollInterval: pollInterval, // Dynamic polling interval
+        useLongpoll: true, // Usa longpoll para reduzir requisições
         pause: !pivoId, // Pausa se não tiver pivoId
         onError: (error) => {
             console.error('Erro no listener de mudanças:', error);

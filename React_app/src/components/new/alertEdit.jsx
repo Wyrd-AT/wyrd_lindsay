@@ -216,7 +216,7 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
   /** =========================
    * Utils
    * ========================= */
-  const DB_NAME = "lindsay-data"; // troque se necessário
+  const DB_NAME = "lindsay-data"; // banco de dados principal
   const MONITOR_MAP = { 17: 0, 18: 1 }; // ajustes pontuais
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));

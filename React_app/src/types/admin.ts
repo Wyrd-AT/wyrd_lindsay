@@ -1,0 +1,68 @@
+/**
+ * Tipos para o sistema administrativo
+ */
+
+export interface Revenda {
+  _id: string;
+  _rev?: string;
+  type: 'revenda';
+  email: string;
+  name: string;
+  domain: string;
+  status: 'pending' | 'active' | 'rejected';
+  created_at: string;
+  cnpj?: string;
+}
+
+export interface Cliente {
+  _id: string;
+  _rev?: string;
+  type: 'cliente';
+  email: string;
+  name: string;
+  status: 'pending' | 'active' | 'rejected';
+  created_at: string;
+  revenda_id?: string; // ID da revenda que aprovou
+}
+
+export interface Pivo {
+  _id: string;
+  _rev?: string;
+  type: 'pivo';
+  name: string;
+  status: 'active' | 'inactive' | 'maintenance' | 'alarmed';
+  owner_id: string; // cliente_id
+  created_at: string;
+  last_data?: string;
+}
+
+export interface AdminStats {
+  totalRevendas: number;
+  activeRevendas: number;
+  pendingRevendas: number;
+  rejectedRevendas: number;
+  totalClientes: number;
+  activeClientes: number;
+  pendingClientes: number;
+  rejectedClientes: number;
+  totalPivos: number;
+  activePivos: number;
+  alarmadoPivos: number;
+  maintenancePivos: number;
+}
+
+export interface RevendaStats {
+  totalClientes: number;
+  activeClientes: number;
+  pendingClientes: number;
+  totalPivos: number;
+  activePivos: number;
+  alarmadoPivos: number;
+}
+
+export interface ClienteStats {
+  totalPivos: number;
+  activePivos: number;
+  alarmadoPivos: number;
+  maintenancePivos: number;
+}

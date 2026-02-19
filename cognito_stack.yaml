@@ -1,0 +1,127 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lindsay Cognito User Pool com Custom Attributes para Multi-Nível'
+
+Parameters:
+  UserPoolName:
+    Type: String
+    Default: lindsay-users
+    Description: Nome do User Pool
+
+Resources:
+  # User Pool
+  LindsayUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+      # Custom Attributes para sistema multi-nível
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+
+        # Custom attributes para o sistema multi-nível
+        - Name: type
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 20
+          DeveloperOnlyAttribute: false
+
+        - Name: status
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 20
+          DeveloperOnlyAttribute: false
+
+        - Name: domain
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 100
+          DeveloperOnlyAttribute: false
+
+        - Name: revenda_id
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 100
+          DeveloperOnlyAttribute: false
+
+        - Name: doc_id
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 100
+          DeveloperOnlyAttribute: false
+
+      MfaConfiguration: 'OFF'
+      AutoVerifiedAttributes:
+        - email
+
+  # User Pool Client
+  LindsayUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref LindsayUserPool
+      ClientName: lindsay-app
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+        - USER_PASSWORD_AUTH
+      ReadAttributes:
+        - email
+        - name
+        - phone_number
+        - custom:type
+        - custom:status
+        - custom:domain
+        - custom:revenda_id
+        - custom:doc_id
+      WriteAttributes:
+        - email
+        - name
+        - phone_number
+        - custom:type
+        - custom:status
+        - custom:domain
+        - custom:revenda_id
+        - custom:doc_id
+
+Outputs:
+  UserPoolId:
+    Value: !Ref LindsayUserPool
+    Description: ID do User Pool criado
+    Export:
+      Name: LindsayUserPoolId
+
+  ClientId:
+    Value: !Ref LindsayUserPoolClient
+    Description: ID do Client criado
+    Export:
+      Name: LindsayClientId
+
+  UserPoolArn:
+    Value: !GetAtt LindsayUserPool.Arn
+    Description: ARN do User Pool
+    Export:
+      Name: LindsayUserPoolArn

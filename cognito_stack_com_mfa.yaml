@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lindsay Cognito User Pool com Custom Attributes e MFA via SMS'
+
+Parameters:
+  UserPoolName:
+    Type: String
+    Default: lindsay-users
+    Description: Nome do User Pool
+
+Resources:
+  # IAM Role para SMS
+  CognitoSMSRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cognito-idp.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: CognitoSNSPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'sns:Publish'
+                Resource: 'arn:aws:sns:*:*:*'
+
+  # User Pool com MFA
+  LindsayUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+      # MFA Configuration com SMS
+      MfaConfiguration: 'OPTIONAL'
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+        - SMS_MFA
+
+      # SMS Configuration
+      SmsConfiguration:
+        SnsCallerArn: !GetAtt CognitoSMSRole.Arn
+        ExternalId: !Sub '${AWS::StackName}-external-id'
+
+      # Auto-verify emails
+      AutoVerifiedAttributes:
+        - email
+
+      # Custom Attributes para sistema multi-nível
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+
+        # Custom attributes para o sistema multi-nível
+        - Name: type
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 20
+          DeveloperOnlyAttribute: false
+
+        - Name: status
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 20
+          DeveloperOnlyAttribute: false
+
+        - Name: domain
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 100
+          DeveloperOnlyAttribute: false
+
+        - Name: revenda_id
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 100
+          DeveloperOnlyAttribute: false
+
+        - Name: doc_id
+          AttributeDataType: String
+          Mutable: true
+          StringAttributeConstraints:
+            MinLength: 1
+            MaxLength: 100
+          DeveloperOnlyAttribute: false
+
+  # User Pool Client
+  LindsayUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref LindsayUserPool
+      ClientName: lindsay-app
+      ExplicitAuthFlows:
+        - ADMIN_NO_SRP_AUTH
+        - USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      ReadAttributes:
+        - email
+        - name
+        - phone_number
+        - custom:type
+        - custom:status
+        - custom:domain
+        - custom:revenda_id
+        - custom:doc_id
+      WriteAttributes:
+        - email
+        - name
+        - phone_number
+        - custom:type
+        - custom:status
+        - custom:domain
+        - custom:revenda_id
+        - custom:doc_id
+
+  # User Pool Domain (para hosted UI)
+  LindsayUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub 'lindsay-${AWS::AccountId}'
+      UserPoolId: !Ref LindsayUserPool
+
+Outputs:
+  UserPoolId:
+    Value: !Ref LindsayUserPool
+    Description: ID do User Pool criado
+    Export:
+      Name: LindsayUserPoolId
+
+  ClientId:
+    Value: !Ref LindsayUserPoolClient
+    Description: ID do Client criado
+    Export:
+      Name: LindsayClientId
+
+  UserPoolArn:
+    Value: !GetAtt LindsayUserPool.Arn
+    Description: ARN do User Pool
+    Export:
+      Name: LindsayUserPoolArn
+
+  CognitoHostedUIURL:
+    Value: !Sub 'https://lindsay-${AWS::AccountId}.auth.sa-east-1.amazoncognito.com/login?client_id=${LindsayUserPoolClient}&response_type=code&scope=openid+profile+email&redirect_uri=http://localhost:3000/callback'
+    Description: URL do Hosted UI do Cognito
+    Export:
+      Name: LindsayHostedUIURL
+
+  SMSRoleArn:
+    Value: !GetAtt CognitoSMSRole.Arn
+    Description: ARN da Role para SMS
+    Export:
+      Name: CognitoSMSRoleArn

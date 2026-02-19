@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  # CouchDB
+  couchdb:
+    image: couchdb:3.3
+    container_name: lindsay-couchdb
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: password
+      COUCHDB_SECRET: supersecret
+    ports:
+      - "5984:5984"
+    volumes:
+      - couchdb_data:/opt/couchdb/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5984/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MQTT Broker (Mosquitto)
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: lindsay-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "test", "-C", "1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI
+  api:
+    build: .
+    container_name: lindsay-api
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      COUCHDB_URL: https://admin:wyrd@db.vpn.ind.br
+      COUCHDB_DB: lindsay-data
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      ENVIRONMENT: development
+      DEBUG: "true"
+    volumes:
+      - .:/app
+    depends_on:
+      couchdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  couchdb_data:
+  mosquitto_data:
+  mosquitto_logs:
+
+networks:
+  default:
+    name: lindsay-network

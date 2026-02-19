@@ -1,0 +1,28 @@
+# Lindsay System Requirements
+# Python 3.12+
+
+# Core Dependencies
+python-dotenv>=1.0.0
+requests>=2.31.0
+pydantic>=2.5.0
+pydantic[email]>=2.5.0
+couchdb>=1.2
+paho-mqtt>=1.6.1
+twilio>=8.10.0
+exponent-server-sdk>=2.0.0
+tzdata>=2023.3
+
+# FASE 2: FastAPI & Web Framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+python-jose>=3.3.0
+
+# Retry & Resilience
+tenacity>=8.2.0
+
+# WebSocket (asyncio)
+websockets>=11.0
+
+# Optional for better logging
+python-json-logger>=2.0.7
