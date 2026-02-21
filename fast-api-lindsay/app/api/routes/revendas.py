@@ -122,13 +122,18 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
         try:
             cognito_client = boto3.client('cognito-idp', region_name=settings.AWS_REGION)
 
+            # ✅ Passar custom attributes JÁ no sign_up
             sign_up_params = {
                 "ClientId": settings.COGNITO_CLIENT_ID,
                 "Username": body.email,
                 "Password": body.password,
                 "UserAttributes": [
                     {"Name": "email", "Value": body.email},
-                    {"Name": "name", "Value": body.name}
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "custom:type", "Value": "revenda"},
+                    {"Name": "custom:status", "Value": "pending"},
+                    {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
+                    {"Name": "custom:doc_id", "Value": doc_id}
                 ]
             }
 
@@ -139,6 +144,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
             cognito_response = cognito_client.sign_up(**sign_up_params)
             cognito_sub = cognito_response.get("UserSub")
             print(f"✅ Usuário criado no Cognito: {cognito_sub}")
+            print(f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}")
 
             # ✅ PASSO 3: Atualizar revenda no CouchDB com cognito_sub
             try:
@@ -159,21 +165,22 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
                 print(f"✅ Usuário confirmado no Cognito")
             except Exception as e:
                 print(f"⚠️ Aviso ao confirmar usuário: {e}")
+                # Continua mesmo se falhar - custom attributes já foram salvos no sign_up
 
-            # ✅ PASSO 5: Atualizar custom attributes no Cognito
+            # ✅ PASSO 5: Atualizar admin.revendas[] com o cnpj_revenda
             try:
-                user_attributes = [
-                    {"Name": "custom:type", "Value": "revenda"},
-                    {"Name": "custom:status", "Value": "pending"}  # ✅ Sempre pending
-                ]
-                cognito_client.admin_update_user_attributes(
-                    UserPoolId=settings.COGNITO_USER_POOL_ID,
-                    Username=body.email,
-                    UserAttributes=user_attributes
-                )
-                print(f"✅ Custom attributes atualizados no Cognito")
+                admin_doc_id = user.get("doc_id")
+                if admin_doc_id:
+                    admin_doc = revenda_service.db.get(admin_doc_id)
+                    if admin_doc:
+                        revendas_list = admin_doc.get("revendas", [])
+                        if cnpj_revenda_formatted not in revendas_list:
+                            revendas_list.append(cnpj_revenda_formatted)
+                            admin_doc["revendas"] = revendas_list
+                            revenda_service.db.save(admin_doc)
+                            print(f"✅ Admin.revendas[] atualizado com {cnpj_revenda_formatted}")
             except Exception as e:
-                print(f"⚠️ Aviso ao atualizar custom attributes: {e}")
+                print(f"⚠️ Aviso ao atualizar admin.revendas[]: {e}")
 
             return {
                 "status": "success",

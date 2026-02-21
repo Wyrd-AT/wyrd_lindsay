@@ -1,18 +1,10 @@
 /**
- * Dashboard de Revenda Completo
- *
- * Segue o padrão estético da HomePage (baseado em FieldNET NextGen):
- * - Sidebar + BodyContent + Header
- * - Fundo escuro (--dashboard-bg-primary: #272727)
- * - Botões verdes (--dashboard-accent: #08cb7c)
- * - Texto off-white (--dashboard-text-primary: #FBFBFB)
- * - Tipografia: Roboto
+ * Página Dedicada: Gerenciar Clientes
  *
  * Exibe:
- * - Estatísticas dos clientes da revenda
- * - Fila de aprovação de clientes
- * - Lista de clientes da revenda
- * - Monitoramento de pivôs
+ * - Estatísticas de Clientes (Total, Pendentes, Ativos, Rejeitados)
+ * - Lista completa de clientes com filtros
+ * - Ações: criar, ver detalhes
  */
 
 import React, { useEffect, useState } from 'react';
@@ -21,144 +13,124 @@ import Sidebar from '../../components/new/sidebar';
 import BodyContent from '../../components/new/body';
 import Header from '../../components/new/header';
 import PermissionGuard from '../../components/new/PermissionGuard';
-import { ClientePendingApprovals } from '../../components/new/ClientePendingApprovals';
-import PivosSection from '../../components/new/PivosSection';
-import { useRevendaClientes } from '../../hooks/new/useRevendaClientes';
-import { useRevendaStats } from '../../hooks/new/useRevendaStats';
+import { CreateClienteModal } from '../../components/new/CreateClienteModal';
+import { useAdminClientes } from '../../hooks/new/useAdminClientes';
+import { useAdminStats } from '../../hooks/new/useAdminStats';
+import { useAdminRevendas } from '../../hooks/new/useAdminRevendas';
 import type { Cliente } from '../../types/admin';
 
-/**
- * Componente principal do Dashboard Revenda
- */
-export function RevendaDashboard() {
+interface StatCard {
+  label: string;
+  value: number;
+  subValue: string;
+}
+
+interface StatsSectionProps {
+  cards: StatCard[];
+  loading: boolean;
+}
+
+export function GerenciarClientesPage() {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
 
-  // Hooks para dados
+  const [showCreateCliente, setShowCreateCliente] = useState(false);
+
   const {
     clientes,
     loading: loadingClientes,
     error: clientesError,
     fetchClientes,
-    fetchPendingClientes,
-  } = useRevendaClientes();
+  } = useAdminClientes();
+
+  const {
+    allRevendas,
+    loading: loadingRevendas,
+  } = useAdminRevendas();
 
   const {
     stats,
     loading: loadingStats,
     error: statsError,
     fetchStats,
-  } = useRevendaStats();
+  } = useAdminStats();
 
-  // Carregar dados ao montar
   useEffect(() => {
     if (isActiveUser) {
-      fetchPendingClientes();
       fetchStats();
       fetchClientes();
     }
   }, [isActiveUser]);
 
   return (
-    <PermissionGuard allowedRoles={['revenda']} requireActive>
+    <PermissionGuard allowedRoles={['admin']} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="revenda" />
+          <Header page="admin" />
 
-          <div className="flex items-center justify-between px-4 mb-4">
-            <h1 className="text-2xl font-bold">🏢 Painel da Revenda</h1>
+          <div className="flex items-center justify-between px-4 mb-8">
+            <h1 className="text-3xl font-bold">Clientes</h1>
             <button
               onClick={() => {
                 fetchStats();
                 fetchClientes();
-                fetchPendingClientes();
               }}
               className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
             >
-              ⟳ Atualizar
+              Atualizar
             </button>
           </div>
 
           {/* Erros globais */}
           {(clientesError || statsError) && (
             <div className="mx-4 mb-6 p-4 bg-red-900 border border-red-700 rounded-lg text-red-100">
-              <p className="font-medium">⚠️ Erro ao carregar dados:</p>
+              <p className="font-medium">Erro ao carregar dados:</p>
               <p className="text-sm">{clientesError || statsError}</p>
             </div>
           )}
 
-          {/* Stats Sections */}
-          <div className="px-4 mb-8 space-y-6">
-            {/* Clientes Stats */}
+          {/* Stats Section */}
+          <div className="px-4 mb-8">
             <StatsSection
-              title="👥 Clientes"
               cards={[
                 {
                   label: 'Total de Clientes',
                   value: stats?.totalClientes || 0,
                   subValue: `${stats?.activeClientes || 0} ativos`,
-                  icon: '👥',
                 },
                 {
                   label: 'Clientes Pendentes',
                   value: stats?.pendingClientes || 0,
-                  subValue: 'Aguardando aprovação',
-                  icon: '⏳',
-                },
-              ]}
-              loading={loadingStats}
-            />
-
-            {/* Pivôs Stats */}
-            <StatsSection
-              title="💧 Pivôs"
-              cards={[
-                {
-                  label: 'Total de Pivôs',
-                  value: stats?.totalPivos || 0,
-                  subValue: `${stats?.activePivos || 0} ativos`,
-                  icon: '💧',
-                },
-                {
-                  label: 'Pivôs Alarmados',
-                  value: stats?.alarmadoPivos || 0,
-                  subValue: 'Requerem atenção',
-                  icon: '🚨',
+                  subValue: `${stats?.rejectedClientes || 0} rejeitados`,
                 },
               ]}
               loading={loadingStats}
             />
           </div>
 
-          {/* 👥 SEÇÃO DE CLIENTES */}
+          {/* Lista Completa de Clientes */}
           <div className="px-4 mb-8">
-            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">👥 Gerenciar Clientes</h2>
-
-            {/* Clientes Pendentes de Aprovação */}
-            <div className="mb-6">
-              <ClientePendingApprovals
-                onApprovalChange={() => {
-                  fetchStats();
-                  fetchPendingClientes();
-                  fetchClientes();
-                }}
-              />
-            </div>
-
-            {/* Lista de Clientes */}
             <ClientesSection
               clientes={clientes}
               loading={loadingClientes}
               onRefresh={fetchClientes}
+              onCreateClick={() => setShowCreateCliente(true)}
             />
           </div>
 
-          {/* 💧 SEÇÃO DE PIVÔS */}
-          <div className="px-4 mb-8">
-            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">💧 Acompanhar Pivôs</h2>
-            <PivosSection />
-          </div>
+          {/* Modal Criar Cliente */}
+          {showCreateCliente && (
+            <CreateClienteModal
+              closeModal={() => setShowCreateCliente(false)}
+              onSuccess={() => {
+                setShowCreateCliente(false);
+                fetchClientes();
+                fetchStats();
+              }}
+              revendas={allRevendas}
+            />
+          )}
         </BodyContent>
       </div>
     </PermissionGuard>
@@ -166,26 +138,12 @@ export function RevendaDashboard() {
 }
 
 /**
- * Seção de Estatísticas organizada por categoria
+ * Seção de Estatísticas
  */
-interface StatCard {
-  label: string;
-  value: number;
-  subValue: string;
-  icon: string;
-}
-
-interface StatsSectionProps {
-  title: string;
-  cards: StatCard[];
-  loading: boolean;
-}
-
-function StatsSection({ title, cards, loading }: StatsSectionProps) {
+function StatsSection({ cards, loading }: StatsSectionProps) {
   if (loading) {
     return (
       <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-        <h3 className="text-lg font-semibold text-dashboard-text-primary mb-4">{title}</h3>
         <div className="space-y-3">
           {[1, 2].map((i) => (
             <div key={i} className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
@@ -196,23 +154,17 @@ function StatsSection({ title, cards, loading }: StatsSectionProps) {
   }
 
   return (
-    <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-      <h3 className="text-lg font-semibold text-dashboard-text-primary mb-4">{title}</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="flex items-start justify-between p-4 bg-dashboard-bg-tertiary rounded-lg hover:bg-dashboard-border transition-colors"
-          >
-            <div className="flex-1">
-              <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
-              <p className="text-3xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
-              <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
-            </div>
-            <span className="text-3xl ml-4">{card.icon}</span>
-          </div>
-        ))}
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {cards.map((card) => (
+        <div
+          key={card.label}
+          className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors"
+        >
+          <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
+          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
+          <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -224,12 +176,14 @@ interface ClientesSectionProps {
   clientes: Cliente[];
   loading: boolean;
   onRefresh: () => void;
+  onCreateClick: () => void;
 }
 
 function ClientesSection({
   clientes,
   loading,
   onRefresh,
+  onCreateClick,
 }: ClientesSectionProps) {
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
@@ -241,15 +195,23 @@ function ClientesSection({
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-dashboard-text-primary">
-          👥 Meus Clientes
+          Clientes
         </h2>
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 rounded transition text-white font-bold"
-        >
-          {loading ? '⟳ Carregando...' : '⟳ Atualizar'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onCreateClick}
+            className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover rounded transition text-white font-bold"
+          >
+            + Criar Cliente
+          </button>
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 rounded transition text-white font-bold"
+          >
+            {loading ? 'Carregando...' : 'Atualizar'}
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -261,7 +223,7 @@ function ClientesSection({
             className={`px-3 py-1 rounded text-sm transition ${
               filterStatus === status
                 ? 'bg-dashboard-accent text-black font-bold'
-                : 'bg-dashboard-bg-tertiary text-white hover:bg-dashboard-bg-tertiary'
+                : 'bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border'
             }`}
           >
             {status === 'all'
@@ -286,7 +248,7 @@ function ClientesSection({
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent"></div>
         </div>
       ) : filteredClientes.length === 0 ? (
-        <div className="text-center py-8 text-gray-400">
+        <div className="text-center py-8 text-dashboard-text-secondary">
           <p>Nenhum cliente {filterStatus !== 'all' ? `com status "${filterStatus}"` : ''}</p>
         </div>
       ) : (
@@ -294,12 +256,17 @@ function ClientesSection({
           {filteredClientes.map((cliente) => (
             <div
               key={cliente._id}
-              className="border border-dashboard-border rounded-lg p-3 hover:bg-dashboard-bg-tertiary transition bg-dashboard-bg-tertiary"
+              className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-semibold text-dashboard-text-primary">{cliente.name}</h3>
-                  <p className="text-sm text-dashboard-text-secondary">{cliente.email}</p>
+                  <p className="text-sm text-dashboard-text-secondary mt-1">{cliente.email}</p>
+                  {cliente.revenda_id && (
+                    <p className="text-xs text-dashboard-text-tertiary mt-1">
+                      Revenda: {cliente.revenda_id}
+                    </p>
+                  )}
                 </div>
                 <span
                   className={`text-xs px-2 py-1 rounded font-bold ${
@@ -311,10 +278,10 @@ function ClientesSection({
                   }`}
                 >
                   {cliente.status === 'active'
-                    ? '✓ Ativo'
+                    ? 'Ativo'
                     : cliente.status === 'pending'
-                    ? '⏳ Pendente'
-                    : '✕ Rejeitado'}
+                    ? 'Pendente'
+                    : 'Rejeitado'}
                 </span>
               </div>
             </div>
@@ -329,4 +296,4 @@ function ClientesSection({
   );
 }
 
-export default RevendaDashboard;
+export default GerenciarClientesPage;

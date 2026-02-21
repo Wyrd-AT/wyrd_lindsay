@@ -22,7 +22,11 @@ export interface Cliente {
   name: string;
   status: 'pending' | 'active' | 'rejected';
   created_at: string;
-  revenda_id?: string; // ID da revenda que aprovou
+  revenda_id?: string;      // ID da revenda associada
+  documento?: string;       // CPF ou CNPJ do cliente
+  cnpj_admin?: string;      // Herdado do admin da hierarquia
+  cnpj_revenda?: string;    // Herdado da revenda associada
+  sub_role?: 'superusuario' | 'gerente' | 'comum';
 }
 
 export interface Pivo {

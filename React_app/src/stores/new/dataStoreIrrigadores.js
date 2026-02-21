@@ -5,31 +5,53 @@ import { couch, find as couchFind, createIndex, getDoc, upsertDoc } from '../../
 // === Config do banco ===
 const DB = 'lindsay-data';
 
-// garante o índice Mango apenas 1x
-let ensuredIndex = false;
-async function ensureIndex() {
-  if (ensuredIndex) return;
+// garante os índices Mango (cliente e revenda) apenas 1x
+let ensuredIndexCliente = false;
+let ensuredIndexRevenda = false;
+let ensuredIndexAdmin = false;
+async function ensureIndexCliente() {
+  if (ensuredIndexCliente) return;
   try {
-    // Cria índice para a query que será feita
     await createIndex(DB, {
-      fields: ['table', 'companyId'],
-      name: 'idx_table_company',
+      fields: ['table', 'cnpj_cliente'],
+      name: 'idx_table_cnpj_cliente',
       type: 'json'
     });
   } catch (e) {
-    // 409 = índice já existe, pode ignorar
-    if (e?.response?.status !== 409) {
-      console.warn('[DataStore] Erro ao criar índice:', e?.message || e);
-    } else {
-      console.log('[DataStore] Índice já existe, ignorando erro 409.');
-    }
+    if (e?.response?.status !== 409) console.warn('[DataStore] Índice cnpj_cliente:', e?.message || e);
   }
-  ensuredIndex = true;
+  ensuredIndexCliente = true;
+}
+async function ensureIndexRevenda() {
+  if (ensuredIndexRevenda) return;
+  try {
+    await createIndex(DB, {
+      fields: ['table', 'cnpj_revenda'],
+      name: 'idx_table_cnpj_revenda',
+      type: 'json'
+    });
+  } catch (e) {
+    if (e?.response?.status !== 409) console.warn('[DataStore] Índice cnpj_revenda:', e?.message || e);
+  }
+  ensuredIndexRevenda = true;
+}
+async function ensureIndexAdmin() {
+  if (ensuredIndexAdmin) return;
+  try {
+    await createIndex(DB, {
+      fields: ['table', 'cnpj_admin'],
+      name: 'idx_table_cnpj_admin',
+      type: 'json'
+    });
+  } catch (e) {
+    if (e?.response?.status !== 409) console.warn('[DataStore] Índice cnpj_admin:', e?.message || e);
+  }
+  ensuredIndexAdmin = true;
 }
 
-// gerador simples de _id quando necessário
-const genId = (companyId) =>
-  `irrigador:${companyId || 'na'}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+// gerador simples de _id
+const genId = () =>
+  `irrigador:${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
 
 export const useDataStoreIrrigadores = create((set, get) => ({
   irrigadores: [],
@@ -37,19 +59,32 @@ export const useDataStoreIrrigadores = create((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchIrrigadores: async (companyId) => {
+  /**
+   * Busca irrigadores por CNPJ.
+   * @param cnpj - CNPJ do cliente (cnpj_cliente), da revenda (cnpj_revenda) ou do admin (cnpj_admin)
+   * @param filterBy - 'cnpj_cliente' | 'cnpj_revenda' | 'cnpj_admin'
+   */
+  fetchIrrigadores: async (cnpj, filterBy = 'cnpj_cliente') => {
+    //console.log(`[DataStore] fetchIrrigadores iniciado. CNPJ: ${cnpj}, filterBy: ${filterBy}`);
+    if (!cnpj) {
+      set({ irrigadores: [], isLoading: false });
+      return;
+    }
     set({ isLoading: true, error: null });
     try {
-      await ensureIndex();
-      
+      if (filterBy === 'cnpj_revenda') {
+        await ensureIndexRevenda();
+      } else if (filterBy === 'cnpj_admin') {
+        await ensureIndexAdmin();
+      } else {
+        await ensureIndexCliente();
+      }
       const data = await couchFind(DB, {
-        selector: { 
-          table: 'irrigadores', 
-          companyId: companyId 
+        selector: {
+          table: 'irrigadores',
+          [filterBy]: cnpj
         },
-        limit: 100,
-        // Remove o use_index que está causando problema
-        // O CouchDB vai escolher automaticamente o índice correto
+        limit: 500,
       });
       set({ 
         irrigadores: data.docs || [], 
@@ -65,17 +100,17 @@ export const useDataStoreIrrigadores = create((set, get) => ({
     }
   },
 
-  // recebe (payload, companyId)
-  addIrrigador: async (payload, companyId) => {
+  // recebe (payload, cnpjCliente)
+  addIrrigador: async (payload, cnpjCliente) => {
     try {
       const doc = {
         ...payload,
         table: 'irrigadores',
-        companyId,
+        cnpj_cliente: cnpjCliente,
       };
 
       // upsertDoc exige _id – se não vier, geramos um
-      const _id = doc._id || genId(companyId);
+      const _id = doc._id || genId();
       const res = await upsertDoc(DB, { ...doc, _id });
 
       set((state) => ({
@@ -162,15 +197,23 @@ export const useDataStoreIrrigadores = create((set, get) => ({
   },
 }));
 
-export function useIrrigadores(companyId) {
+/**
+ * Hook para listar irrigadores.
+ * - Cliente: usa cnpj do usuário e filterBy 'cnpj_cliente' (só seus pivôs).
+ * - Revenda: usa cnpj do usuário e filterBy 'cnpj_revenda' (todos os pivôs dos clientes cadastrados).
+ * - Admin: filterBy 'cnpj_admin' (pivôs de todas as revendas/clientes vinculados ao admin).
+ * @param cnpj - CNPJ do usuário logado (cliente, revenda ou admin)
+ * @param userType - 'cliente' | 'revenda' | 'admin'
+ */
+export function useIrrigadores(cnpj, userType) {
   const irrigadores = useDataStoreIrrigadores((s) => s.irrigadores);
   const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
-  const isLoading = useDataStoreIrrigadores((s) => s.isLoading);
-  const error = useDataStoreIrrigadores((s) => s.error);
-
+  const filterBy = userType === 'admin' ? 'cnpj_admin' : userType === 'revenda' ? 'cnpj_revenda' : 'cnpj_cliente';
+  //console.log(`[useIrrigadores] userType: ${userType}, filterBy: ${filterBy}, cnpj: ${cnpj}`);
+  
   useEffect(() => {
-    if (companyId) fetchIrrigadores(companyId);
-  }, [fetchIrrigadores, companyId]);
+    if (cnpj) fetchIrrigadores(cnpj, filterBy);
+  }, [fetchIrrigadores, cnpj, filterBy]);
 
   return useMemo(() => irrigadores, [irrigadores]);
 }

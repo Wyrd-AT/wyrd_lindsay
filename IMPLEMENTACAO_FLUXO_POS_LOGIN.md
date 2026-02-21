@@ -303,7 +303,7 @@ result = db.find({"selector": selector})
 ```javascript
 // Console do navegador, após login como admin
 const token = useAuthStore.getState().token;
-console.log(atob(token));
+//console.log(atob(token));
 // Output esperado: admin@company.com:admin:XX.XXX.XXX/0001-XX
 ```
 

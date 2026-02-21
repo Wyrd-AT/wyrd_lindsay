@@ -116,13 +116,13 @@ export default function PivosSection({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6 border border-dashboard-border">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">{getTitle()}</h2>
+        <h2 className="text-xl font-bold text-dashboard-text-primary">{getTitle()}</h2>
         {showCreateButton && authState.user?.type === 'cliente' && (
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover text-white rounded-lg font-bold transition"
           >
             {showCreateForm ? 'Cancelar' : '+ Novo Pivô'}
           </button>
@@ -131,14 +131,14 @@ export default function PivosSection({
 
       {/* Formulário de Criação */}
       {showCreateForm && authState.user?.type === 'cliente' && (
-        <form onSubmit={handleCreatePivo} className="mb-6 p-4 bg-gray-50 rounded-lg">
+        <form onSubmit={handleCreatePivo} className="mb-6 p-4 bg-dashboard-bg-tertiary rounded-lg border border-dashboard-border">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
               placeholder="Código do Pivô (ex: P001)"
               value={newPivo.codigo}
               onChange={(e) => setNewPivo({ ...newPivo, codigo: e.target.value })}
-              className="px-3 py-2 border border-gray-300 rounded-lg"
+              className="px-3 py-2 border border-dashboard-border rounded-lg bg-dashboard-bg-secondary text-dashboard-text-primary placeholder-dashboard-text-tertiary"
               required
             />
             <input
@@ -146,14 +146,14 @@ export default function PivosSection({
               placeholder="Nome do Pivô"
               value={newPivo.nome}
               onChange={(e) => setNewPivo({ ...newPivo, nome: e.target.value })}
-              className="px-3 py-2 border border-gray-300 rounded-lg"
+              className="px-3 py-2 border border-dashboard-border rounded-lg bg-dashboard-bg-secondary text-dashboard-text-primary placeholder-dashboard-text-tertiary"
               required
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+            className="mt-4 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover text-white rounded-lg disabled:opacity-50 font-bold transition"
           >
             {loading ? 'Criando...' : 'Criar Pivô'}
           </button>
@@ -161,12 +161,12 @@ export default function PivosSection({
       )}
 
       {/* Mensagens de Status */}
-      {loading && <p className="text-gray-600">Carregando pivôs...</p>}
-      {error && <p className="text-red-600">❌ {error}</p>}
+      {loading && <p className="text-dashboard-text-secondary">Carregando pivôs...</p>}
+      {error && <p className="text-red-400">{error}</p>}
 
       {/* Lista de Pivôs */}
       {!loading && pivos.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">
+        <p className="text-dashboard-text-secondary text-center py-8">
           {authState.user?.type === 'cliente'
             ? 'Nenhum pivô cadastrado. Crie um novo!'
             : 'Nenhum pivô encontrado'}
@@ -177,10 +177,10 @@ export default function PivosSection({
             <div
               key={pivo._id}
               onClick={() => onSelectPivo?.(pivo)}
-              className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition cursor-pointer"
+              className="border border-dashboard-border rounded-lg p-4 bg-dashboard-bg-tertiary hover:bg-dashboard-border transition cursor-pointer"
             >
-              <h3 className="font-bold text-lg text-gray-800">{pivo.nome}</h3>
-              <p className="text-gray-600 text-sm">Código: {pivo.codigo}</p>
+              <h3 className="font-bold text-lg text-dashboard-text-primary">{pivo.nome}</h3>
+              <p className="text-dashboard-text-secondary text-sm">Código: {pivo.codigo}</p>
 
               {/* Status */}
               <div className="mt-3 flex items-center gap-2">
@@ -189,20 +189,20 @@ export default function PivosSection({
                     pivo.ativo ? 'bg-green-500' : 'bg-red-500'
                   }`}
                 />
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-dashboard-text-secondary">
                   {pivo.ativo ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
 
               {/* Localização */}
               {pivo.location && (
-                <p className="text-xs text-gray-500 mt-2">
-                  📍 {pivo.location.lat.toFixed(2)}, {pivo.location.lng.toFixed(2)}
+                <p className="text-xs text-dashboard-text-tertiary mt-2">
+                  {pivo.location.lat.toFixed(2)}, {pivo.location.lng.toFixed(2)}
                 </p>
               )}
 
               {/* Data */}
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-dashboard-text-tertiary mt-2">
                 Criado em: {new Date(pivo.created_at).toLocaleDateString('pt-BR')}
               </p>
             </div>

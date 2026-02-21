@@ -16,7 +16,9 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useAuthStore, selectIsActiveUser, selectIsPending } from '../../stores/new/authStore';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore, selectIsActiveUser, selectIsPending, selectIsSuperusuario } from '../../stores/new/authStore';
+import { fetchCompanyUsers } from '../../api/new/fastapi-admin';
 import Sidebar from '../../components/new/sidebar';
 import BodyContent from '../../components/new/body';
 import Header from '../../components/new/header';
@@ -33,6 +35,10 @@ export function ClienteDashboard() {
   const authState = useAuthStore();
   const isPending = selectIsPending(authState);
   const isActiveUser = selectIsActiveUser(authState);
+  const isSuperusuario = selectIsSuperusuario(authState);
+  const navigate = useNavigate();
+
+  const [companyUserCount, setCompanyUserCount] = useState(0);
 
   // Hooks para dados
   const {
@@ -54,8 +60,13 @@ export function ClienteDashboard() {
     if (isActiveUser) {
       fetchPivos();
       fetchStats();
+      if (isSuperusuario) {
+        fetchCompanyUsers()
+          .then((data: any) => setCompanyUserCount(data.users?.length || 0))
+          .catch(() => {});
+      }
     }
-  }, [isActiveUser]);
+  }, [isActiveUser, isSuperusuario]);
 
   return (
     <PermissionGuard allowedRoles={['cliente']}>
@@ -88,10 +99,46 @@ export function ClienteDashboard() {
             </div>
           )}
 
-          {/* Stats Grid */}
-          <div className="px-4 mb-4">
-            <StatsGrid stats={stats} loading={loadingStats} />
+          {/* Stats Section */}
+          <div className="px-4 mb-8">
+            <StatsSection
+              title="💧 Pivôs"
+              cards={[
+                {
+                  label: 'Total de Pivôs',
+                  value: stats?.totalPivos || 0,
+                  subValue: `${stats?.activePivos || 0} ativos`,
+                  icon: '💧',
+                },
+                {
+                  label: 'Pivôs Alarmados',
+                  value: stats?.alarmadoPivos || 0,
+                  subValue: `${stats?.maintenancePivos || 0} em manutenção`,
+                  icon: '🚨',
+                },
+              ]}
+              loading={loadingStats}
+            />
           </div>
+
+          {/* Company Users Card (Superusuário only) */}
+          {isSuperusuario && (
+            <div className="px-4 mb-8">
+              <div
+                onClick={() => navigate('/gerenciar-usuarios-empresa')}
+                className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-dashboard-text-secondary font-medium">Usuários da Empresa</p>
+                    <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{companyUserCount}</p>
+                    <p className="text-xs text-dashboard-text-tertiary mt-1">Clique para gerenciar</p>
+                  </div>
+                  <span className="text-3xl">👥</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Content Sections */}
           <div className="px-4 mb-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -146,76 +193,53 @@ function PendingApprovalAlert() {
 }
 
 /**
- * Grid de Estatísticas
+ * Seção de Estatísticas organizada por categoria
  */
-function StatsGrid({
-  stats,
-  loading,
-}: {
-  stats: ClienteStatsType | null;
+interface StatCard {
+  label: string;
+  value: number;
+  subValue: string;
+  icon: string;
+}
+
+interface StatsSectionProps {
+  title: string;
+  cards: StatCard[];
   loading: boolean;
-}) {
+}
+
+function StatsSection({ title, cards, loading }: StatsSectionProps) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="bg-dashboard-bg-secondary animate-pulse h-24 rounded-lg"
-          ></div>
-        ))}
+      <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
+        <h3 className="text-lg font-semibold text-dashboard-text-primary mb-4">{title}</h3>
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
+          ))}
+        </div>
       </div>
     );
   }
-
-  if (!stats) {
-    return (
-      <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6 text-center text-dashboard-text-secondary">
-        <p>Nenhum pivô cadastrado ainda</p>
-      </div>
-    );
-  }
-
-  const statCards = [
-    {
-      label: 'Total de Pivôs',
-      value: stats.totalPivos,
-      color: 'bg-blue-900 text-blue-100 border border-blue-700',
-      icon: '💧',
-    },
-    {
-      label: 'Pivôs Ativos',
-      value: stats.activePivos,
-      color: 'bg-green-900 text-green-100 border border-green-700',
-      icon: '✓',
-    },
-    {
-      label: 'Pivôs Alarmados',
-      value: stats.alarmadoPivos,
-      color: 'bg-red-900 text-red-100 border border-red-700',
-      icon: '🚨',
-    },
-    {
-      label: 'Em Manutenção',
-      value: stats.maintenancePivos,
-      color: 'bg-gray-900 text-gray-100 border border-gray-700',
-      icon: '🔧',
-    },
-  ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      {statCards.map((stat) => (
-        <div key={stat.label} className={`rounded-lg p-6 ${stat.color} shadow-md hover:shadow-lg transition-shadow`}>
-          <div className="flex items-start justify-between">
+    <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
+      <h3 className="text-lg font-semibold text-dashboard-text-primary mb-4">{title}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {cards.map((card) => (
+          <div
+            key={card.label}
+            className="flex items-start justify-between p-4 bg-dashboard-bg-tertiary rounded-lg hover:bg-dashboard-border transition-colors"
+          >
             <div className="flex-1">
-              <p className="text-sm font-medium opacity-75">{stat.label}</p>
-              <p className="text-3xl font-bold mt-2">{stat.value}</p>
+              <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
+              <p className="text-3xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
+              <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
             </div>
-            <span className="text-2xl">{stat.icon}</span>
+            <span className="text-3xl ml-4">{card.icon}</span>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

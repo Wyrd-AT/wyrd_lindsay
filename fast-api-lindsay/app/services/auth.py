@@ -130,6 +130,7 @@ class AuthService:
         email: str,
         name: str,
         password: str,
+        cnpj_admin: Optional[str] = None,
         created_by: Optional[str] = None
     ) -> ApprovalResult:
         """
@@ -141,14 +142,12 @@ class AuthService:
 
         try:
             # Verificar se já existe
-            try:
-                self.db.get(doc_id)
+            existing = self.db.get(doc_id)
+            if existing is not None:
                 return ApprovalResult(
                     status="error",
                     message=f"Admin '{email}' já existe"
                 )
-            except couchdb.http.ResourceNotFound:
-                pass
 
             admin_doc = {
                 "_id": doc_id,
@@ -156,6 +155,8 @@ class AuthService:
                 "email": email,
                 "name": name,
                 "password_hash": self.hash_password(password),
+                "cnpj_admin": cnpj_admin,
+                "revendas": [],
                 "status": "active",
                 "created_by": created_by or "system",
                 "created_at": datetime.utcnow().isoformat()
@@ -191,14 +192,12 @@ class AuthService:
 
         try:
             # Verificar se domain já existe
-            try:
-                self.db.get(doc_id)
+            existing = self.db.get(doc_id)
+            if existing is not None:
                 return ApprovalResult(
                     status="error",
                     message=f"Revenda com domínio '{domain}' já existe"
                 )
-            except couchdb.http.ResourceNotFound:
-                pass
 
             revenda_doc = {
                 "_id": doc_id,

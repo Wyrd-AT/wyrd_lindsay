@@ -47,7 +47,7 @@ export function convertEventToAlert(doc: EventDoc): AlertItem | null {
     // Formato esperado: "A01" onde A=tipo, 01=monitor
     const eventType = doc.eventType || "";
     const alarme = eventType[0];
-    console.log(" EventType:", doc);
+    //console.log(" EventType:", doc);
     const monitor = doc.monitor || "";
 
     // Extrair status do description ou usar padrão
@@ -106,7 +106,7 @@ export function useAlertsData({
 
     async function fetchTotal() {
       try {
-        //console.log('Fetching total alerts count for irrigadorId:', irrigadorId);
+        ////console.log('Fetching total alerts count for irrigadorId:', irrigadorId);
 
         // Buscar com limite alto apenas para contar
         const docs = await getAlertHistory("lindsay-data", {
@@ -123,7 +123,7 @@ export function useAlertsData({
           .map(convertEventToAlert)
           .filter((alert): alert is AlertItem => alert !== null);
 
-        //console.log(`Total alerts: ${converted.length}`);
+        ////console.log(`Total alerts: ${converted.length}`);
 
         if (!cancelled) {
           setTotalAlerts(converted.length);
@@ -147,7 +147,7 @@ export function useAlertsData({
 
     // Se já temos essa página no cache, não buscar novamente
     if (pageCache.has(currentPage)) {
-      console.log(`Page ${currentPage} loaded from cache`);
+      //console.log(`Page ${currentPage} loaded from cache`);
       return;
     }
 
@@ -156,7 +156,7 @@ export function useAlertsData({
       setError(null);
 
       try {
-        //console.log(`Fetching page ${currentPage} (skip: ${(currentPage - 1) * pageSize}, limit: ${pageSize})`);
+        ////console.log(`Fetching page ${currentPage} (skip: ${(currentPage - 1) * pageSize}, limit: ${pageSize})`);
 
         // Buscar APENAS a página atual
         const docs = await getAlertHistory("lindsay-data", {
@@ -169,18 +169,13 @@ export function useAlertsData({
 
         if (cancelled) return;
 
-        console.log(
-          `Fetched ${docs.length} event docs for page ${currentPage}`,
-        );
+        
 
         // Converter para AlertItem
         const converted = docs
           .map(convertEventToAlert)
           .filter((alert): alert is AlertItem => alert !== null);
 
-        console.log(
-          `Converted to ${converted.length} alerts for page ${currentPage}`,
-        );
 
         if (!cancelled) {
           // Adicionar ao cache

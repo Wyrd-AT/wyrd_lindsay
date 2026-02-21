@@ -37,6 +37,7 @@ export const createCliente = async (data) => {
       email: data.email,
       password: data.password,
       name: data.name,
+      cnpj_cliente: data.cnpj_cliente,
       revenda_id: data.revenda_id || null,
     });
     return response.data;
@@ -77,6 +78,74 @@ export const fetchClientes = async (status = 'active') => {
       url = '/clientes/pending';
     }
     const response = await apiClient.get(url);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+/**
+ * Fetch admins (admin only)
+ * @returns {Promise<Object>} Response with admins list
+ */
+export const fetchAdmins = async () => {
+  try {
+    const response = await apiClient.get('/admins');
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+/**
+ * Create a new admin (admin only)
+ * @param {Object} data - { email, password, name, cnpj_admin }
+ * @returns {Promise<Object>} Response with admin_id and status
+ */
+export const createAdmin = async (data) => {
+  try {
+    const response = await apiClient.post('/admins', {
+      email: data.email,
+      password: data.password,
+      name: data.name,
+      cnpj_admin: data.cnpj_admin,
+    });
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+/**
+ * Fetch company users (same cnpj_cliente) - superusuário only
+ * @returns {Promise<Object>} Response with users list
+ */
+export const fetchCompanyUsers = async () => {
+  try {
+    const response = await apiClient.get('/clientes/company-users');
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+/**
+ * Create a company user (gerente or comum) - superusuário only
+ * @param {Object} data - { email, password, name, sub_role }
+ * @returns {Promise<Object>} Response with user_id and status
+ */
+export const createCompanyUser = async (data) => {
+  try {
+    const response = await apiClient.post('/clientes/company-users', {
+      email: data.email,
+      password: data.password,
+      name: data.name,
+      sub_role: data.sub_role,
+    });
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;

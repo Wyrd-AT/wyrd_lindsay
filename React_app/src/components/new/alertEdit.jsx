@@ -6,9 +6,8 @@ import PizZip from "pizzip";
 import { valueDescriptions } from "../../constants/alertDescriptions";
 import { getBrasiliaTimestamp } from "../../utils/dateUtils";
 
-import { useAuthStore } from "../../stores/new/authStore";
+import { useAuthStore, selectCanResolveAlerts, selectCanExportReports } from "../../stores/new/authStore";
 import useMessageStore from "../../stores/new/messageStore";
-;
 import { whatsappStoreConfig } from "../../stores/new/whatsappStore";
 import { find, getDoc, getDocAll, upsertDoc } from "../../api/new/couch";
 import { appendHistoryEvent, currentId, getById, historyIdMonthly, setCurrent } from "../../hooks/new/useAgendamentos";
@@ -284,6 +283,8 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
   }) {
     /** ====== Stores ====== */
     const { user } = useAuthStore();
+    const canResolveAlerts = selectCanResolveAlerts(useAuthStore.getState());
+    const canExportReports = selectCanExportReports(useAuthStore.getState());
     const whatsappConfig = whatsappStoreConfig((s) => s.whatsappConfig);
     const fetchWhatsappConfig = whatsappStoreConfig((s) => s.fetchWhatsappConfig);
     const updateWhatsappStatus = whatsappStoreConfig((s) => s.updateWhatsappStatus);
@@ -722,6 +723,7 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
               Alarme {isAlertLoading ? <Dots /> : monitorResolved || "Sem dados"}
             </h2>
             <div className="flex gap-2">
+              {canExportReports && (
               <button
                 type="button"
                 className="p-1 rounded hover:bg-[#3a3a3a] focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -730,6 +732,7 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
               >
                 <FiShare2 size={20} />
               </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -778,8 +781,8 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
             </div>
           </div>
 
-          {/* Agendar */}
-          <div className="p-4 border-t border-[#444]">
+          {/* Agendar - apenas superusuario/gerente/admin/revenda */}
+          {canResolveAlerts && <div className="p-4 border-t border-[#444]">
             <h3 className="text-sm text-gray-300">Ativar alarme novamente em:</h3>
 
             <div className="flex items-center gap-2 mt-2">
@@ -857,10 +860,10 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
                 </span>
               </div>
             </div>
-          </div>
+          </div>}
 
-          {/* Solução */}
-          <div className="px-4 pb-4 border-t border-[#444]">
+          {/* Solução - apenas superusuario/gerente/admin/revenda */}
+          {canResolveAlerts && <div className="px-4 pb-4 border-t border-[#444]">
             <button
               type="button"
               className="mt-4 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -886,7 +889,7 @@ async function buildTimerHistoryDocx({ idOrigem, monitorNome, currentDoc, events
                 </span>
               </div>
             </div>
-          </div>
+          </div>}
 
         </div>
       </div>

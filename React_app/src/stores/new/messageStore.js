@@ -373,7 +373,7 @@ export const useMessageStore = create((set, get) => ({
       const body = doc.timestamp ? doc : { ...doc, timestamp: formatTimestampSP() };
       const res = await couch.post(`/${DB}`, body);
       if (res.status >= 400) throw new Error(`Couch POST failed: ${res.status}`);
-      console.log('[messageStore] Couch POST success:', res.data);
+      //console.log('[messageStore] Couch POST success:', res.data);
       const id = res.data?.id;
       const rev = res.data?.rev;
 

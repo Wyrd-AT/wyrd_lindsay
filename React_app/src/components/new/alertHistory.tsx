@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useAuthStore, selectCanExportReports } from "../../stores/new/authStore";
 import {
   useAlertsData,
   convertEventToAlert,
@@ -65,6 +66,8 @@ export default function AlertHistory({
   const [filterMonitor] = useState<string>("");
   const [filterDateStart] = useState<string>("");
   const [filterDateEnd] = useState<string>("");
+
+  const canExportReports = useAuthStore(selectCanExportReports);
 
   const [isDownloading, setIsDownloading] = useState(false);
   const handleDownloadFullPdf = async () => {
@@ -172,9 +175,7 @@ export default function AlertHistory({
       });
 
       if (hasAlertChange) {
-        console.log(
-          "Novo alerta detectado no CouchDB, atualizando histórico...",
-        );
+
         refresh();
       }
     },
@@ -310,6 +311,7 @@ export default function AlertHistory({
           Histórico de Alertas{" "}
         </h2>
         <div className="flex gap-2">
+          {canExportReports && (
           <button
             onClick={handleDownloadFullPdf}
             disabled={isDownloading}
@@ -317,6 +319,7 @@ export default function AlertHistory({
           >
             <IoMdDownload />
           </button>
+          )}
           <button
             onClick={refresh}
             className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"

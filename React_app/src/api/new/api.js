@@ -2,7 +2,8 @@ import axios from 'axios';
 import { useAuthStore } from '../../stores/new/authStore';
 
 // FASE 1 - Security: Move sensitive IDs to env variables (Vite)
-const COGNITO_BASE_URL = import.meta.env.VITE_COGNITO_BASE_URL || 'https://cognito-idp.sa-east-1.amazonaws.com/sa-east-1_bm329gdfB';
+// O endpoint do Cognito NÃO inclui o User Pool ID no path (apenas região).
+const COGNITO_BASE_URL = import.meta.env.VITE_COGNITO_BASE_URL || 'https://cognito-idp.sa-east-1.amazonaws.com';
 export const COGNITO_CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID || '42qha79hpnknpksf2k1djo7eq9';
 
 // Warn if using defaults (development only)

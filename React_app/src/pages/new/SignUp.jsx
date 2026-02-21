@@ -66,7 +66,7 @@ const SignUp = () => {
             cnpj
           );
 
-          console.log("✅ Revenda registrada com sucesso:", response);
+          //console.log("✅ Revenda registrada com sucesso:", response);
 
           // Mostrar mensagem de sucesso
           setError(""); // Limpar erros
@@ -96,10 +96,7 @@ const SignUp = () => {
         customAttributes.phone_number = phoneNumber;
       }
 
-      // Extrair company_id do email (domínio)
-      const companyId = email.split('@')[1]?.split('.')[0] || '1';
-
-      await signUp(email, password, companyId, customAttributes);
+      await signUp(email, password, customAttributes);
       setStep(2); // Avança para a etapa de confirmação
 
     } catch (error) {

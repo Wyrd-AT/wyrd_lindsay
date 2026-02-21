@@ -39,11 +39,12 @@ const periodOptions = [
 ];
 
 export default function MaquinaRevenda() {
-  const { isAuthenticated, companyId, user } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
   const { machineId } = useParams();
 
-  const irrigadores = useIrrigadores(companyId);
+  const cnpjCliente = user?.cnpj ?? '';
+  const irrigadores = useIrrigadores(cnpjCliente);
 
   const [flash, setFlash] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
@@ -52,7 +53,7 @@ export default function MaquinaRevenda() {
 
 
   useEffect(() => {
-    if (!isAuthenticated || !companyId || !user) {
+    if (!isAuthenticated || !cnpjCliente || !user) {
       navigate("/login");
     }
   }, [isAuthenticated, navigate]);
@@ -63,7 +64,7 @@ export default function MaquinaRevenda() {
   );
 
 
-  console.log("Selected Document:", selectedDoc);
+  //console.log("Selected Document:", selectedDoc);
 
   const chartRef = useRef(null);
 
@@ -113,7 +114,7 @@ export default function MaquinaRevenda() {
 
         <Overview
           pivoId={machineId}
-          companyId={companyId}
+          cnpjCliente={cnpjCliente}
           email={user?.email}
           equipamentoNames={equipamentos}
 

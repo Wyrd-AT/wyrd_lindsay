@@ -39,7 +39,7 @@ export interface UseChangesListenerOptions {
  * useChangesListener({
  *   db: 'lindsay-data',
  *   onChange: (changes) => {
- *     console.log('Mudanças detectadas:', changes);
+ *     //console.log('Mudanças detectadas:', changes);
  *     // Atualizar estado local
  *   },
  *   includeDocs: true,

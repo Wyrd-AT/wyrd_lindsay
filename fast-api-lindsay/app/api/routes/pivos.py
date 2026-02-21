@@ -1,7 +1,11 @@
 """Rotas de pivôs (FASE 2)"""
 
+import logging
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.core.database import get_db
+from app.core.database import get_db, get_users_db
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 from app.models.schemas import (
     CreatePivoRequest,
     UpdatePivoRequest,
@@ -38,25 +42,111 @@ async def create_pivo(
     request: CreatePivoRequest,
     user: dict = Depends(get_current_user)
 ):
-    """Criar novo pivô (cliente only)"""
+    """Criar novo pivô (apenas admin); associação por cnpj_cliente (enviado em cliente_id)."""
+    if user.get("type") != "admin":
+        raise HTTPException(status_code=403, detail="Apenas administradores podem criar pivôs")
+
+    if not request.cliente_id:
+        raise HTTPException(status_code=400, detail="cliente_id é obrigatório (cnpj_cliente do cliente)")
+
+    cnpj_cliente = request.cliente_id.strip()
+    logger.info("[create_pivo] Requisição: cnpj_cliente=%r, codigo=%r, nome=%r", cnpj_cliente, request.codigo, request.nome)
+
     db = get_db()
+    users_db = get_users_db()
     pivo_service = PivoService(db)
     checker = PermissionChecker(user)
 
     try:
+        # Buscar cliente por cnpj_cliente (lindsay-users; fallback lindsay-data)
+        cliente_doc = None
+        cliente_db = None
+        try:
+            found = list(users_db.find({
+                "selector": {"type": "cliente", "cnpj_cliente": cnpj_cliente},
+                "limit": 1
+            }))
+            if found:
+                cliente_doc = found[0]
+                cliente_db = users_db
+                logger.info("[create_pivo] Cliente encontrado em %s", settings.COUCHDB_USERS_DB)
+        except Exception as e:
+            logger.exception("[create_pivo] Erro ao buscar em %s: %s", settings.COUCHDB_USERS_DB, e)
+        if not cliente_doc:
+            try:
+                found = list(db.find({
+                    "selector": {"type": "cliente", "cnpj_cliente": cnpj_cliente},
+                    "limit": 1
+                }))
+                if found:
+                    cliente_doc = found[0]
+                    cliente_db = db
+                    logger.info("[create_pivo] Cliente encontrado em %s (fallback)", settings.COUCHDB_DB)
+            except Exception as e2:
+                logger.exception("[create_pivo] Fallback em %s: %s", settings.COUCHDB_DB, e2)
+
+        if not cliente_doc or cliente_doc.get("type") != "cliente":
+            raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+        owner_id = cliente_doc.get("email")
+        cnpj_cliente = cliente_doc.get("cnpj_cliente")
+        cnpj_revenda = cliente_doc.get("cnpj_revenda")
+        cnpj_admin = cliente_doc.get("cnpj_admin")
+        revenda_id = cliente_doc.get("revenda_id")
+        nome_cliente = cliente_doc.get("name")
+        nome_revenda = None
+        nome_admin = None
+
+        # Resolver nomes do admin e da revenda (para exibição no card)
+        if cnpj_admin:
+            try:
+                admins = list(users_db.find({"selector": {"type": "admin", "cnpj_admin": cnpj_admin}, "limit": 1}))
+                if admins:
+                    nome_admin = admins[0].get("name")
+            except Exception:
+                pass
+        if cnpj_revenda:
+            try:
+                revendas = list(users_db.find({"selector": {"type": "revenda", "cnpj_revenda": cnpj_revenda}, "limit": 1}))
+                if revendas:
+                    nome_revenda = revendas[0].get("name")
+            except Exception:
+                pass
+
         pivo = pivo_service.create_pivo(
             user=user,
             pivo_data={
                 "codigo": request.codigo,
                 "nome": request.nome,
-                "owner_id": user["email"],
-                "gerente_id": user.get("gerente_id", ""),
+                "owner_id": owner_id,
+                "cnpj_cliente": cnpj_cliente,
+                "nome_cliente": nome_cliente,
+                "cnpj_revenda": cnpj_revenda,
+                "nome_revenda": nome_revenda,
+                "cnpj_admin": cnpj_admin,
+                "nome_admin": nome_admin,
+                "revenda_id": revenda_id,
+                "equipamentos": request.equipamentos,
                 "ativo": True,
                 "location": request.location
             },
             checker=checker
         )
+
+        # Atualizar cliente.irrigadores[] no mesmo banco de onde o doc foi lido (users ou data)
+        try:
+            irrigadores = cliente_doc.get("irrigadores", [])
+            if request.codigo not in irrigadores:
+                irrigadores.append(request.codigo)
+                cliente_doc["irrigadores"] = irrigadores
+                cliente_db.save(cliente_doc)
+                print(f"✅ Cliente.irrigadores[] atualizado com {request.codigo}")
+        except Exception as e:
+            print(f"⚠️ Aviso ao atualizar cliente.irrigadores[]: {e}")
+
         return {"status": "created", "pivo": pivo}
+    except HTTPException:
+        raise
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

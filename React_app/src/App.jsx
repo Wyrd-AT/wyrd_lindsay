@@ -16,6 +16,12 @@ import ForgotPassword from "./pages/new/ForgotPassword";
 import AdminDashboard from "./pages/new/AdminDashboard";
 import RevendaDashboard from "./pages/new/RevendaDashboard";
 import ClienteDashboard from "./pages/new/ClienteDashboard";
+import GerenciarRevendasPage from "./pages/new/GerenciarRevendasPage";
+import GerenciarClientesPage from "./pages/new/GerenciarClientesPage";
+import GerenciarPivosPage from "./pages/new/GerenciarPivosPage";
+import GerenciarClientesRevendaPage from "./pages/new/GerenciarClientesRevendaPage";
+import GerenciarUsuariosEmpresaPage from "./pages/new/GerenciarUsuariosEmpresaPage";
+import GerenciarAdminsPage from "./pages/new/GerenciarAdminsPage";
 
 import { useAuthStore } from "./stores/new/authStore";
 import { useAuthStateValidator } from "./hooks/new/useAuthStateValidator";
@@ -40,8 +46,27 @@ export default function App() {
 
             {/* FASE 1 - Hierarchical dashboards (Admin/Revenda/Cliente) */}
             <Route element={<ProtectedRoute />}>
-              {/* Admin Dashboard */}
-              <Route path="/admin" element={<AdminDashboard />} />
+              {/* Admin Routes */}
+              <Route path="/admin" element={<HomePageRevenda />} />
+              <Route path="/admin/home" element={<HomePageRevenda />} />
+
+              {/* Gerenciar Admins Page */}
+              <Route path="/gerenciar-admins" element={<GerenciarAdminsPage />} />
+
+              {/* Gerenciar Revendas Page */}
+              <Route path="/gerenciar-revendas" element={<GerenciarRevendasPage />} />
+
+              {/* Gerenciar Clientes Page */}
+              <Route path="/gerenciar-clientes" element={<GerenciarClientesPage />} />
+
+              {/* Gerenciar Clientes - Revenda */}
+              <Route path="/gerenciar-clientes-revenda" element={<GerenciarClientesRevendaPage />} />
+
+              {/* Gerenciar Usuários Empresa (Superusuário) */}
+              <Route path="/gerenciar-usuarios-empresa" element={<GerenciarUsuariosEmpresaPage />} />
+
+              {/* Gerenciar Pivôs Page */}
+              <Route path="/gerenciar-pivos" element={<GerenciarPivosPage />} />
 
               {/* Revenda Dashboard */}
               <Route path="/revenda" element={<RevendaDashboard />} />

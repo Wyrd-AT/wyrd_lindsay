@@ -157,7 +157,7 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       };
 
       setStats(newStats);
-      console.log('✅ Estatísticas carregadas:', newStats);
+      //console.log('✅ Estatísticas carregadas:', newStats);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar estatísticas';
       setError(message);

@@ -30,7 +30,7 @@ export const initializeAPI = (baseURL) => {
     import('axios').then(({ default: axios }) => {
       // Não temos acesso direto ao apiClient aqui,
       // mas isso é mais para documentação
-      console.log('✅ API configurada para:', baseURL);
+      //console.log('✅ API configurada para:', baseURL);
     });
   }
 };

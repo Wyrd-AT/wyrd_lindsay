@@ -59,7 +59,7 @@ export const useAdminClientes = (): UseAdminClientesReturn => {
     try {
       const data = await makeRequest('/api/clientes');
       setClientes(data.clientes || []);
-      console.log('✅ Clientes carregados:', data.clientes?.length || 0);
+      //console.log('✅ Clientes carregados:', data.clientes?.length || 0);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao buscar clientes';
       setError(message);

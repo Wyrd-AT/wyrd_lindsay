@@ -1,6 +1,6 @@
-import React, { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
-export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => {
+export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showRevendaField = true }) => {
   const nameRef = useRef();
   const emailRef = useRef();
   const revendaSelectRef = useRef();
@@ -12,6 +12,28 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
   const [showPassword, setShowPassword] = useState(false);
   const [loadingRevendas, setLoadingRevendas] = useState(false);
   const [revendasList, setRevendasList] = useState(revendas);
+  const [documento, setDocumento] = useState('');
+
+  // Formata CPF (XXX.XXX.XXX-XX) ou CNPJ (XX.XXX.XXX/XXXX-XX) conforme a digitação
+  const formatDocumento = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 14);
+    if (digits.length <= 11) {
+      return digits
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    }
+    return digits
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+  };
+
+  const isDocumentoValid = (() => {
+    const digits = documento.replace(/\D/g, '');
+    return digits.length === 11 || digits.length === 14;
+  })();
 
   // Password criteria states
   const [passwordCriteria, setPasswordCriteria] = useState({
@@ -22,8 +44,10 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
     hasSpecialChar: false,
   });
 
-  // Load revendas on mount
+  // Load revendas on mount — apenas quando showRevendaField=true
   useEffect(() => {
+    if (!showRevendaField) return;
+
     const loadRevendas = async () => {
       if (revendasList.length === 0) {
         setLoadingRevendas(true);
@@ -41,7 +65,7 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
       }
     };
     loadRevendas();
-  }, []);
+  }, [showRevendaField]);
 
   // Update password criteria on change
   const handlePasswordChange = (e) => {
@@ -82,7 +106,7 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
 
     const name = nameRef.current.value.trim();
     const email = emailRef.current.value.trim();
-    const revendaId = revendaSelectRef.current.value || null;
+    const revendaId = showRevendaField && revendaSelectRef.current ? revendaSelectRef.current.value || null : null;
 
     if (!name) {
       setError('Por favor, informe um nome.');
@@ -91,6 +115,11 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
 
     if (!email) {
       setError('Por favor, informe um email.');
+      return;
+    }
+
+    if (!isDocumentoValid) {
+      setError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.');
       return;
     }
 
@@ -109,6 +138,7 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
         email,
         password,
         name,
+        cnpj_cliente: documento.replace(/\D/g, ''),  // só dígitos para o backend
         revenda_id: revendaId,
       });
 
@@ -192,25 +222,50 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
         </label>
 
         <label className="block text-white mb-4">
-          Revenda
-          <select
-            ref={revendaSelectRef}
-            className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-            disabled={isSaving || loadingRevendas}
-          >
-            <option value="">-- Sem atribuição --</option>
-            {loadingRevendas ? (
-              <option disabled>Carregando revendas...</option>
-            ) : (
-              revendasList.map((revenda) => (
-                <option key={revenda._id} value={revenda._id}>
-                  {revenda.name}
-                </option>
-              ))
-            )}
-          </select>
-          <span className="text-xs text-gray-400">Opcional - Atribua a uma revenda ou deixe em branco</span>
+          CNPJ ou CPF da Revenda *
+          <input
+            type="text"
+            value={documento}
+            onChange={(e) => setDocumento(formatDocumento(e.target.value))}
+            placeholder="XX.XXX.XXX/0001-XX ou XXX.XXX.XXX-XX"
+            className={`w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none ${
+              documento && !isDocumentoValid ? 'border-red-500' : ''
+            }`}
+            disabled={isSaving}
+            required
+          />
+          <span className="text-xs text-gray-400">
+            CNPJ (14 dígitos) ou CPF (11 dígitos) — com ou sem formatação
+          </span>
+          {documento && !isDocumentoValid && (
+            <span className="text-xs text-red-400 block mt-1">
+              Documento incompleto ({documento.replace(/\D/g, '').length} dígitos informados)
+            </span>
+          )}
         </label>
+
+        {showRevendaField && (
+          <label className="block text-white mb-4">
+            Revenda
+            <select
+              ref={revendaSelectRef}
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              disabled={isSaving || loadingRevendas}
+            >
+              <option value="">-- Sem atribuição --</option>
+              {loadingRevendas ? (
+                <option disabled>Carregando revendas...</option>
+              ) : (
+                revendasList.map((revenda) => (
+                  <option key={revenda._id} value={revenda._id}>
+                    {revenda.name}
+                  </option>
+                ))
+              )}
+            </select>
+            <span className="text-xs text-gray-400">Opcional - Atribua a uma revenda ou deixe em branco</span>
+          </label>
+        )}
 
         <label className="block text-white mb-4">
           Senha *
@@ -261,10 +316,10 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [] }) => 
           </button>
           <button
             type="submit"
-            disabled={isSaving || !isPasswordValid}
+            disabled={isSaving || !isPasswordValid || !isDocumentoValid}
             className={`
               px-4 py-2 rounded-md text-black font-medium
-              ${isSaving || !isPasswordValid
+              ${isSaving || !isPasswordValid || !isDocumentoValid
                 ? 'bg-gray-500 cursor-not-allowed'
                 : 'bg-[#08cb7c] hover:bg-green-600'}
             `}

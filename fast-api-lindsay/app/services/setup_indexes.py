@@ -46,6 +46,11 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
                 "name": "email",
                 "fields": ["email"],
                 "desc": "Índice para busca por email"
+            },
+            {
+                "name": "type-cnpj_cliente-sub_role",
+                "fields": ["type", "cnpj_cliente", "sub_role"],
+                "desc": "Índice para filtrar usuários de empresa por cnpj_cliente e sub_role"
             }
         ]
 

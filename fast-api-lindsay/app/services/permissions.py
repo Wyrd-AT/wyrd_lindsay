@@ -29,26 +29,39 @@ class Role(str, Enum):
     REVENDA = "revenda"
     CLIENTE = "cliente"
 
+
+class ClienteSubRole(str, Enum):
+    """Sub-roles dentro do nível cliente"""
+    SUPERUSUARIO = "superusuario"
+    GERENTE = "gerente"
+    COMUM = "comum"
+
+
 class Permission(str, Enum):
     """Permissões do sistema"""
     # Admin
     MANAGE_REVENDAS = "manage_revendas"
     APPROVE_REVENDAS = "approve_revendas"
     VIEW_ALL_DATA = "view_all_data"
-    VIEW_ALL_PIVOS = "view_all_pivos"  # FASE 2: Visualizar todos os pivôs
+    VIEW_ALL_PIVOS = "view_all_pivos"
     MANAGE_SISTEMA = "manage_sistema"
 
     # Revenda (Gerente)
     MANAGE_CLIENTES = "manage_clientes"
     APPROVE_CLIENTES = "approve_clientes"
     VIEW_CLIENTES = "view_clientes"
-    VIEW_CLIENTE_PIVOS = "view_cliente_pivos"  # FASE 2: Ver pivôs dos clientes
+    VIEW_CLIENTE_PIVOS = "view_cliente_pivos"
     CREATE_CLIENTE = "create_cliente"
 
     # Cliente
     VIEW_OWN_PIVOS = "view_own_pivos"
-    CREATE_OWN_PIVOS = "create_own_pivos"  # FASE 2: Criar próprios pivôs
+    CREATE_OWN_PIVOS = "create_own_pivos"
     REQUEST_REGISTER = "request_register"
+
+    # Cliente Sub-Role permissions
+    RESOLVE_ALERTS = "resolve_alerts"
+    EXPORT_REPORTS = "export_reports"
+    MANAGE_COMPANY_USERS = "manage_company_users"
 
 # =============================================================================
 # PermissionChecker
@@ -70,25 +83,52 @@ class PermissionChecker:
             Permission.MANAGE_REVENDAS,
             Permission.APPROVE_REVENDAS,
             Permission.VIEW_ALL_DATA,
-            Permission.VIEW_ALL_PIVOS,  # FASE 2: Vê todos os pivôs
+            Permission.VIEW_ALL_PIVOS,
             Permission.MANAGE_SISTEMA,
             Permission.MANAGE_CLIENTES,
             Permission.VIEW_CLIENTES,
-            Permission.VIEW_OWN_PIVOS
+            Permission.VIEW_OWN_PIVOS,
+            Permission.RESOLVE_ALERTS,
+            Permission.EXPORT_REPORTS,
         },
         Role.REVENDA: {
             Permission.MANAGE_CLIENTES,
             Permission.APPROVE_CLIENTES,
             Permission.VIEW_CLIENTES,
-            Permission.VIEW_CLIENTE_PIVOS,  # FASE 2: Vê pivôs dos seus clientes
+            Permission.VIEW_CLIENTE_PIVOS,
             Permission.CREATE_CLIENTE,
-            Permission.VIEW_OWN_PIVOS
+            Permission.VIEW_OWN_PIVOS,
+            Permission.RESOLVE_ALERTS,
+            Permission.EXPORT_REPORTS,
         },
         Role.CLIENTE: {
             Permission.VIEW_OWN_PIVOS,
-            Permission.CREATE_OWN_PIVOS,  # FASE 2: Pode criar próprios pivôs
-            Permission.REQUEST_REGISTER
+            Permission.CREATE_OWN_PIVOS,
+            Permission.REQUEST_REGISTER,
         }
+    }
+
+    # Permissões por sub-role de cliente
+    SUBROLE_PERMISSIONS = {
+        ClienteSubRole.SUPERUSUARIO: {
+            Permission.VIEW_OWN_PIVOS,
+            Permission.CREATE_OWN_PIVOS,
+            Permission.REQUEST_REGISTER,
+            Permission.RESOLVE_ALERTS,
+            Permission.EXPORT_REPORTS,
+            Permission.MANAGE_COMPANY_USERS,
+        },
+        ClienteSubRole.GERENTE: {
+            Permission.VIEW_OWN_PIVOS,
+            Permission.CREATE_OWN_PIVOS,
+            Permission.REQUEST_REGISTER,
+            Permission.RESOLVE_ALERTS,
+            Permission.EXPORT_REPORTS,
+        },
+        ClienteSubRole.COMUM: {
+            Permission.VIEW_OWN_PIVOS,
+            Permission.REQUEST_REGISTER,
+        },
     }
 
     def __init__(self, user: Dict):
@@ -110,6 +150,12 @@ class PermissionChecker:
         self.status = user.get("status", "pending")
         self.email = user.get("email")
         self.doc_id = user.get("doc_id")
+        # Sub-role para clientes (backward compat: sem sub_role = superusuario)
+        sr = user.get("sub_role")
+        if self.role == Role.CLIENTE:
+            self.sub_role = ClienteSubRole(sr) if sr else ClienteSubRole.SUPERUSUARIO
+        else:
+            self.sub_role = None
 
     # =====================================================================
     # Status Checks
@@ -133,6 +179,10 @@ class PermissionChecker:
 
     def has_permission(self, permission: Permission) -> bool:
         """Verificar se usuário tem uma permissão específica"""
+        # Para clientes, usar sub-role permissions
+        if self.role == Role.CLIENTE and self.sub_role:
+            permissions = self.SUBROLE_PERMISSIONS.get(self.sub_role, set())
+            return permission in permissions
         permissions = self.ROLE_PERMISSIONS.get(self.role, set())
         return permission in permissions
 
@@ -312,8 +362,8 @@ class PermissionChecker:
         return self.has_permission(Permission.VIEW_CLIENTE_PIVOS) and self.is_active()
 
     def can_create_pivo(self) -> bool:
-        """Cliente pode criar novos pivôs"""
-        return self.has_permission(Permission.CREATE_OWN_PIVOS) and self.is_active()
+        """Apenas admin pode criar novos pivôs (hierarquia associada ao cliente)"""
+        return self.is_admin() and self.is_active()
 
     def can_create_cliente(self) -> bool:
         """Revenda (gerente) pode criar novos clientes"""
@@ -340,6 +390,34 @@ class PermissionChecker:
         return self.is_active_revenda()
 
     # =====================================================================
+    # Cliente Sub-Role Checks
+    # =====================================================================
+
+    def is_superusuario(self) -> bool:
+        """Verificar se é cliente superusuário"""
+        return self.is_cliente() and self.sub_role == ClienteSubRole.SUPERUSUARIO
+
+    def is_gerente_cliente(self) -> bool:
+        """Verificar se é cliente gerente"""
+        return self.is_cliente() and self.sub_role == ClienteSubRole.GERENTE
+
+    def is_comum(self) -> bool:
+        """Verificar se é cliente comum"""
+        return self.is_cliente() and self.sub_role == ClienteSubRole.COMUM
+
+    def can_resolve_alerts(self) -> bool:
+        """Pode resolver alertas (superusuario, gerente, admin, revenda)"""
+        return self.has_permission(Permission.RESOLVE_ALERTS) and self.is_active()
+
+    def can_export_reports(self) -> bool:
+        """Pode exportar relatórios (superusuario, gerente, admin, revenda)"""
+        return self.has_permission(Permission.EXPORT_REPORTS) and self.is_active()
+
+    def can_manage_company_users(self) -> bool:
+        """Pode gerenciar usuários da empresa (apenas superusuário)"""
+        return self.has_permission(Permission.MANAGE_COMPANY_USERS) and self.is_active()
+
+    # =====================================================================
     # Summary
     # =====================================================================
 
@@ -357,6 +435,7 @@ class PermissionChecker:
         """Converter checker para dicionário para logging/debugging"""
         return {
             "role": str(self.role),
+            "sub_role": str(self.sub_role) if self.sub_role else None,
             "status": self.status,
             "is_active": self.is_active(),
             "permissions": [str(p) for p in self.get_permissions()],

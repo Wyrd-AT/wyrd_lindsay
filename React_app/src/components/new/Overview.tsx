@@ -8,9 +8,10 @@ import StatusAlarmModal from './statusAlarmModal';
 import { DeviceCard, Irrigador, monitoresToVoltageMap, OverviewProps, parseBrToMs, parseSwVectorOverview, sendCommand } from '../../helpers/helperOverview';
 import { useWhatsappPerIrrigador } from '../../hooks/new/useWhatsappPerIrrigador';
 import { useChangesListener } from '../../hooks/new/useChangesListener';
+import { useAuthStore, selectCanResolveAlerts } from '../../stores/new/authStore';
 
 
-export default function Overview({ pivoId,companyId,email,equipamentoNames = [] }: OverviewProps) {
+export default function Overview({ pivoId,cnpjCliente,email,equipamentoNames = [] }: OverviewProps) {
 
     const [activeCard, setActiveCard] = useState<DeviceCard | null>(null);
     const [loading, setLoading] = useState(false);
@@ -18,6 +19,7 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
     const [localManOverride, setLocalManOverride] = useState<null | boolean>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isSireneActive, setIsSireneActive] = useState(false);
+    const canResolveAlerts = useAuthStore(selectCanResolveAlerts);
 
     // FASE 1 - Performance: Adaptive polling
     // Starts at 10s, increases to 20s, then 30s if no changes detected
@@ -69,7 +71,7 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
             });
 
             if (hasRelevantChange) {
-                console.log('Detectada mudança relevante no CouchDB, atualizando dados...');
+                //console.log('Detectada mudança relevante no CouchDB, atualizando dados...');
                 // Reset polling interval when change detected
                 setPollInterval(10000); // Aumentado de 5s para 10s
                 setNoChangeCount(0);
@@ -81,11 +83,11 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                     if (next === 3) {
                         // After 3 polls with no changes, increase to 20s
                         setPollInterval(20000); // Aumentado de 15s para 20s
-                        console.log('ℹ️ No changes detected, increasing poll interval to 20s');
+                        //console.log('ℹ️ No changes detected, increasing poll interval to 20s');
                     } else if (next >= 6) {
                         // After 6 polls with no changes, increase to 30s
                         setPollInterval(30000);
-                        console.log('ℹ️ No changes detected, increasing poll interval to 30s');
+                        //console.log('ℹ️ No changes detected, increasing poll interval to 30s');
                     }
                     return next;
                 });
@@ -253,6 +255,7 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
 
 
                             </span>
+                            {canResolveAlerts && (
                             <button
                                 type="button"
                                 role="switch"
@@ -260,16 +263,14 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                                 aria-label="Alternar manutenção geral"
                                 onClick={handleToggleManutencao}
                                 disabled={loading || isSaving}
-                                // ⬇️ adicionei "group"
                                 className={clsx(
                                     "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
                                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400",
                                     "disabled:cursor-not-allowed disabled:opacity-60",
                                     isInMaintenance
                                         ?  "bg-gray-600 hover:bg-gray-700":"bg-green-600 hover:bg-green-700"
-                                        
+
                                 )}
-                                // fallback nativo (opcional)
                                 title={
                                     loading || isSaving
                                         ? "…"
@@ -277,7 +278,6 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                                             ? "Clique se deseja voltar a monitorar"
                                             : "Clique se deseja entrar em modo de manutenção"
                                 }
-                                // liga o botão ao tooltip para leitores de tela
                                 aria-describedby="tip-switch"
                             >
                                 <span
@@ -297,7 +297,6 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                                         "pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2",
                                         "whitespace-nowrap rounded px-2 py-1 text-xs bg-black text-white",
                                         "opacity-0 transition",
-                                        // ⬇️ mostra no hover e no foco via teclado
                                         "group-hover:opacity-100 group-focus-visible:opacity-100"
                                     )}
                                 >
@@ -308,11 +307,11 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                                             : "Clique se deseja entrar em modo de manutenção"}
                                 </span>
                             </button>
+                            )}
 
-
-                            {/* RÓTULO DINÂMICO */}
 
                         </div>
+                        {canResolveAlerts && (
                         <button
                             type="button"
                             onClick={handleSolicitarStatus}
@@ -321,7 +320,9 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                         >
                             {loading ? "..." : "Solicitar Status"}
                         </button>
+                        )}
                         {/* Toggle Sirene */}
+                        {canResolveAlerts && (
                         <div className="flex items-center gap-2 ml-2">
                             <span className="text-sm text-gray-300">
                                 Sirene:
@@ -349,6 +350,7 @@ export default function Overview({ pivoId,companyId,email,equipamentoNames = [] 
                                 )} />
                             </button>
                         </div>
+                        )}
 
                         {/* Toggle WhatsApp para este irrigador */}
                         <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4">

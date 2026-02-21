@@ -13,7 +13,7 @@ export const whatsappStoreConfig = create((set) => ({
 
     try {
       const doc = await couch.get(DOC_ID);
-      //console.log(doc);
+      ////console.log(doc);
       set({
         whatsappConfig: doc,
         isFetchingConfig: false,
@@ -21,7 +21,7 @@ export const whatsappStoreConfig = create((set) => ({
       });
     } catch (err) {
       if (err.name === "not_found") {
-        //console.log(`Documento de configuração "${DOC_ID}" ainda não existe.`);
+        ////console.log(`Documento de configuração "${DOC_ID}" ainda não existe.`);
         set({ whatsappConfig: null, isFetchingConfig: false });
       } else {
         console.error("[whatsappStore] fetchConfiguracoes error:", err);
@@ -68,7 +68,7 @@ export const whatsappStoreConfig = create((set) => ({
         syncTimestamp: Date.now(),
       });
 
-      // console.log(
+      // //console.log(
       //   `Configurações salvas com sucesso. Nova revisão: ${response.rev}`,
       // );
     } catch (err) {

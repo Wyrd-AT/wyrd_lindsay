@@ -3,8 +3,16 @@ Pydantic models para validação de dados
 """
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Literal
 from datetime import datetime
+from enum import Enum
+
+
+class ClienteSubRole(str, Enum):
+    """Sub-roles dentro do nível cliente"""
+    SUPERUSUARIO = "superusuario"
+    GERENTE = "gerente"
+    COMUM = "comum"
 
 
 # ============================================================================
@@ -18,6 +26,7 @@ class UserRegisterRequest(BaseModel):
     name: str
     type: str  # "admin", "revenda", "cliente"
     domain: Optional[str] = None
+    cnpj_admin: Optional[str] = None  # CNPJ do admin (obrigatório para type=admin)
 
 
 class UserLoginRequest(BaseModel):
@@ -33,6 +42,7 @@ class UserResponse(BaseModel):
     type: str
     status: str
     doc_id: Optional[str] = None
+    sub_role: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -68,6 +78,14 @@ class RevendasListResponse(BaseModel):
     revendas: list[RevendaResponse]
 
 
+class AdminCreateAdminRequest(BaseModel):
+    """Requisição para admin criar outro admin"""
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    name: str
+    cnpj_admin: str  # CNPJ do novo admin
+
+
 class AdminCreateRevendaRequest(BaseModel):
     """Requisição para admin criar revenda"""
     email: EmailStr
@@ -89,6 +107,11 @@ class ClienteResponse(BaseModel):
     name: str
     status: str
     revenda_id: Optional[str] = None
+    cnpj_cliente: Optional[str] = None   # CNPJ do cliente
+    cnpj_admin: Optional[str] = None     # CNPJ do admin da hierarquia
+    cnpj_revenda: Optional[str] = None   # CNPJ da revenda associada
+    sub_role: Optional[str] = None       # superusuario, gerente, comum
+    irrigadores: List[str] = []          # IDs dos irrigadores vinculados
     created_at: str
 
 
@@ -99,11 +122,21 @@ class ClientesListResponse(BaseModel):
 
 
 class AdminCreateClienteRequest(BaseModel):
-    """Requisição para admin criar cliente"""
+    """Requisição para admin/revenda criar cliente"""
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
-    revenda_id: Optional[str] = None  # Opcional: admin pode atribuir a uma revenda
+    cnpj_cliente: str  # CNPJ do cliente
+    revenda_id: Optional[str] = None  # Opcional: admin atribui a uma revenda
+    sub_role: Optional[str] = None  # Se não informado, default "superusuario"
+
+
+class SuperusuarioCreateUserRequest(BaseModel):
+    """Requisição para superusuário criar gerente ou comum dentro da empresa"""
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    name: str
+    sub_role: Literal["gerente", "comum"]
 
 
 # ============================================================================
@@ -114,6 +147,8 @@ class CreatePivoRequest(BaseModel):
     """Requisição para criar pivô"""
     codigo: str
     nome: str
+    cliente_id: Optional[str] = None  # doc_id do cliente (ex: "user:email@x.com") - admin/revenda especifica
+    equipamentos: List[str] = []  # ex: ["Painel 1", "Torre 1", "Casa de bombas"]
     location: Optional[Dict[str, float]] = None
 
 
@@ -125,14 +160,14 @@ class UpdatePivoRequest(BaseModel):
 
 
 class PivoResponse(BaseModel):
-    """Dados de pivô"""
+    """Dados de pivô (created_at/updated_at opcionais para docs antigos do CouchDB)"""
     _id: str
     codigo: str
     nome: str
     owner_id: str
     gerente_id: str
     ativo: bool
-    created_at: str
+    created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
 

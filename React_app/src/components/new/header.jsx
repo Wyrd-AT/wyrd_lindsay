@@ -4,10 +4,12 @@ import { HiOutlineUserAdd } from "react-icons/hi";
 import { GoChevronLeft } from "react-icons/go";
 import { useNavigate } from "react-router-dom";
 import { BiSearch } from "react-icons/bi";
+import { useAuthStore } from "../../stores/new/authStore";
 
 export default function Header({ page }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
@@ -44,7 +46,7 @@ export default function Header({ page }) {
         <div className="flex items-center justify-between w-full">
           <div className="flex flex-col">
             <h1 className="text-lg md:text-xl font-semibold">
-              Olá, Cliente!
+              Olá, {user?.name || 'Usuário'}!
             </h1>
           </div>
           <div className="relative w-full max-w-[400px]">

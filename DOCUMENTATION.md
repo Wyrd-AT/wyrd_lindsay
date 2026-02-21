@@ -357,7 +357,7 @@ Senha: (sua senha Cognito)
 **Solução:**
 ```javascript
 // Verificar no console do navegador
-console.log('user.type:', authState.user?.type)
+//console.log('user.type:', authState.user?.type)
 
 // Se undefined, verificar auth.js:214-267
 // Pode ser necessário criar documento no CouchDB:

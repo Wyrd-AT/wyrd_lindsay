@@ -100,7 +100,7 @@ export function useWhatsappPerIrrigador(irrigadorId: string | null, userEmail?: 
       await upsertDoc(DB_NAME, docToSave);
       setEnabled(newEnabled);
 
-      console.log(`[useWhatsappPerIrrigador] WhatsApp ${newEnabled ? 'ativado' : 'desativado'} para ${irrigadorId}`);
+      //console.log(`[useWhatsappPerIrrigador] WhatsApp ${newEnabled ? 'ativado' : 'desativado'} para ${irrigadorId}`);
     } catch (err: any) {
       console.error('[useWhatsappPerIrrigador] Error updating config:', err);
       setError(err?.message || 'Erro ao atualizar configuração');

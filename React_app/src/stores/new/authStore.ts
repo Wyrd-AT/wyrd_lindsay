@@ -4,6 +4,7 @@ import { persist,createJSONStorage } from 'zustand/middleware';
 
 export type UserRole = 'admin' | 'revenda' | 'cliente';
 export type UserStatus = 'active' | 'pending' | 'rejected';
+export type ClienteSubRole = 'superusuario' | 'gerente' | 'comum';
 
 export interface User {
   email: string;
@@ -15,6 +16,7 @@ export interface User {
   type?: UserRole;
   status?: UserStatus;
   doc_id?: string; // ✅ ID do documento no CouchDB
+  sub_role?: ClienteSubRole; // Sub-role para clientes
   [key: string]: any;
 }
 
@@ -22,7 +24,7 @@ export interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  companyId: string | null;
+  cnpjCliente: string | null;
   equipamentos?: string[];
 
   // Actions
@@ -37,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       user: null,
       token: null,
-      companyId: null,
+      cnpjCliente: null,
 
       login: (user: User, token: string) => {
         // Log para debug
@@ -48,9 +50,8 @@ export const useAuthStore = create<AuthState>()(
           userObject: user
         });
 
-        // Extrai o companyId do email
-        const domainAndTld = user.email.split('@')[1];
-        const companyId = domainAndTld.split('.')[0];
+        // cnpjCliente = CNPJ do usuário (vem do custom:cnpj do Cognito)
+        const cnpjCliente = user.cnpj || null;
 
         // Garantir que o objeto user tenha todas as propriedades
         const completeUser: User = {
@@ -59,8 +60,8 @@ export const useAuthStore = create<AuthState>()(
           status: user.status || 'active',
         };
 
-        // Atualiza o estado com user, token e companyId
-        set({ isAuthenticated: true, user: completeUser, token, companyId });
+        // Atualiza o estado com user, token e cnpjCliente
+        set({ isAuthenticated: true, user: completeUser, token, cnpjCliente });
         
         // Verificar se foi salvo
         const state = useAuthStore.getState();
@@ -74,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         // Limpa o estado e a persistência ao fazer logout
-        set({ isAuthenticated: false, user: null, token: null, companyId: null });
+        set({ isAuthenticated: false, user: null, token: null, cnpjCliente: null });
       },
 
       updateUser: (updatedFields: Partial<User>) => {
@@ -99,7 +100,7 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: state.isAuthenticated,
           user: state.user, // Inclui todas as propriedades do user
           token: state.token,
-          companyId: state.companyId,
+          cnpjCliente: state.cnpjCliente,
         };
       },
       onRehydrateStorage: () => (state) => {
@@ -130,7 +131,7 @@ export const useAuthStore = create<AuthState>()(
               isAuthenticated: false,
               user: null,
               token: null,
-              companyId: null,
+              cnpjCliente: null,
             });
             console.log('✅ Estado limpo após detecção de estado inválido');
           }, 0);
@@ -144,7 +145,7 @@ export const useAuthStore = create<AuthState>()(
 export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
 export const selectUser = (state: AuthState) => state.user;
 export const selectToken = (state: AuthState) => state.token;
-export const selectCompanyId = (state: AuthState) => state.companyId;
+export const selectCnpjCliente = (state: AuthState) => state.cnpjCliente;
 
 // ============================================================================
 // Selectors para Sistema Multi-Nível (Admin > Revenda > Cliente)
@@ -199,6 +200,46 @@ export const selectCanApproveClientes = (state: AuthState) => {
   // Apenas revendas ativas podem aprovar clientes
   return selectIsActiveUser(state) && selectIsRevenda(state);
 };
+
+// ============================================================================
+// Selectors para Cliente Sub-Roles (Superusuário > Gerente > Comum)
+// ============================================================================
+
+export const selectSubRole = (state: AuthState): ClienteSubRole | null =>
+  state.user?.type === 'cliente' ? (state.user?.sub_role as ClienteSubRole) || 'superusuario' : null;
+
+export const selectIsSuperusuario = (state: AuthState) =>
+  state.user?.type === 'cliente' && (state.user?.sub_role === 'superusuario' || !state.user?.sub_role);
+
+export const selectIsGerente = (state: AuthState) =>
+  state.user?.type === 'cliente' && state.user?.sub_role === 'gerente';
+
+export const selectIsComum = (state: AuthState) =>
+  state.user?.type === 'cliente' && state.user?.sub_role === 'comum';
+
+// Pode resolver alertas: superusuario, gerente, admin, revenda
+export const selectCanResolveAlerts = (state: AuthState) => {
+  if (!selectIsActiveUser(state)) return false;
+  if (selectIsAdmin(state) || selectIsRevenda(state)) return true;
+  if (selectIsCliente(state)) {
+    return selectIsSuperusuario(state) || selectIsGerente(state);
+  }
+  return false;
+};
+
+// Pode exportar relatórios: superusuario, gerente, admin, revenda
+export const selectCanExportReports = (state: AuthState) => {
+  if (!selectIsActiveUser(state)) return false;
+  if (selectIsAdmin(state) || selectIsRevenda(state)) return true;
+  if (selectIsCliente(state)) {
+    return selectIsSuperusuario(state) || selectIsGerente(state);
+  }
+  return false;
+};
+
+// Pode gerenciar usuários da empresa: apenas superusuário
+export const selectCanManageCompanyUsers = (state: AuthState) =>
+  selectIsActiveUser(state) && selectIsSuperusuario(state);
 
 // Helper para verificar se o usuário pode ver um recurso específico
 export const selectCanViewResource = (state: AuthState, resourceOwnerId?: string) => {

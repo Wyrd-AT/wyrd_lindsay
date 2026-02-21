@@ -26,6 +26,8 @@ import { RevendaPendingApprovals } from '../../components/new/RevendaPendingAppr
 import PivosSection from '../../components/new/PivosSection';
 import { CreateRevendaModal } from '../../components/new/CreateRevendaModal';
 import { CreateClienteModal } from '../../components/new/CreateClienteModal';
+import { CreateAdminModal } from '../../components/new/CreateAdminModal';
+import { fetchAdmins } from '../../api/new/fastapi-admin';
 import { useAdminRevendas } from '../../hooks/new/useAdminRevendas';
 import { useAdminStats } from '../../hooks/new/useAdminStats';
 import { useAdminClientes } from '../../hooks/new/useAdminClientes';
@@ -41,6 +43,23 @@ export function AdminDashboard() {
   // State para modais
   const [showCreateRevenda, setShowCreateRevenda] = useState(false);
   const [showCreateCliente, setShowCreateCliente] = useState(false);
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false);
+
+  // State para admins
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
+
+  const loadAdmins = async () => {
+    setLoadingAdmins(true);
+    try {
+      const data: any = await fetchAdmins();
+      setAdmins(data.admins || []);
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingAdmins(false);
+    }
+  };
 
   // Hooks para dados
   const {
@@ -71,6 +90,7 @@ export function AdminDashboard() {
       fetchStats();
       fetchAllRevendas();
       fetchClientes();
+      loadAdmins();
     }
   }, [isActiveUser]);
 
@@ -108,6 +128,7 @@ export function AdminDashboard() {
                 fetchAllRevendas();
                 fetchPendingRevendas();
                 fetchClientes();
+                loadAdmins();
               }}
               className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
             >
@@ -123,30 +144,154 @@ export function AdminDashboard() {
             </div>
           )}
 
-          {/* Stats Grid */}
-          <div className="px-4 mb-4">
-            <StatsGrid stats={stats} loading={loadingStats} />
-          </div>
+          {/* Stats Sections */}
+          <div className="px-4 mb-8 space-y-6">
+            {/* Revendas Stats */}
+            <StatsSection
+              title="📋 Revendas"
+              cards={[
+                {
+                  label: 'Total de Revendas',
+                  value: stats?.totalRevendas || 0,
+                  subValue: `${stats?.activeRevendas || 0} ativas`,
+                  icon: '🏢',
+                },
+                {
+                  label: 'Revendas Pendentes',
+                  value: stats?.pendingRevendas || 0,
+                  subValue: `${stats?.rejectedRevendas || 0} rejeitadas`,
+                  icon: '⏳',
+                },
+              ]}
+              loading={loadingStats}
+            />
 
-          {/* Revendas Pendentes de Aprovação */}
-          <div className="px-4 mb-6">
-            <RevendaPendingApprovals
-              onApprovalChange={() => {
-                fetchStats();
-                fetchPendingRevendas();
-                fetchAllRevendas();
-              }}
+            {/* Clientes Stats */}
+            <StatsSection
+              title="👥 Clientes"
+              cards={[
+                {
+                  label: 'Total de Clientes',
+                  value: stats?.totalClientes || 0,
+                  subValue: `${stats?.activeClientes || 0} ativos`,
+                  icon: '👥',
+                },
+                {
+                  label: 'Clientes Pendentes',
+                  value: stats?.pendingClientes || 0,
+                  subValue: `${stats?.rejectedClientes || 0} rejeitados`,
+                  icon: '⏳',
+                },
+              ]}
+              loading={loadingStats}
+            />
+
+            {/* Pivôs Stats */}
+            <StatsSection
+              title="💧 Pivôs"
+              cards={[
+                {
+                  label: 'Total de Pivôs',
+                  value: stats?.totalPivos || 0,
+                  subValue: `${stats?.activePivos || 0} ativos`,
+                  icon: '💧',
+                },
+                {
+                  label: 'Pivôs Alarmados',
+                  value: stats?.alarmadoPivos || 0,
+                  subValue: `${stats?.maintenancePivos || 0} em manutenção`,
+                  icon: '🚨',
+                },
+              ]}
+              loading={loadingStats}
             />
           </div>
 
-          {/* Sections em Grid */}
-          <div className="px-4 mb-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* 🏛️ SEÇÃO DE ADMINS */}
+          <div className="px-4 mb-8">
+            <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-dashboard-text-primary">Administradores</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowCreateAdmin(true)}
+                    className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover rounded transition text-black font-bold"
+                  >
+                    + Criar Admin
+                  </button>
+                  <button
+                    onClick={loadAdmins}
+                    disabled={loadingAdmins}
+                    className="px-3 py-1 text-sm bg-dashboard-bg-tertiary hover:bg-dashboard-border disabled:opacity-50 rounded transition text-white"
+                  >
+                    {loadingAdmins ? 'Carregando...' : 'Atualizar'}
+                  </button>
+                </div>
+              </div>
+
+              {loadingAdmins ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent" />
+                </div>
+              ) : admins.length === 0 ? (
+                <div className="text-center py-8 text-dashboard-text-secondary">
+                  <p>Nenhum admin encontrado</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
+                  {admins.map((admin: any, idx: number) => (
+                    <div
+                      key={admin._id ?? admin.email ?? `admin-${idx}`}
+                      className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-dashboard-text-primary">{admin.name}</h3>
+                          <p className="text-sm text-dashboard-text-secondary mt-1">{admin.email}</p>
+                          {admin.cnpj_admin && (
+                            <p className="text-xs text-dashboard-text-tertiary mt-1">CNPJ: {admin.cnpj_admin}</p>
+                          )}
+                        </div>
+                        <span className="text-xs px-2 py-1 rounded font-bold bg-purple-900 text-purple-100">
+                          Admin
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 📋 SEÇÃO DE REVENDAS */}
+          <div className="px-4 mb-8">
+            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">📋 Gerenciar Revendas</h2>
+
+            {/* Revendas Pendentes de Aprovação */}
+            <div className="mb-6">
+              <RevendaPendingApprovals
+                onApprovalChange={() => {
+                  fetchStats();
+                  fetchPendingRevendas();
+                  fetchAllRevendas();
+                }}
+              />
+            </div>
+
+            {/* Lista de Revendas */}
             <RevendasSection
               revendas={allRevendas}
               loading={loadingRevendas}
               onRefresh={fetchAllRevendas}
               onCreateClick={() => setShowCreateRevenda(true)}
             />
+          </div>
+
+          {/* 👥 SEÇÃO DE CLIENTES */}
+          <div className="px-4 mb-8">
+            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">👥 Monitorar Clientes</h2>
+
+            {/* Lista de Clientes */}
             <ClientesSection
               clientes={clientes}
               loading={loadingClientes}
@@ -179,6 +324,16 @@ export function AdminDashboard() {
             />
           )}
 
+          {showCreateAdmin && (
+            <CreateAdminModal
+              closeModal={() => setShowCreateAdmin(false)}
+              onSuccess={() => {
+                setShowCreateAdmin(false);
+                loadAdmins();
+              }}
+            />
+          )}
+
           {/* Pivôs Section */}
           <div className="px-4 mb-4">
             <PivosSection />
@@ -190,94 +345,53 @@ export function AdminDashboard() {
 }
 
 /**
- * Grid de Estatísticas
+ * Seção de Estatísticas organizada por categoria
  */
-function StatsGrid({
-  stats,
-  loading,
-}: {
-  stats: AdminStatsType | null;
+interface StatCard {
+  label: string;
+  value: number;
+  subValue: string;
+  icon: string;
+}
+
+interface StatsSectionProps {
+  title: string;
+  cards: StatCard[];
   loading: boolean;
-}) {
+}
+
+function StatsSection({ title, cards, loading }: StatsSectionProps) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div
-            key={i}
-            className="bg-dashboard-bg-secondary animate-pulse h-24 rounded-lg"
-          ></div>
-        ))}
+      <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
+        <h3 className="text-lg font-semibold text-dashboard-text-primary mb-4">{title}</h3>
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
+          ))}
+        </div>
       </div>
     );
   }
 
-  if (!stats) {
-    return null;
-  }
-
-  const statCards = [
-    {
-      label: 'Total de Revendas',
-      value: stats.totalRevendas,
-      subValue: `${stats.activeRevendas} ativas`,
-      color: 'bg-blue-900 text-blue-100 border border-blue-700',
-      icon: '🏢',
-    },
-    {
-      label: 'Revendas Pendentes',
-      value: stats.pendingRevendas,
-      subValue: `${stats.rejectedRevendas} rejeitadas`,
-      color: 'bg-yellow-900 text-yellow-100 border border-yellow-700',
-      icon: '⏳',
-    },
-    {
-      label: 'Total de Clientes',
-      value: stats.totalClientes,
-      subValue: `${stats.activeClientes} ativos`,
-      color: 'bg-purple-900 text-purple-100 border border-purple-700',
-      icon: '👥',
-    },
-    {
-      label: 'Clientes Pendentes',
-      value: stats.pendingClientes,
-      subValue: `${stats.rejectedClientes} rejeitados`,
-      color: 'bg-orange-900 text-orange-100 border border-orange-700',
-      icon: '⏳',
-    },
-    {
-      label: 'Total de Pivôs',
-      value: stats.totalPivos,
-      subValue: `${stats.activePivos} ativos`,
-      color: 'bg-green-900 text-green-100 border border-green-700',
-      icon: '💧',
-    },
-    {
-      label: 'Pivôs Alarmados',
-      value: stats.alarmadoPivos,
-      subValue: `${stats.maintenancePivos} em manutenção`,
-      color: 'bg-red-900 text-red-100 border border-red-700',
-      icon: '🚨',
-    },
-  ];
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {statCards.map((stat) => (
-        <div
-          key={stat.label}
-          className={`rounded-lg p-6 ${stat.color} shadow-md hover:shadow-lg transition-shadow`}
-        >
-          <div className="flex items-start justify-between">
+    <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
+      <h3 className="text-lg font-semibold text-dashboard-text-primary mb-4">{title}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {cards.map((card) => (
+          <div
+            key={card.label}
+            className="flex items-start justify-between p-4 bg-dashboard-bg-tertiary rounded-lg hover:bg-dashboard-border transition-colors"
+          >
             <div className="flex-1">
-              <p className="text-sm font-medium opacity-75">{stat.label}</p>
-              <p className="text-3xl font-bold mt-2">{stat.value}</p>
-              <p className="text-xs mt-2 opacity-60">{stat.subValue}</p>
+              <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
+              <p className="text-3xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
+              <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
             </div>
-            <span className="text-3xl">{stat.icon}</span>
+            <span className="text-3xl ml-4">{card.icon}</span>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

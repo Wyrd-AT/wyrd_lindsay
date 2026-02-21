@@ -111,7 +111,7 @@ export const useAdminRevendas = (): UseAdminRevendasReturn => {
         // Remover de pendentes e atualizar lista
         setPendingRevendas((prev) => prev.filter((r) => r.email !== email));
 
-        console.log('✅ Revenda aprovada:', email);
+        //console.log('✅ Revenda aprovada:', email);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erro ao aprovar revenda';
         setError(message);
@@ -134,7 +134,7 @@ export const useAdminRevendas = (): UseAdminRevendasReturn => {
         // Remover de pendentes
         setPendingRevendas((prev) => prev.filter((r) => r.email !== email));
 
-        console.log('✅ Revenda rejeitada:', email);
+        //console.log('✅ Revenda rejeitada:', email);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Erro ao rejeitar revenda';
         setError(message);

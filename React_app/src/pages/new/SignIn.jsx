@@ -2,13 +2,16 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../../stores/new/authStore.ts";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
-import { signIn } from "../../api/new/auth.js";
+import { signIn, confirmSignUp, resendConfirmationCode } from "../../api/new/auth.js";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const navigate = useNavigate();
 
 
@@ -30,7 +33,7 @@ export default function Login() {
 
     try {
       const response = await signIn(email, password);
-      console.log("Login response:", response);
+      //console.log("Login response:", response);
       if (
         response &&
         response.AuthenticationResult &&
@@ -45,17 +48,17 @@ export default function Login() {
           const authState = useAuthStore.getState();
           const userType = authState.user?.type;
 
-          console.log('🔐 Login bem-sucedido, redirecionando...');
-          console.log('   User type:', userType);
-          console.log('   User status:', authState.user?.status);
+          //console.log('🔐 Login bem-sucedido, redirecionando...');
+          //console.log('   User type:', userType);
+          //console.log('   User status:', authState.user?.status);
 
-          // Redirecionar para o dashboard apropriado
+          // Redirecionar para a rota apropriada
           if (userType === 'admin') {
-            navigate("/admin");
+            navigate("home");
           } else if (userType === 'revenda') {
-            navigate("/revenda");
+            navigate("/home");
           } else if (userType === 'cliente') {
-            navigate("/cliente");
+            navigate("/home");
           } else {
             console.warn('⚠️ User type desconhecido:', userType, '- usando fallback /home');
             navigate("/home");
@@ -66,11 +69,32 @@ export default function Login() {
       }
     } catch (err) {
       console.error("Login error:", err);
-      if (err instanceof Error) {
-        setError("Invalid email or password!");
+      if (err instanceof Error && err.message) {
+        if (err.message.includes('não confirmada') || err.message.includes('NotConfirmed')) {
+          setNeedsConfirmation(true);
+          setError('Conta não confirmada. Digite o código enviado para seu email.');
+        } else {
+          setError(err.message);
+        }
       } else {
-        setError("An error occurred. Please try again.");
+        setError("Ocorreu um erro. Tente novamente.");
       }
+    }
+  };
+
+  const handleConfirm = async () => {
+    setConfirmLoading(true);
+    setError("");
+    try {
+      await confirmSignUp(email, confirmationCode);
+      setNeedsConfirmation(false);
+      setConfirmationCode("");
+      // Tentar login automaticamente após confirmar
+      await handleSubmit({ preventDefault: () => {}, currentTarget: document.querySelector('form') });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Código inválido. Tente novamente.");
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
@@ -183,6 +207,44 @@ export default function Login() {
 
             {error && <p className="text-red-500">{error}</p>}
 
+            {needsConfirmation && (
+              <div className="mt-4 p-4 bg-[#3a3a3a] border border-[#4ade80] rounded">
+                <label htmlFor="confirmationCode" className="text-gray-400 block text-sm font-medium mb-1">
+                  Codigo de Confirmacao *
+                </label>
+                <input
+                  id="confirmationCode"
+                  type="text"
+                  value={confirmationCode}
+                  onChange={(e) => setConfirmationCode(e.target.value)}
+                  placeholder="Digite o codigo recebido por email"
+                  className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500 mb-2"
+                />
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={confirmLoading || !confirmationCode}
+                  className="w-full bg-[#4ade80] text-white py-2 px-4 rounded text-center hover:bg-[#36b55c] disabled:bg-gray-500 transition"
+                >
+                  {confirmLoading ? 'Confirmando...' : 'Confirmar Conta'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await resendConfirmationCode(email);
+                      setError('Codigo reenviado! Verifique seu email.');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Erro ao reenviar codigo.');
+                    }
+                  }}
+                  className="w-full mt-2 text-[#4ade80] text-sm hover:underline"
+                >
+                  Reenviar codigo
+                </button>
+              </div>
+            )}
+
             <div className="w-full flex flex-col justify-center items-center mt-4">
               <button
                 type="submit"
@@ -190,12 +252,12 @@ export default function Login() {
               >
                 Sign In
               </button>
-              <Link
+              {/* <Link
                 to="/signup"
                 className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition"
               >
                 <button className="w-full  text-white ">Create Account</button>
-              </Link>
+              </Link> */}
             </div>
 
             <p className="text-sm text-gray-500 mt-2">

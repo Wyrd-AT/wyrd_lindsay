@@ -38,7 +38,15 @@ class PivoModel(BaseModel):
     codigo: str
     nome: str
     owner_id: str  # Email do cliente que é dono
-    gerente_id: str  # Email do gerente (revenda) do owner
+    cnpj_cliente: Optional[str] = None
+    nome_cliente: Optional[str] = None  # Nome do cliente (guardado no doc para exibição)
+    cnpj_revenda: Optional[str] = None
+    nome_revenda: Optional[str] = None  # Nome da revenda (guardado no doc para exibição)
+    cnpj_admin: Optional[str] = None
+    nome_admin: Optional[str] = None   # Nome do admin (guardado no doc para exibição)
+    revenda_id: Optional[str] = None  # doc_id da revenda (ex: "revenda:uuid")
+    gerente_id: str = ""  # Email do gerente (revenda) do owner
+    equipamentos: List[str] = []  # ["Painel 1", "Torre 1", ...]
     ativo: bool = True
     location: Optional[Dict] = None  # {"lat": -15.79, "lng": -48.10}
 
@@ -77,12 +85,7 @@ class PivoService:
         checker: PermissionChecker
     ) -> Optional[Dict]:
         """
-        Criar novo pivô
-
-        Permissões:
-        - Cliente: Pode criar seus próprios pivôs
-        - Gerente: PODE ajudar cliente a criar (futura feature)
-        - Admin: Pode criar para qualquer cliente
+        Criar novo pivô. Apenas admin; hierarquia vem de pivo_data (resolvida na rota a partir do cliente).
 
         Args:
             user: Usuário autenticado
@@ -92,9 +95,8 @@ class PivoService:
         Returns:
             Pivô criado ou None se erro/sem permissão
         """
-        # Verificar permissão
-        if not (checker.can_create_pivo() or checker.is_admin()):
-            raise PermissionError("Usuário não tem permissão para criar pivôs")
+        if not checker.can_create_pivo():
+            raise PermissionError("Apenas administradores podem criar pivôs")
 
         # Validar dados
         try:
@@ -102,28 +104,28 @@ class PivoService:
         except ValidationError as e:
             raise ValueError(f"Dados inválidos: {e}")
 
-        # Verificar se cliente tenta criar pivô de outro
-        if checker.is_cliente() and pivo_model.owner_id != user.get("email"):
-            raise PermissionError("Cliente não pode criar pivô de outro cliente")
+        # Gerar ID no formato: irrigador:{uuid}
+        pivo_id = f"irrigador:{uuid.uuid4().hex}"
 
-        # Gerar IDs
-        pivo_id = f"pivo:{pivo_model.owner_id}:{pivo_model.codigo}:{uuid.uuid4().hex[:8]}"
-        now = datetime.now(tz=BR_TZ).isoformat()
-
-        # Criar documento
+        # Criar documento (formato compatível com dados existentes)
         doc = {
             "_id": pivo_id,
-            "table": "irrigadores",  # Campo principal para busca
-            "type": "pivo",  # Mantido para compatibilidade
+            "origin": "app",
+            "table": "irrigadores",
             "codigo": pivo_model.codigo,
-            "nome": pivo_model.nome,
-            "owner_id": pivo_model.owner_id,  # Cliente que cria
-            "gerente_id": pivo_model.gerente_id,  # Gerente do cliente
-            "ativo": pivo_model.ativo,
-            "location": pivo_model.location,
-            "created_at": now,
-            "updated_at": now,
-            "created_by": user.get("email"),
+            "irrigador": pivo_model.nome,
+            "equipamentos": pivo_model.equipamentos,
+            "contacts": {
+                "whatsapp": None,
+                "sms": None,
+                "email": None,
+            },
+            "cnpj_cliente": pivo_model.cnpj_cliente,
+            "nome_cliente": pivo_model.nome_cliente,
+            "cnpj_revenda": pivo_model.cnpj_revenda,
+            "nome_revenda": pivo_model.nome_revenda,
+            "cnpj_admin": pivo_model.cnpj_admin,
+            "nome_admin": pivo_model.nome_admin,
         }
 
         # Salvar
@@ -158,58 +160,39 @@ class PivoService:
         Returns:
             Lista de pivôs normalizados que o usuário pode ver
         """
-        user_email = user.get("email")
-        user_company_id = user.get("companyId") or user.get("company_id")
+        user_cnpj = user.get("cnpj", "")
 
         try:
             if checker.is_admin():
-                # Admin: todos os pivôs/irrigadores
-                pivos = self._find_pivos({"table": "irrigadores"})
-                if not pivos:
-                    pivos = self._find_pivos({"type": "pivo"})
-                # Normalizar e retornar todos
+                # Admin: irrigadores filtrados por cnpj_admin
+                if user_cnpj:
+                    pivos = self._find_pivos({
+                        "table": "irrigadores",
+                        "cnpj_admin": user_cnpj
+                    })
+                else:
+                    # Admin root sem CNPJ: vê todos
+                    pivos = self._find_pivos({"table": "irrigadores"})
                 return [self._normalize_pivo(p) for p in pivos]
 
             elif checker.is_revenda():
-                # Gerente: pivôs dos seus clientes
-                # Buscar por gerente_id ou companyId
+                # Revenda: irrigadores filtrados por cnpj_revenda
                 pivos = []
-                
-                # Tentar buscar por gerente_id
-                if user_email:
+                if user_cnpj:
                     pivos = self._find_pivos({
                         "table": "irrigadores",
-                        "gerente_id": user_email
+                        "cnpj_revenda": user_cnpj
                     })
-                
-                # Se não encontrou e tem companyId, buscar por companyId
-                if not pivos and user_company_id:
-                    pivos = self._find_pivos({
-                        "table": "irrigadores",
-                        "companyId": user_company_id
-                    })
-                
-                # Se ainda não encontrou, retornar vazio (gerente sem clientes)
                 return [self._normalize_pivo(p) for p in pivos]
 
             elif checker.is_cliente():
-                # Cliente: apenas seus próprios pivôs
+                # Cliente: irrigadores filtrados por cnpj_cliente
                 pivos = []
-                
-                # Tentar buscar por owner_id
-                if user_email:
+                if user_cnpj:
                     pivos = self._find_pivos({
                         "table": "irrigadores",
-                        "owner_id": user_email
+                        "cnpj_cliente": user_cnpj
                     })
-                
-                # Se não encontrou e tem companyId, buscar por companyId
-                if not pivos and user_company_id:
-                    pivos = self._find_pivos({
-                        "table": "irrigadores",
-                        "companyId": user_company_id
-                    })
-                
                 return [self._normalize_pivo(p) for p in pivos]
 
             return []
@@ -408,16 +391,25 @@ class PivoService:
         Returns:
             Documento normalizado
         """
+        # Documentos antigos do CouchDB podem não ter created_at/updated_at
+        created_at = pivo.get("created_at") or ""
+        updated_at = pivo.get("updated_at")
+
         normalized = {
             "_id": pivo.get("_id", ""),
             "codigo": pivo.get("codigo", ""),
-            "nome": pivo.get("nome") or pivo.get("name") or pivo.get("codigo", "Sem nome"),
+            "nome": pivo.get("nome") or pivo.get("name") or pivo.get("irrigador") or pivo.get("codigo", "Sem nome"),
             "owner_id": pivo.get("owner_id") or pivo.get("companyId") or "",
             "gerente_id": pivo.get("gerente_id") or "",
             "ativo": pivo.get("ativo", True),
+            "created_at": created_at,
+            "updated_at": updated_at,
             "location": pivo.get("location"),
             "table": pivo.get("table", "irrigadores"),
             "type": pivo.get("type", "pivo"),
+            "nome_cliente": pivo.get("nome_cliente"),
+            "nome_revenda": pivo.get("nome_revenda"),
+            "nome_admin": pivo.get("nome_admin"),
         }
         
         # Preservar outros campos úteis
@@ -425,10 +417,6 @@ class PivoService:
             normalized["equipamentos"] = pivo["equipamentos"]
         if "contacts" in pivo:
             normalized["contacts"] = pivo["contacts"]
-        if "created_at" in pivo:
-            normalized["created_at"] = pivo["created_at"]
-        if "updated_at" in pivo:
-            normalized["updated_at"] = pivo["updated_at"]
         
         return normalized
 
@@ -444,25 +432,19 @@ class PivoService:
         Returns:
             True se pode visualizar, False caso contrário
         """
-        user_email = user.get("email")
-        user_company_id = user.get("companyId") or user.get("company_id")
+        user_cnpj = user.get("cnpj", "")
 
         if checker.is_admin():
-            return True
+            # Admin vê irrigadores do seu cnpj_admin (ou todos se root)
+            if not user_cnpj:
+                return True
+            return pivo.get("cnpj_admin") == user_cnpj
 
         if checker.is_revenda():
-            # Gerente pode ver pivôs onde é gerente_id ou companyId
-            return (
-                pivo.get("gerente_id") == user_email or
-                pivo.get("companyId") == user_company_id
-            )
+            return pivo.get("cnpj_revenda") == user_cnpj
 
         if checker.is_cliente():
-            # Cliente pode ver apenas seus pivôs
-            return (
-                pivo.get("owner_id") == user_email or
-                pivo.get("companyId") == user_company_id
-            )
+            return pivo.get("cnpj_cliente") == user_cnpj
 
         return False
 

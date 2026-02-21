@@ -7,13 +7,18 @@ import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import Sidebar from "../../components/new/sidebar";
 import IrrigadorCard from "../../components/new/irrigadorCard";
-import { ModalIrrigador } from "../../components/new/modalNewIrrigador";
+import { ModalIrrigador as ModalIrrigadorBase } from "../../components/new/modalNewIrrigador";
 
-import { useIrrigadores } from "../../stores/new/dataStoreIrrigadores";
+const ModalIrrigador = ModalIrrigadorBase as React.FC<{
+  closeModal: () => void;
+  onSuccess?: () => void;
+}>;
+
+import { useIrrigadores, useDataStoreIrrigadores } from "../../stores/new/dataStoreIrrigadores";
 import { useAuthStore } from "../../stores/new/authStore";
 
 import { getRecentAll, RecentSWDoc } from '../../hooks/new/getRecent';
-import { pingCouch } from "../../api/new/couch";
+import { getDoc, pingCouch, COUCH_USERS_DB } from "../../api/new/couch";
 import { parseSwVector } from "../../helpers/helperHomePage";
 import { useChangesListener } from "../../hooks/new/useChangesListener";
 
@@ -24,22 +29,42 @@ export default function HomePageRevenda() {
   const navigate = useNavigate();
 
 
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, updateUser } = useAuthStore();
   useEffect(() => {
     if (!isAuthenticated) {
       navigate("/login");
     }
   }, [isAuthenticated, navigate]);
 
+  // Admin/revenda: se não tem CNPJ no user (ex.: sessão antiga), buscar do CouchDB
+  useEffect(() => {
+    const docId = user?.doc_id;
+    if (!docId || user.cnpj) return;
+    const type = user.type;
+    if (type !== 'admin' && type !== 'revenda' && type !== 'cliente') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const doc = await getDoc(COUCH_USERS_DB, docId);
+        if (cancelled || !doc) return;
+        const cnpj = type === 'admin' ? doc.cnpj_admin : type === 'revenda' ? (doc.cnpj_revenda ?? doc.cnpj) : (doc.cnpj_cliente ?? doc.cnpj);
+        if (cnpj) updateUser({ cnpj });
+      } catch {
+        // doc não encontrado ou erro de rede
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.doc_id, user?.cnpj, user?.type, updateUser]);
 
-  const email = user?.email ?? '';
-  const domainAndTld = email.split('@')[1] ?? '';
-  const companyId = domainAndTld.split('.')[0] ?? '';
+  const cnpjUser = user?.cnpj ?? '';
+  const userType = user?.type;
 
   const [couchOk, setCouchOk] = useState<boolean | null>(null);
 
-
-  const irrigadores = useIrrigadores(companyId);
+  // Cliente: pivôs por cnpj_cliente. Revenda: pivôs por cnpj_revenda. Admin: pivôs por cnpj_admin (mesmo critério da revenda).
+  const irrigadores = useIrrigadores(cnpjUser, userType);
+  const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
+  const filterBy = userType === 'admin' ? 'cnpj_admin' : userType === 'revenda' ? 'cnpj_revenda' : 'cnpj_cliente';
   const irrigadorIds = useMemo(
     () => (Array.isArray(irrigadores) ? irrigadores.map((doc) => String(doc.codigo)) : []),
     [irrigadores]
@@ -129,7 +154,7 @@ export default function HomePageRevenda() {
       );
 
       if (hasRelevantChange) {
-        console.log('[HomePageRevenda] Mudanças detectadas, atualizando dados...');
+        //console.log('[HomePageRevenda] Mudanças detectadas, atualizando dados...');
         // Recarrega os dados do SW
         await fetchSW();
       }
@@ -155,11 +180,6 @@ export default function HomePageRevenda() {
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
-  // 8) Função de navegação para a página do irrigador
-  const navigateToIrrigador = (id: string) => {
-    navigate(`/irrigador/${id}`);
-  };
-
   return (
     <div className="w-full h-full text-white flex bg-[#313131]">
 
@@ -168,13 +188,17 @@ export default function HomePageRevenda() {
         <Header page="home" />
 
         <div className="flex items-center justify-between px-4 mb-4">
-          <h1 className="text-2xl font-bold">Pivôs</h1>
-          <button
-            onClick={openModal}
-            className="bg-[#08cb7c] p-2 rounded-lg font-bold"
-          >
-            + Adicionar Pivô
-          </button>
+          <h1 className="text-2xl font-bold">
+            {userType === 'admin' ? 'Todos os Pivôs' : 'Pivôs'}
+          </h1>
+          {userType === 'admin' && (
+            <button
+              onClick={openModal}
+              className="bg-[#08cb7c] p-2 rounded-lg font-bold"
+            >
+              + Adicionar Pivô
+            </button>
+          )}
         </div>
 
         <div
@@ -191,10 +215,13 @@ export default function HomePageRevenda() {
                 <IrrigadorCard
                   key={doc._id}
                   machineId={doc.codigo}
-                  displayName={doc.irrigador}
+                  displayName={doc.irrigador ?? doc.nome ?? doc.codigo ?? 'Pivô'}
+                  nomeCliente={doc.nome_cliente}
+                  nomeRevenda={doc.nome_revenda}
+                  nomeAdmin={doc.nome_admin}
+                  userType={user?.type}
                   alertCount={info.totalAlarmado}
                   lastAlertDate={info.date}
-                  onClick={() => navigateToIrrigador(doc.codigo)}
                 />
               );
             })
@@ -205,7 +232,12 @@ export default function HomePageRevenda() {
           )}
         </div>
 
-        {isModalOpen && <ModalIrrigador closeModal={closeModal} />}
+        {isModalOpen && (
+          <ModalIrrigador
+            closeModal={closeModal}
+            onSuccess={() => fetchIrrigadores(cnpjUser, filterBy)}
+          />
+        )}
       </BodyContent>
 
     </div>

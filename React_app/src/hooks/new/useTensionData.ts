@@ -80,7 +80,7 @@ function aggregateMergedPoints(
     });
   }
 
-  //console.log(`📊 Agregação final: ${points.length} pontos -> ${aggregated.length} pontos (grupo de ~${groupSize})`);
+  ////console.log(`📊 Agregação final: ${points.length} pontos -> ${aggregated.length} pontos (grupo de ~${groupSize})`);
   return aggregated;
 }
 
@@ -122,7 +122,7 @@ function getPeriodRange(period: Period) {
       from.setDate(from.getDate() - 30);
       break;
   }
-  //console.log('From:', from, 'To:', to);
+  ////console.log('From:', from, 'To:', to);
   return {
     fromISO: formatWithOffset(from),
     toISO: formatWithOffset(to),
@@ -237,8 +237,8 @@ export function useTensionData({
           .map((d) => convertDoc(d, equipmentNames))
           .filter((p): p is TensionMergedPoint => p !== null);
 
-        //console.log(`Converted A: ${convertedA.length} points from ${docsA.length} docs`);
-        //console.log(`Converted B: ${convertedB.length} points from ${docsB.length} docs`);
+        ////console.log(`Converted A: ${convertedA.length} points from ${docsA.length} docs`);
+        ////console.log(`Converted B: ${convertedB.length} points from ${docsB.length} docs`);
 
         const map = new Map<number, TensionMergedPoint>();
 
@@ -256,12 +256,12 @@ export function useTensionData({
           (a, b) => a.timestampMs - b.timestampMs
         );
 
-        //console.log(`Final merged points (before aggregation): ${merged.length}`);
+        ////console.log(`Final merged points (before aggregation): ${merged.length}`);
 
         // PASSO 3: Agregar pontos para atingir o limite desejado
         const aggregated = aggregateMergedPoints(merged, limit);
 
-        //console.log('Sample aggregated point:', aggregated[0]);
+        ////console.log('Sample aggregated point:', aggregated[0]);
 
         if (!cancelled) setPoints(aggregated);
       } catch (err: any) {

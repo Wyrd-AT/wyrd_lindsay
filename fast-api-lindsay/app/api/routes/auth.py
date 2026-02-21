@@ -40,12 +40,13 @@ def get_current_user(
         )
 
     try:
-        # Decodificar token (formato: base64(email:type:cnpj))
+        # Decodificar token (formato: base64(email:type:cnpj:sub_role))
         decoded = base64.b64decode(credentials.credentials).decode()
-        parts = decoded.split(":", 2)  # max 3 partes
+        parts = decoded.split(":", 3)  # max 4 partes
         email = parts[0]
         user_type = parts[1]
         cnpj_from_token = parts[2] if len(parts) > 2 else None
+        sub_role_from_token = parts[3] if len(parts) > 3 else None
 
         # Buscar usuário no CouchDB (banco de usuários)
         db = get_users_db()
@@ -114,13 +115,30 @@ def get_current_user(
                 detail="Usuário não encontrado"
             )
         
+        # Extrair CNPJ correto baseado no tipo do usuário
+        user_type_resolved = user_doc.get("type", user_type)
+        if user_type_resolved == "admin":
+            cnpj_resolved = user_doc.get("cnpj_admin") or cnpj_from_token
+        elif user_type_resolved == "revenda":
+            cnpj_resolved = user_doc.get("cnpj_revenda") or cnpj_from_token
+        elif user_type_resolved == "cliente":
+            cnpj_resolved = user_doc.get("cnpj_cliente") or cnpj_from_token
+        else:
+            cnpj_resolved = cnpj_from_token
+
+        # Sub-role para clientes (backward compat: sem sub_role = superusuario)
+        sub_role_resolved = None
+        if user_type_resolved == "cliente":
+            sub_role_resolved = user_doc.get("sub_role") or sub_role_from_token or "superusuario"
+
         return {
             "email": user_doc.get("email", email),
-            "type": user_doc.get("type", user_type),
+            "type": user_type_resolved,
             "status": user_doc.get("status", "active"),
             "name": user_doc.get("name"),
             "doc_id": doc_id or user_doc.get("_id"),
-            "cnpj": user_doc.get("cnpj") or cnpj_from_token,  # ✅ CRÍTICO - filtragem por admin
+            "cnpj": cnpj_resolved,
+            "sub_role": sub_role_resolved,
         }
     except Exception as e:
         raise HTTPException(
@@ -143,7 +161,8 @@ async def register(request: UserRegisterRequest):
             user = auth_service.register_admin(
                 email=request.email,
                 password=request.password,
-                name=request.name
+                name=request.name,
+                cnpj_admin=request.cnpj_admin
             )
         elif request.type == "revenda":
             user = auth_service.register_revenda(
@@ -186,8 +205,23 @@ async def login(request: UserLoginRequest):
                 detail="Email ou senha inválidos"
             )
 
-        # Gerar token (base64(email:type))
-        token = base64.b64encode(f"{user['email']}:{user['type']}".encode()).decode()
+        # Gerar token (base64(email:type:cnpj:sub_role))
+        user_cnpj = ""
+        if user.get("type") == "admin":
+            user_cnpj = user.get("cnpj_admin", "") or ""
+        elif user.get("type") == "revenda":
+            user_cnpj = user.get("cnpj_revenda", "") or ""
+        elif user.get("type") == "cliente":
+            user_cnpj = user.get("cnpj_cliente", "") or ""
+
+        # Sub-role para clientes (backward compat: sem sub_role = superusuario)
+        user_sub_role = ""
+        if user.get("type") == "cliente":
+            user_sub_role = user.get("sub_role", "") or "superusuario"
+
+        token = base64.b64encode(
+            f"{user['email']}:{user['type']}:{user_cnpj}:{user_sub_role}".encode()
+        ).decode()
 
         return TokenResponse(
             access_token=token,
@@ -196,7 +230,8 @@ async def login(request: UserLoginRequest):
                 name=user["name"],
                 type=user["type"],
                 status=user["status"],
-                doc_id=user.get("_id")
+                doc_id=user.get("_id"),
+                sub_role=user_sub_role if user_sub_role else None,
             )
         )
     except HTTPException:
@@ -270,6 +305,7 @@ async def register_revenda(request: dict):
         # PASSO 1: Criar usuário no Cognito
         try:
             # Preparar parâmetros do sign_up
+            # ✅ Passar custom attributes JÁ no sign_up
             sign_up_params = {
                 "ClientId": settings.COGNITO_CLIENT_ID,
                 "Username": email,
@@ -277,6 +313,9 @@ async def register_revenda(request: dict):
                 "UserAttributes": [
                     {"Name": "email", "Value": email},
                     {"Name": "name", "Value": name},
+                    {"Name": "custom:type", "Value": "revenda"},
+                    {"Name": "custom:status", "Value": "pending"},
+                    {"Name": "custom:cnpj", "Value": cnpj}
                 ]
             }
 
@@ -287,6 +326,8 @@ async def register_revenda(request: dict):
 
             cognito_response = cognito_client.sign_up(**sign_up_params)
             cognito_sub = cognito_response['UserSub']
+            print(f"✅ Usuário revenda criado no Cognito: {cognito_sub}")
+            print(f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj}")
 
         except ClientError as e:
             error_code = e.response['Error']['Code']
@@ -374,5 +415,6 @@ async def get_current_user_info(user: dict = Depends(get_current_user)):
         name=user["name"],
         type=user["type"],
         status=user["status"],
-        doc_id=user.get("doc_id")
+        doc_id=user.get("doc_id"),
+        sub_role=user.get("sub_role"),
     )

@@ -31,7 +31,7 @@ import { auth } from '@/api/new/fastapi-api';
 const handleLogin = async (email, password) => {
   try {
     const { token, user } = await auth.login(email, password);
-    console.log('✅ Logado como:', user.email, '(tipo:', user.type + ')');
+    //console.log('✅ Logado como:', user.email, '(tipo:', user.type + ')');
   } catch (error) {
     console.error('❌ Erro:', error.message);
   }
@@ -46,7 +46,7 @@ import { alerts } from '@/api/new/fastapi-api';
 const handleLoadAlerts = async () => {
   try {
     const { total, alerts: alertList, role } = await alerts.listAlerts(null, 50);
-    console.log(`✅ ${total} alertas encontrados (você é ${role})`);
+    //console.log(`✅ ${total} alertas encontrados (você é ${role})`);
   } catch (error) {
     console.error('Erro ao carregar alertas:', error.message);
   }
@@ -62,7 +62,7 @@ import { commands } from '@/api/new/fastapi-api';
 const handleStartPivo = async (irrigadorId, pivoId) => {
   try {
     const result = await commands.startPivo(irrigadorId, pivoId, 60, 80);
-    console.log('✅ Comando enviado:', result.doc_id);
+    //console.log('✅ Comando enviado:', result.doc_id);
   } catch (error) {
     console.error('Erro:', error.message);
   }
@@ -78,7 +78,7 @@ const handleScheduleCommand = async (irrigadorId) => {
       { duration: 120, flow_rate: 90 },
       'pivo_001'
     );
-    console.log('✅ Comando agendado para:', result.will_execute_in);
+    //console.log('✅ Comando agendado para:', result.will_execute_in);
   } catch (error) {
     console.error('Erro:', error.message);
   }
@@ -102,7 +102,7 @@ const handleRegisterPush = async () => {
       os: 'iOS',
     });
 
-    console.log('✅ Device registrado para push');
+    //console.log('✅ Device registrado para push');
   } catch (error) {
     console.error('Erro:', error.message);
   }
@@ -123,7 +123,7 @@ const handleSendNotification = async () => {
       ['sms', 'whatsapp', 'email']  // channels
     );
 
-    console.log('✅ Notificações enviadas:', result.channels);
+    //console.log('✅ Notificações enviadas:', result.channels);
   } catch (error) {
     console.error('Erro:', error.message);
   }
@@ -138,7 +138,7 @@ import { alerts } from '@/api/new/fastapi-api';
 const handleGetHistory = async () => {
   try {
     const { total, logs } = await alerts.getNotificationHistory('irrigador_123', 50);
-    console.log(`Histórico: ${total} notificações push enviadas`);
+    //console.log(`Histórico: ${total} notificações push enviadas`);
   } catch (error) {
     console.error('Erro:', error.message);
   }

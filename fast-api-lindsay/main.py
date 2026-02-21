@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import get_db, close_db
-from app.api.routes import auth, revendas, clientes, pivos, alerts, commands
+from app.api.routes import auth, admins, revendas, clientes, pivos, alerts, commands
 from app.services.setup_indexes import setup_indexes
 
 
@@ -107,6 +107,7 @@ async def health_check():
 
 # API routes
 app.include_router(auth.router, prefix=settings.API_PREFIX, tags=["auth"])
+app.include_router(admins.router, prefix=settings.API_PREFIX, tags=["admins"])
 app.include_router(revendas.router, prefix=settings.API_PREFIX, tags=["revendas"])
 app.include_router(clientes.router, prefix=settings.API_PREFIX, tags=["clientes"])
 app.include_router(pivos.router, prefix=settings.API_PREFIX, tags=["pivos"])

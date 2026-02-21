@@ -1,97 +1,110 @@
 // src/components/ModalIrrigador.jsx
-import React, { useRef, useState, useEffect } from 'react'
-import { useAuthStore } from '../../stores/new/authStore'
-import { useNavigate } from 'react-router-dom'
-import useEquipamentos from '../../hooks/new/useEquipaments'
-import { useDataStoreIrrigadores } from '../../stores/new/dataStoreIrrigadores'
+// Apenas admin pode criar pivô; associação feita via seleção do cliente (API POST /pivos).
+import React, { useRef, useState, useEffect } from 'react';
+import { useAuthStore } from '../../stores/new/authStore';
+import { useNavigate } from 'react-router-dom';
+import useEquipamentos from '../../hooks/new/useEquipaments';
+import { usePivos } from '../../hooks/new/usePivos';
+import apiClient from '../../api/new/apiClient';
 
-export const ModalIrrigador = ({ closeModal }) => {
-  const nameRef = useRef()
-  const apelidoRef = useRef()
-  const whatsappRef = useRef()
-  const smsRef = useRef()
-  const emailRef = useRef()
+export const ModalIrrigador = ({ closeModal, onSuccess }) => {
+  const nameRef = useRef();
+  const apelidoRef = useRef();
+  const whatsappRef = useRef();
+  const smsRef = useRef();
+  const emailRef = useRef();
   const { isAuthenticated, user } = useAuthStore();
-    const navigate = useNavigate();
-  
-    // 2) Redireciona se não estiver logado
-    useEffect(() => {
-      if (!isAuthenticated) {
-        navigate("/login");
-      }
-    }, [isAuthenticated, navigate]);
-  
-    const domainAndTld = user.email.split('@')[1]
-    const companyId = domainAndTld.split('.')[0];
+  const navigate = useNavigate();
+  const { createPivo } = usePivos();
 
-  const { list: equipamentos, add, remove, update } = useEquipamentos(16)
-  const addIrrigador = useDataStoreIrrigadores(state => state.addIrrigador)
-  const [isSaving, setIsSaving] = useState(false)
-  const [error, setError] = useState(null)
+  const [clientes, setClientes] = useState([]);
+  const [clienteId, setClienteId] = useState('');
+  const [loadingClientes, setLoadingClientes] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Fecha no ESC
+  const isAdmin = user?.type === 'admin';
+
   useEffect(() => {
-    const onKey = e => {
-      if (e.key === 'Escape') {
-        closeModal()
-      }
+    if (!isAuthenticated) {
+      navigate('/login');
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [closeModal])
+  }, [isAuthenticated, navigate]);
 
-  const handleSubmit = async e => {
-    e.preventDefault()
+  // Carregar clientes ao abrir (admin precisa selecionar o cliente para associar o pivô)
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingClientes(true);
+      try {
+        const res = await apiClient.get('/clientes');
+        const all = res.data?.clientes || [];
+        const list = all.filter((c) => c.sub_role === 'superusuario');
+        if (!cancelled) {
+          setClientes(list);
+          const firstCnpj = list[0]?.cnpj_cliente ?? '';
+          if (list.length > 0 && !clienteId) setClienteId(firstCnpj);
+        }
+      } catch (err) {
+        if (!cancelled) setError('Não foi possível carregar a lista de clientes.');
+      } finally {
+        if (!cancelled) setLoadingClientes(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
 
-    const nome = nameRef.current.value.trim()
+  const { list: equipamentos, add, remove, update } = useEquipamentos(16);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [closeModal]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const codigo = nameRef.current?.value?.trim();
+    const nome = apelidoRef.current?.value?.trim();
+    if (!codigo) {
+      setError('Por favor, informe o código do irrigador.');
+      return;
+    }
     if (!nome) {
-      setError('Por favor, informe um nome para o irrigador.')
-      return
+      setError('Por favor, informe o nome do irrigador.');
+      return;
     }
-    const apelido = apelidoRef.current.value.trim()
-    if (!apelido) {
-      setError('Por favor, informe um apelido para o irrigador.')
-      return
+    if (isAdmin && !clienteId) {
+      setError('Selecione o cliente ao qual o pivô será associado.');
+      return;
     }
 
-    setIsSaving(true)
-    setError(null)
-
-    const whatsapp = whatsappRef.current.value.trim()
-    const sms = smsRef.current.value.trim()
-    const email = emailRef.current.value.trim()
-
-    const payload = {
-      origin: 'app',
-      table: 'irrigadores',
-      codigo: nome,
-      irrigador:apelido,
-      equipamentos,
-      companyId:companyId,
-      contacts: {
-        whatsapp: whatsapp || null,
-        sms: sms || null,
-        email: email || null
-      }
-    }
+    setIsSaving(true);
+    setError(null);
 
     try {
-      await addIrrigador(payload,companyId)
-      closeModal()
+      await createPivo({
+        codigo,
+        nome,
+        cliente_id: isAdmin ? clienteId : undefined, // cnpj_cliente do cliente selecionado
+        equipamentos: equipamentos.filter(Boolean),
+      });
+      onSuccess?.();
+      closeModal();
     } catch (err) {
-      console.error('Falha ao salvar irrigador:', err)
-      setError('Não foi possível salvar. Tente novamente.')
+      console.error('Falha ao criar pivô:', err);
+      setError(err?.message || 'Não foi possível criar o pivô. Tente novamente.');
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
-  // Fecha ao clicar fora do modal
-  const onBackdropClick = e => {
-    if (e.target === e.currentTarget) {
-      closeModal()
-    }
-  }
+  const onBackdropClick = (e) => {
+    if (e.target === e.currentTarget) closeModal();
+  };
 
   return (
     <div
@@ -102,10 +115,10 @@ export const ModalIrrigador = ({ closeModal }) => {
     >
       <form
         onSubmit={handleSubmit}
-        className="bg-[#444444] p-6 rounded-md shadow-md w-11/12 max-w-md"
+        className="bg-[#444444] p-6 rounded-md shadow-md w-11/12 max-w-md max-h-[90vh] overflow-y-auto"
       >
         <header className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-white">Adicionar Irrigador</h2>
+          <h2 className="text-xl font-semibold text-white">Adicionar Pivô</h2>
           <button
             type="button"
             onClick={closeModal}
@@ -117,20 +130,41 @@ export const ModalIrrigador = ({ closeModal }) => {
         </header>
 
         {error && (
-          <div className="mb-4 text-red-400">
-            {error}
-          </div>
+          <div className="mb-4 text-red-400 text-sm">{error}</div>
+        )}
+
+        {isAdmin && (
+          <label className="block text-white mb-4">
+            Cliente (obrigatório):
+            <select
+              value={clienteId}
+              onChange={(e) => setClienteId(e.target.value)}
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              disabled={isSaving || loadingClientes}
+              required
+            >
+              <option value="">Selecione o cliente</option>
+              {clientes.map((c) => (
+                <option key={c._id ?? c.cnpj_cliente} value={c.cnpj_cliente ?? ''}>
+                  {[c.cnpj_cliente || '—', c.name || '—'].join(' - ')}
+                </option>
+              ))}
+            </select>
+            {loadingClientes && <span className="text-gray-400 text-sm">Carregando clientes...</span>}
+            {!loadingClientes && clientes.length === 0 && (
+              <span className="text-amber-400 text-sm">Nenhum cliente superusuário encontrado. Apenas clientes com perfil superusuário podem receber pivôs.</span>
+            )}
+          </label>
         )}
 
         <label className="block text-white mb-4">
           Código:
           <input
             ref={nameRef}
-            name="nome"
+            name="codigo"
             type="text"
-            autoFocus
             className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-            placeholder="Digite o código..."
+            placeholder="Ex: PIVO-001"
             disabled={isSaving}
           />
         </label>
@@ -140,18 +174,16 @@ export const ModalIrrigador = ({ closeModal }) => {
             ref={apelidoRef}
             name="nome"
             type="text"
-            autoFocus
             className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-            placeholder="Digite o nome..."
+            placeholder="Nome do irrigador"
             disabled={isSaving}
           />
         </label>
 
         <fieldset className="mb-4 p-4 border border-gray-600 rounded-md">
-          <legend className="text-white mb-2 px-2">Contatos para Notificação</legend>
-
+          <legend className="text-white mb-2 px-2">Contatos para Notificação (opcional)</legend>
           <label className="block text-white mb-3">
-            <span className="text-sm text-gray-300">WhatsApp (formato internacional):</span>
+            <span className="text-sm text-gray-300">WhatsApp:</span>
             <input
               ref={whatsappRef}
               name="whatsapp"
@@ -161,9 +193,8 @@ export const ModalIrrigador = ({ closeModal }) => {
               disabled={isSaving}
             />
           </label>
-
           <label className="block text-white mb-3">
-            <span className="text-sm text-gray-300">SMS (formato internacional):</span>
+            <span className="text-sm text-gray-300">SMS:</span>
             <input
               ref={smsRef}
               name="sms"
@@ -173,7 +204,6 @@ export const ModalIrrigador = ({ closeModal }) => {
               disabled={isSaving}
             />
           </label>
-
           <label className="block text-white">
             <span className="text-sm text-gray-300">E-mail:</span>
             <input
@@ -194,11 +224,10 @@ export const ModalIrrigador = ({ closeModal }) => {
               <input
                 type="text"
                 value={eq}
-                onChange={e => update(idx, e.target.value)}
+                onChange={(e) => update(idx, e.target.value)}
                 placeholder={`Equipamento ${idx + 1}`}
                 className="flex-1 text-black px-3 py-2 border rounded-md focus:outline-none"
                 disabled={isSaving}
-                required
               />
               {equipamentos.length > 1 && (
                 <button
@@ -217,7 +246,7 @@ export const ModalIrrigador = ({ closeModal }) => {
             type="button"
             onClick={add}
             disabled={isSaving || equipamentos.length >= 16}
-            className="mt-2 text-sm px-3 py-1 border rounded-md"
+            className="mt-2 text-sm px-3 py-1 border rounded-md text-white"
           >
             + Adicionar equipamento ({equipamentos.length}/16)
           </button>
@@ -227,25 +256,20 @@ export const ModalIrrigador = ({ closeModal }) => {
           <button
             type="button"
             onClick={closeModal}
-            className="mr-2 px-4 py-2 border rounded-md"
+            className="mr-2 px-4 py-2 border rounded-md text-white"
             disabled={isSaving}
           >
             Cancelar
           </button>
           <button
             type="submit"
-            disabled={isSaving}
-            className={`
-              px-4 py-2 rounded-md text-white 
-              ${isSaving
-                ? 'bg-gray-500 cursor-not-allowed'
-                : 'bg-[#08cb7c] hover:bg-green-600'}
-            `}
+            disabled={isSaving || (isAdmin && (loadingClientes || clientes.length === 0))}
+            className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-gray-500 cursor-not-allowed' : 'bg-[#08cb7c] hover:bg-green-600'}`}
           >
             {isSaving ? 'Salvando...' : 'Salvar'}
           </button>
         </div>
       </form>
     </div>
-  )
-}
+  );
+};

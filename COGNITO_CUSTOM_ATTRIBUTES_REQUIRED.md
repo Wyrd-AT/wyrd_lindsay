@@ -381,7 +381,7 @@ cognito.admin_update_user_attributes(
 **IMEDIATO:**
 1. Adicionar 6 custom attributes no Cognito (via AWS Console)
 2. Atualizar usuários de teste com os atributos
-3. Testar login e verificar JWT no console.log
+3. Testar login e verificar JWT no //console.log
 
 **MÉDIO PRAZO:**
 1. Criar script de sincronização Cognito ↔ CouchDB

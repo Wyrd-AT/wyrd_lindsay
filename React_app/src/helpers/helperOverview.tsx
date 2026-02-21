@@ -10,7 +10,7 @@ export interface Irrigador { codigo: string; equipamentos?: string[]; }
 
 export interface OverviewProps {
     pivoId:  string | null;
-    companyId: string | null;
+    cnpjCliente: string | null;
     email?: string;
     equipamentoNames?: string[];
 }
@@ -115,7 +115,7 @@ export async function sendCommand(
         };
 
         const sucess =  useMessageStore.getState().postMessage(doc);
-        console.log(sucess)
+        //console.log(sucess)
         setResponseMsg(`✅ ${successText}`);
     } catch (err) {
         console.error('[Overview] erro ao enviar comando:', err);

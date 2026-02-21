@@ -17,14 +17,14 @@ export function useAuthStateValidator() {
       // Limpar do sessionStorage
       try {
         sessionStorage.removeItem('auth-storage');
-        console.log('✅ Estado antigo removido do sessionStorage');
+        //console.log('✅ Estado antigo removido do sessionStorage');
       } catch (e) {
         console.error('❌ Erro ao limpar sessionStorage:', e);
       }
       
       // Limpar o estado
       useAuthStore.getState().logout();
-      console.log('✅ Estado limpo, faça login novamente');
+      //console.log('✅ Estado limpo, faça login novamente');
     }
   }, []); // Executa apenas uma vez ao montar
 }

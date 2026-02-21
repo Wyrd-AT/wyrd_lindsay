@@ -213,7 +213,8 @@ export interface ChangesResponse<T = CouchDoc> {
 // ==================== Configuration ====================
 
 export const COUCH_HOST = "https://admin:wyrd@db.vpn.ind.br/";
-export const COUCH_DB = "lindsay-data"; // banco de dados padrão
+export const COUCH_DB = "lindsay-data"; // banco de dados padrão (pivôs, alertas, etc.)
+export const COUCH_USERS_DB = "lindsay-users"; // banco de usuários (admin, revenda, cliente)
 const USER = "admin";
 const PASS = "wyrd";
 
@@ -376,7 +377,7 @@ export async function getView<T = any>(
  *     fields: ['timestamp', 'status'],
  *     name: 'idx-timestamp-status'
  *   });
- *   console.log('Índice:', result.result); // 'created' ou 'exists'
+ *   //console.log('Índice:', result.result); // 'created' ou 'exists'
  * } catch (err) {
  *   if (err instanceof IndexError) {
  *     console.error('Erro ao criar índice:', err.message);
@@ -442,24 +443,7 @@ export async function createIndex(
     const data = response.data;
 
     // Log diferenciado baseado no resultado
-    if (data.result === "created") {
-      console.log(
-        `✅ Índice criado com sucesso: ${data.name || name || "sem nome"}`,
-        {
-          id: data.id,
-          db,
-          fields,
-        },
-      );
-    } else if (data.result === "exists") {
-      console.log(`ℹ️ Índice já existe: ${data.name || name || "sem nome"}`, {
-        id: data.id,
-        db,
-        fields,
-      });
-    } else {
-      console.warn(`⚠️ Resposta inesperada ao criar índice:`, data);
-    }
+   
 
     return data;
   } catch (err: any) {
@@ -595,7 +579,7 @@ export async function upsertDesignDoc(
       ...newDoc,
       _rev: existing._rev,
     });
-    console.log(`✅ Design document atualizado: ${ddocName}`);
+    //console.log(`✅ Design document atualizado: ${ddocName}`);
     return data;
   } catch (err: any) {
     // Se não existe, cria novo
@@ -604,7 +588,7 @@ export async function upsertDesignDoc(
         `/${db}/${encodeURIComponent(ddocId)}`,
         newDoc,
       );
-      console.log(`✅ Design document criado: ${ddocName}`);
+      //console.log(`✅ Design document criado: ${ddocName}`);
       return data;
     }
     throw err;
@@ -697,5 +681,5 @@ export async function ensureHistoryViews(db: string): Promise<void> {
   };
 
   await upsertDesignDoc(db, "history", views);
-  console.log("✅ Views de histórico criadas/atualizadas com sucesso");
+  //console.log("✅ Views de histórico criadas/atualizadas com sucesso");
 }

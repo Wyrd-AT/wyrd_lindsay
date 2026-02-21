@@ -182,7 +182,7 @@ Componentes exibem com filtros/refresh
 | "Redireciona para /home" | Tipo não identificado | Criar documento no CouchDB |
 | "Dashboard vazio" | VITE_API_URL não configurada | Adicionar em .env.local |
 | "ApprovalQueue vazio" | Sem pendências | Criar documentos com status=pending |
-| "403 Forbidden" | Token não enviado | Verificar console.log do token |
+| "403 Forbidden" | Token não enviado | Verificar //console.log do token |
 
 ---
 

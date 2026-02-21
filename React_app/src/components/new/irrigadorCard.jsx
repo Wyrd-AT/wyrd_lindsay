@@ -2,12 +2,26 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { FiAlertOctagon, FiChevronRight } from "react-icons/fi";
 
+/**
+ * userType: "cliente" | "revenda" | "admin"
+ * - cliente: não exibe nenhum nome (cliente, revenda, admin)
+ * - revenda: exibe só nome do cliente
+ * - admin: exibe revenda e cliente
+ */
 export default function IrrigadorCard({
   machineId,
   displayName,
+  nomeCliente,
+  nomeRevenda,
+  nomeAdmin,
+  userType,
   lastAlertDate,
   alertCount,
 }) {
+  const showCliente = userType === "revenda" || userType === "admin";
+  const showRevenda = userType === "admin";
+  const showAdmin = false; // nunca exibir nome do admin no card
+
   // se tiver alerta, pisca border e badge
   const borderClass = alertCount > 0
     ? " border-4 border-red-600 animate-blink-border"
@@ -21,7 +35,7 @@ export default function IrrigadorCard({
     <Link
       to={`/maquina/${machineId}`}
       className={`
-        flex flex-row w-fit h-48 px-4 justify-center
+        flex flex-row w-fit h-52 px-4 justify-center
         bg-[#39393a] hover:bg-[#4a4a4b]
         rounded-lg overflow-hidden
         transition-shadow shadow-sm hover:shadow-md
@@ -42,6 +56,21 @@ export default function IrrigadorCard({
           <h3 className="text-3xl font-semibold truncate">
             Pivô {displayName}
           </h3>
+          {showCliente && nomeCliente && (
+            <p className="text-base text-gray-400 truncate">
+              Cliente: {nomeCliente}
+            </p>
+          )}
+          {showRevenda && nomeRevenda && (
+            <p className="text-base text-gray-400 truncate">
+              Revenda: {nomeRevenda}
+            </p>
+          )}
+          {showAdmin && nomeAdmin && (
+            <p className="text-base text-gray-400 truncate">
+              Admin: {nomeAdmin}
+            </p>
+          )}
           <p className="text-lg text-gray-300 truncate">
             {lastAlertDate
               ? `Último dado: ${lastAlertDate}`

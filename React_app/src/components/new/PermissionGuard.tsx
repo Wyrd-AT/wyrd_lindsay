@@ -1,12 +1,14 @@
 import React from 'react';
-import { useAuthStore, selectIsActiveUser, selectUserRole, selectUserStatus } from '../../stores/new/authStore';
-import type { UserRole, UserStatus } from '../../stores/new/authStore';
+import { useAuthStore, selectIsActiveUser, selectUserRole, selectUserStatus, selectSubRole } from '../../stores/new/authStore';
+import type { UserRole, UserStatus, ClienteSubRole } from '../../stores/new/authStore';
 
 export interface PermissionGuardProps {
   /** Roles permitidos */
   allowedRoles?: UserRole[];
   /** Statuses permitidos */
   allowedStatuses?: UserStatus[];
+  /** Sub-roles de cliente permitidos (superusuario, gerente, comum) */
+  allowedSubRoles?: ClienteSubRole[];
   /** Requer que o usuário esteja ativo */
   requireActive?: boolean;
   /** Conteúdo a exibir quando autorizado */
@@ -47,6 +49,7 @@ export interface PermissionGuardProps {
 export function PermissionGuard({
   allowedRoles,
   allowedStatuses,
+  allowedSubRoles,
   requireActive = false,
   children,
   fallback,
@@ -56,20 +59,8 @@ export function PermissionGuard({
   const isActiveUser = selectIsActiveUser(authState);
   const userRole = selectUserRole(authState);
   const userStatus = selectUserStatus(authState);
+  const subRole = selectSubRole(authState);
 
-  // Debug: log do estado atual
-  if (requireActive) {
-    console.log('🔒 PermissionGuard - Verificação:', {
-      isAuthenticated: authState.isAuthenticated,
-      hasUser: !!authState.user,
-      userEmail: authState.user?.email,
-      userType: userRole,
-      userStatus: userStatus,
-      isActiveUser: isActiveUser,
-      requireActive: requireActive,
-      allowedRoles: allowedRoles
-    });
-  }
 
   // Verificar se usuário está autenticado
   if (!authState.isAuthenticated || !authState.user) {
@@ -118,6 +109,23 @@ export function PermissionGuard({
       <>
         {fallback || (
           <UnauthorizedMessage reason={`status inválido (${userStatus})`} />
+        )}
+      </>
+    );
+  }
+
+  // Verificar sub-roles de cliente permitidos
+  if (
+    allowedSubRoles &&
+    allowedSubRoles.length > 0 &&
+    userRole === 'cliente' &&
+    !allowedSubRoles.includes((subRole || 'superusuario') as ClienteSubRole)
+  ) {
+    if (onDenied) onDenied();
+    return (
+      <>
+        {fallback || (
+          <UnauthorizedMessage reason={`sub-role insuficiente (${subRole})`} />
         )}
       </>
     );
@@ -190,12 +198,14 @@ export function withPermissionGuard<P extends object>(
 export function usePermissionCheck(
   allowedRoles?: UserRole[],
   allowedStatuses?: UserStatus[],
-  requireActive?: boolean
+  requireActive?: boolean,
+  allowedSubRoles?: ClienteSubRole[]
 ): boolean {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
   const userRole = selectUserRole(authState);
   const userStatus = selectUserStatus(authState);
+  const subRole = selectSubRole(authState);
 
   if (!authState.isAuthenticated) return false;
 
@@ -206,6 +216,15 @@ export function usePermissionCheck(
   }
 
   if (allowedStatuses && !allowedStatuses.includes(userStatus as UserStatus)) {
+    return false;
+  }
+
+  if (
+    allowedSubRoles &&
+    allowedSubRoles.length > 0 &&
+    userRole === 'cliente' &&
+    !allowedSubRoles.includes((subRole || 'superusuario') as ClienteSubRole)
+  ) {
     return false;
   }
 

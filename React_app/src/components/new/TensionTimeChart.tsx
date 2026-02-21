@@ -65,8 +65,8 @@ export function TensionTimeChart({
     equipmentNames,
   });
 
-  console.log("Pontos do gráfico: ");
-  console.log(points);
+  //console.log("Pontos do gráfico: ");
+  //console.log(points);
 
   const handleDownloadPDF = async () => {
     if (!chartRef.current) return;
