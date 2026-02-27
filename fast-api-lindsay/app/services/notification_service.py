@@ -21,6 +21,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
+from app.core.config import settings
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioException
 
@@ -28,6 +29,7 @@ from twilio.base.exceptions import TwilioException
 try:
     from sendgrid import SendGridAPIClient
     from sendgrid.helpers.mail import Mail, Email, To, Content
+
     SENDGRID_AVAILABLE = True
 except ImportError:
     SENDGRID_AVAILABLE = False
@@ -51,21 +53,25 @@ class NotificationService:
 
         if self.twilio_account_sid and self.twilio_auth_token:
             try:
-                self.twilio_client = Client(self.twilio_account_sid, self.twilio_auth_token)
+                self.twilio_client = Client(
+                    self.twilio_account_sid, self.twilio_auth_token
+                )
                 logger.info("✅ Twilio configurado")
             except Exception as e:
                 logger.warning(f"⚠️ Falha ao inicializar Twilio: {e}")
 
         # Z-API (WhatsApp alternativo)
-        self.zapi_instance = os.getenv("ZAPI_INSTANCE")
-        self.zapi_token = os.getenv("ZAPI_TOKEN")
-        self.zapi_client_token = os.getenv("ZAPI_CLIENT_TOKEN")
-        self.zapi_base_url = os.getenv("ZAPI_BASE_URL")
+        self.zapi_instance = settings.ZAPI_INSTANCE
+        self.zapi_token = settings.ZAPI_TOKEN
+        self.zapi_client_token = settings.ZAPI_CLIENT_TOKEN
+        self.zapi_base_url = settings.ZAPI_BASE_URL
 
         # SendGrid (Email)
         self.sendgrid_api_key = os.getenv("SENDGRID_API_KEY")
         self.email_from = os.getenv("EMAIL_FROM", "noreply@exemplo.com")
-        self.email_from_name = os.getenv("EMAIL_FROM_NAME", "Sistema de Alarmes Lindsay")
+        self.email_from_name = os.getenv(
+            "EMAIL_FROM_NAME", "Sistema de Alarmes Lindsay"
+        )
 
         # Rate limiting
         self.rate_limit_delay = float(os.getenv("RATE_LIMIT_DELAY", "0.5"))
@@ -123,11 +129,13 @@ class NotificationService:
         for to_number in to_numbers:
             if not self.validate_phone_number(to_number):
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "invalid",
-                    "error": "Número inválido",
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "invalid",
+                        "error": "Número inválido",
+                    }
+                )
                 continue
 
             try:
@@ -135,20 +143,24 @@ class NotificationService:
                     body=message, from_=from_number, to=to_number
                 )
                 results["success"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "sent",
-                    "sid": msg.sid,
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "sent",
+                        "sid": msg.sid,
+                    }
+                )
                 logger.info(f"✅ SMS enviado para {to_number}: {msg.sid}")
 
             except TwilioException as e:
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "failed",
-                    "error": str(e),
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
                 logger.error(f"❌ Erro ao enviar SMS para {to_number}: {e}")
 
         return results
@@ -184,16 +196,22 @@ class NotificationService:
         for to_number in to_numbers:
             if not self.validate_phone_number(to_number):
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "invalid",
-                    "error": "Número inválido",
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "invalid",
+                        "error": "Número inválido",
+                    }
+                )
                 continue
 
             try:
                 # Garantir que o número tenha whatsapp:
-                to_wa = f"whatsapp:{to_number}" if not to_number.startswith("whatsapp:") else to_number
+                to_wa = (
+                    f"whatsapp:{to_number}"
+                    if not to_number.startswith("whatsapp:")
+                    else to_number
+                )
 
                 msg = self.twilio_client.messages.create(
                     body=message,
@@ -202,20 +220,24 @@ class NotificationService:
                 )
 
                 results["success"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "sent",
-                    "sid": msg.sid,
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "sent",
+                        "sid": msg.sid,
+                    }
+                )
                 logger.info(f"✅ WhatsApp enviado para {to_number}: {msg.sid}")
 
             except TwilioException as e:
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "failed",
-                    "error": str(e),
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
                 logger.error(f"❌ Erro ao enviar WhatsApp para {to_number}: {e}")
 
         return results
@@ -251,11 +273,13 @@ class NotificationService:
         for to_number in to_numbers:
             if not self.validate_phone_number(to_number):
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "invalid",
-                    "error": "Número inválido",
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "invalid",
+                        "error": "Número inválido",
+                    }
+                )
                 continue
 
             try:
@@ -273,29 +297,126 @@ class NotificationService:
                 if response.status_code == 200:
                     data = response.json()
                     results["success"] += 1
-                    results["details"].append({
-                        "to": to_number,
-                        "status": "sent",
-                        "message_id": data.get("messageId"),
-                    })
+                    results["details"].append(
+                        {
+                            "to": to_number,
+                            "status": "sent",
+                            "message_id": data.get("messageId"),
+                        }
+                    )
                     logger.info(f"✅ Z-API WhatsApp enviado para {to_number}")
                 else:
                     results["failed"] += 1
-                    results["details"].append({
-                        "to": to_number,
-                        "status": "failed",
-                        "error": f"HTTP {response.status_code}",
-                    })
+                    results["details"].append(
+                        {
+                            "to": to_number,
+                            "status": "failed",
+                            "error": f"HTTP {response.status_code}",
+                        }
+                    )
                     logger.error(f"❌ Z-API erro para {to_number}: {response.text}")
 
             except Exception as e:
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "failed",
-                    "error": str(e),
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
                 logger.error(f"❌ Erro Z-API para {to_number}: {e}")
+
+        return results
+
+    # =========================================================================
+    # Ligação de Voz via Z-API
+    # =========================================================================
+
+    def send_voice_call_zapi(
+        self,
+        to_numbers: List[str],
+        call_duration: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Enviar ligação de voz via Z-API
+
+        Args:
+            to_numbers: Lista de números para ligar
+            call_duration: Duração da chamada em segundos (opcional, máx 15s segundo a doc)
+
+        Returns:
+            Dict com status e detalhes do envio
+        """
+        if not self.zapi_instance or not self.zapi_token:
+            return {"success": False, "error": "Z-API não configurado"}
+
+        results = {"success": 0, "failed": 0, "details": []}
+        headers = {
+            "Client-Token": self.zapi_client_token,
+            "Content-Type": "application/json",
+        }
+
+        for to_number in to_numbers:
+            if not self.validate_phone_number(to_number):
+                results["failed"] += 1
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "invalid",
+                        "error": "Número inválido",
+                    }
+                )
+                continue
+
+            try:
+                # Formato Z-API: apenas números, sem + ou máscaras
+                clean_number = re.sub(r"\D", "", to_number)
+
+                payload: Dict[str, Any] = {"phone": clean_number}
+
+                # Adiciona o callDuration apenas se foi passado como argumento
+                if call_duration is not None:
+                    payload["callDuration"] = call_duration
+
+                url = f"{self.zapi_base_url}/instances/{self.zapi_instance}/token/{self.zapi_token}/send-call"
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+
+                if response.status_code == 200:
+                    data = response.json()
+                    results["success"] += 1
+                    results["details"].append(
+                        {
+                            "to": to_number,
+                            "status": "initiated",
+                            "message_id": data.get("messageId"),
+                            "zaap_id": data.get("zaapId"),
+                        }
+                    )
+                    logger.info(f"✅ Ligação Z-API iniciada para {to_number}")
+                else:
+                    results["failed"] += 1
+                    results["details"].append(
+                        {
+                            "to": to_number,
+                            "status": "failed",
+                            "error": f"HTTP {response.status_code}",
+                        }
+                    )
+                    logger.error(
+                        f"❌ Z-API erro ao ligar para {to_number}: {response.text}"
+                    )
+
+            except Exception as e:
+                results["failed"] += 1
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
+                logger.error(f"❌ Erro Z-API ao ligar para {to_number}: {e}")
 
         return results
 
@@ -336,11 +457,13 @@ class NotificationService:
             for to_email in to_emails:
                 if not self.validate_email(to_email):
                     results["failed"] += 1
-                    results["details"].append({
-                        "to": to_email,
-                        "status": "invalid",
-                        "error": "Email inválido",
-                    })
+                    results["details"].append(
+                        {
+                            "to": to_email,
+                            "status": "invalid",
+                            "error": "Email inválido",
+                        }
+                    )
                     continue
 
                 try:
@@ -358,26 +481,32 @@ class NotificationService:
 
                     if response.status_code in (200, 201, 202):
                         results["success"] += 1
-                        results["details"].append({
-                            "to": to_email,
-                            "status": "sent",
-                        })
+                        results["details"].append(
+                            {
+                                "to": to_email,
+                                "status": "sent",
+                            }
+                        )
                         logger.info(f"✅ Email enviado para {to_email}")
                     else:
                         results["failed"] += 1
-                        results["details"].append({
-                            "to": to_email,
-                            "status": "failed",
-                            "error": f"HTTP {response.status_code}",
-                        })
+                        results["details"].append(
+                            {
+                                "to": to_email,
+                                "status": "failed",
+                                "error": f"HTTP {response.status_code}",
+                            }
+                        )
 
                 except Exception as e:
                     results["failed"] += 1
-                    results["details"].append({
-                        "to": to_email,
-                        "status": "failed",
-                        "error": str(e),
-                    })
+                    results["details"].append(
+                        {
+                            "to": to_email,
+                            "status": "failed",
+                            "error": str(e),
+                        }
+                    )
                     logger.error(f"❌ Erro ao enviar email para {to_email}: {e}")
 
         except Exception as e:
@@ -414,11 +543,13 @@ class NotificationService:
         for to_number in to_numbers:
             if not self.validate_phone_number(to_number):
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "invalid",
-                    "error": "Número inválido",
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "invalid",
+                        "error": "Número inválido",
+                    }
+                )
                 continue
 
             try:
@@ -432,20 +563,24 @@ class NotificationService:
                 )
 
                 results["success"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "initiated",
-                    "call_sid": call.sid,
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "initiated",
+                        "call_sid": call.sid,
+                    }
+                )
                 logger.info(f"✅ Ligação iniciada para {to_number}: {call.sid}")
 
             except TwilioException as e:
                 results["failed"] += 1
-                results["details"].append({
-                    "to": to_number,
-                    "status": "failed",
-                    "error": str(e),
-                })
+                results["details"].append(
+                    {
+                        "to": to_number,
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
                 logger.error(f"❌ Erro ao ligar para {to_number}: {e}")
 
         return results
@@ -462,6 +597,7 @@ class NotificationService:
         phones: Optional[List[str]] = None,
         emails: Optional[List[str]] = None,
         channels: Optional[List[str]] = None,  # ["sms", "whatsapp", "email"]
+        call_duration: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Enviar mensagem por múltiplos canais simultaneamente
@@ -487,13 +623,22 @@ class NotificationService:
             results["channels"]["whatsapp"] = self.send_whatsapp_twilio(message, phones)
 
         if "whatsapp_zapi" in channels and phones:
-            results["channels"]["whatsapp_zapi"] = self.send_whatsapp_zapi(message, phones)
+            results["channels"]["whatsapp_zapi"] = self.send_whatsapp_zapi(
+                message, phones
+            )
 
         if "email" in channels and emails:
-            results["channels"]["email"] = self.send_email(subject, message, body_html, emails)
+            results["channels"]["email"] = self.send_email(
+                subject, message, body_html, emails
+            )
 
         if "voice" in channels and phones:
             results["channels"]["voice"] = self.send_voice_call(message, phones)
+
+        if "voice_zapi" in channels and phones:
+            results["channels"]["voice_zapi"] = self.send_voice_call_zapi(
+                to_numbers=phones, call_duration=call_duration
+            )
 
         return results
 

@@ -19,6 +19,7 @@ router = APIRouter(prefix="/alerts")
 # Alertas
 # ============================================================================
 
+
 @router.get("")
 async def list_alerts(
     irrigador_id: Optional[str] = None,
@@ -97,6 +98,7 @@ async def get_alert(alert_id: str, user: dict = Depends(get_current_user)):
 # Notificações
 # ============================================================================
 
+
 @router.post("/notifications/send")
 async def send_notification(
     request: dict,
@@ -148,9 +150,9 @@ async def send_notification(
                 "sent_by": user["email"],
                 "user_type": user["type"],
                 "result": result,
-                "timestamp": __import__('datetime').datetime.now(
-                    __import__('zoneinfo').ZoneInfo("America/Sao_Paulo")
-                ).isoformat(),
+                "timestamp": __import__("datetime")
+                .datetime.now(__import__("zoneinfo").ZoneInfo("America/Sao_Paulo"))
+                .isoformat(),
             }
             db.save(log_doc)
         except Exception as e:
@@ -171,6 +173,7 @@ async def send_notification(
 # ============================================================================
 # Push Notifications
 # ============================================================================
+
 
 @router.post("/push/register-device")
 async def register_device_token(
@@ -257,7 +260,9 @@ async def get_notifications_history(
         # Determinar qual irrigador ver
         if checker.is_admin():
             if not irrigador_id:
-                raise HTTPException(status_code=400, detail="irrigador_id obrigatório para admin")
+                raise HTTPException(
+                    status_code=400, detail="irrigador_id obrigatório para admin"
+                )
             target_irrigador = irrigador_id
         elif checker.is_revenda() or checker.is_cliente():
             target_irrigador = irrigador_id or user["email"]

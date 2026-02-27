@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 from pydantic_settings import BaseSettings
 from typing import Optional
 
+
 class Settings(BaseSettings):
     """Configurações da aplicação"""
 
@@ -25,7 +26,9 @@ class Settings(BaseSettings):
     # Database
     COUCHDB_URL: str = os.getenv("COUCHDB_URL", "https://admin:wyrd@db.vpn.ind.br")
     COUCHDB_DB: str = os.getenv("COUCHDB_DB", "lindsay-data")
-    COUCHDB_USERS_DB: str = os.getenv("COUCHDB_USERS_DB", "lindsay-users")  # ← Novo banco para usuários
+    COUCHDB_USERS_DB: str = os.getenv(
+        "COUCHDB_USERS_DB", "lindsay-users"
+    )  # ← Novo banco para usuários
 
     # Security
     JWT_SECRET: str = os.getenv("JWT_SECRET", "dev-secret-key-change-in-prod")
@@ -49,14 +52,24 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
     TWILIO_WHATSAPP_FROM: str = os.getenv("TWILIO_WHATSAPP_FROM", "")
 
+    # Z-API
+    ZAPI_INSTANCE: str = os.getenv("ZAPI_INSTANCE", "")
+    ZAPI_TOKEN: str = os.getenv("ZAPI_TOKEN", "")
+    ZAPI_CLIENT_TOKEN: str = os.getenv("ZAPI_CLIENT_TOKEN", "")
+    ZAPI_BASE_URL: str = os.getenv("ZAPI_BASE_URL", "https://api.z-api.io")
+
     # SendGrid
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@example.com")
 
     # AWS Cognito
     AWS_REGION: str = os.getenv("AWS_REGION", "sa-east-1")
-    COGNITO_CLIENT_ID: str = os.getenv("COGNITO_CLIENT_ID", "42qha79hpnknpksf2k1djo7eq9")
-    COGNITO_CLIENT_SECRET: str = os.getenv("COGNITO_CLIENT_SECRET","1jeh2l3f1uf4pjaqcf77i7a2rccucjlg7cnc3lu89n9hhc25qcv6" )  # Se vazio, cliente não tem secret
+    COGNITO_CLIENT_ID: str = os.getenv(
+        "COGNITO_CLIENT_ID", "42qha79hpnknpksf2k1djo7eq9"
+    )
+    COGNITO_CLIENT_SECRET: str = os.getenv(
+        "COGNITO_CLIENT_SECRET", "1jeh2l3f1uf4pjaqcf77i7a2rccucjlg7cnc3lu89n9hhc25qcv6"
+    )  # Se vazio, cliente não tem secret
     COGNITO_USER_POOL_ID: str = os.getenv("COGNITO_USER_POOL_ID", "sa-east-1_bm329gdfB")
 
     # Timezone
