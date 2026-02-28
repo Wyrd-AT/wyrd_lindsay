@@ -291,7 +291,7 @@ class NotificationService:
                     "message": message,
                 }
 
-                url = f"{self.zapi_base_url}/instances/{self.zapi_instance}/token/{self.zapi_token}/send-message"
+                url = f"{self.zapi_base_url}/instances/{self.zapi_instance}/token/{self.zapi_token}/send-text"
                 response = requests.post(url, json=payload, headers=headers, timeout=10)
 
                 if response.status_code == 200:
