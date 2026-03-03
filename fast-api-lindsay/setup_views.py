@@ -13,6 +13,7 @@ from datetime import datetime
 COUCHDB_URL = os.getenv("COUCHDB_URL", "http://localhost:5984")
 USERS_DB = os.getenv("COUCHDB_USERS_DB", "lindsay-users")
 
+
 def setup_views():
     """Criar design documents e views"""
     try:
@@ -101,10 +102,12 @@ function(doc) {
     except Exception as e:
         print(f"❌ Erro ao criar views: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
     return True
+
 
 if __name__ == "__main__":
     success = setup_views()

@@ -4,7 +4,11 @@ import boto3
 from fastapi import APIRouter, HTTPException, status, Depends
 from app.core.database import get_db, get_users_db
 from app.core.config import settings
-from app.models.schemas import RevendasListResponse, ApprovalRequest, AdminCreateRevendaRequest
+from app.models.schemas import (
+    RevendasListResponse,
+    ApprovalRequest,
+    AdminCreateRevendaRequest,
+)
 from app.services.auth import AuthService
 from app.services.permissions import PermissionChecker
 from app.services.revenda import RevendaService
@@ -44,7 +48,7 @@ async def list_revendas(user: dict = Depends(get_current_user)):
                 "name": row.get("name"),
                 "cnpj_revenda": row.get("cnpj_revenda"),
                 "status": row.get("status"),
-                "created_at": row.get("created_at")
+                "created_at": row.get("created_at"),
             }
             for row in result
         ]
@@ -69,7 +73,9 @@ async def get_pending_revendas(user: dict = Depends(get_current_user)):
 
 
 @router.post("", status_code=201)
-async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Depends(get_current_user)):
+async def create_revenda_admin(
+    body: AdminCreateRevendaRequest, user: dict = Depends(get_current_user)
+):
     """Criar revenda (admin only - criada já com status active)"""
     checker = PermissionChecker(user)
     if not checker.can_manage_revendas():
@@ -100,7 +106,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
             settings.COUCHDB_URL,
             settings.COUCHDB_USERS_DB,
             cognito_region=settings.AWS_REGION,
-            cognito_pool_id=settings.COGNITO_USER_POOL_ID
+            cognito_pool_id=settings.COGNITO_USER_POOL_ID,
         )
 
         success, msg, doc_id = revenda_service.create_revenda_couchdb(
@@ -109,7 +115,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
             cnpj_revenda=cnpj_revenda_formatted,
             cognito_sub=None,  # Será preenchido depois
             initial_status="pending",  # ✅ Sempre pending, admin precisa aprovar depois
-            cnpj_admin=body.cnpj_admin
+            cnpj_admin=body.cnpj_admin,
         )
 
         if not success:
@@ -120,7 +126,9 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
 
         # ✅ PASSO 2: Criar usuário no Cognito (DEPOIS de CouchDB funcionar)
         try:
-            cognito_client = boto3.client('cognito-idp', region_name=settings.AWS_REGION)
+            cognito_client = boto3.client(
+                "cognito-idp", region_name=settings.AWS_REGION
+            )
 
             # ✅ Passar custom attributes JÁ no sign_up
             sign_up_params = {
@@ -133,8 +141,8 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
                     {"Name": "custom:type", "Value": "revenda"},
                     {"Name": "custom:status", "Value": "pending"},
                     {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
-                    {"Name": "custom:doc_id", "Value": doc_id}
-                ]
+                    {"Name": "custom:doc_id", "Value": doc_id},
+                ],
             }
 
             secret_hash = get_secret_hash(body.email)
@@ -144,7 +152,9 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
             cognito_response = cognito_client.sign_up(**sign_up_params)
             cognito_sub = cognito_response.get("UserSub")
             print(f"✅ Usuário criado no Cognito: {cognito_sub}")
-            print(f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}")
+            print(
+                f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}"
+            )
 
             # ✅ PASSO 3: Atualizar revenda no CouchDB com cognito_sub
             try:
@@ -159,8 +169,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
             # ✅ PASSO 4: Confirmar usuário no Cognito automaticamente
             try:
                 cognito_client.admin_confirm_sign_up(
-                    UserPoolId=settings.COGNITO_USER_POOL_ID,
-                    Username=body.email
+                    UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
                 )
                 print(f"✅ Usuário confirmado no Cognito")
             except Exception as e:
@@ -178,7 +187,9 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
                             revendas_list.append(cnpj_revenda_formatted)
                             admin_doc["revendas"] = revendas_list
                             revenda_service.db.save(admin_doc)
-                            print(f"✅ Admin.revendas[] atualizado com {cnpj_revenda_formatted}")
+                            print(
+                                f"✅ Admin.revendas[] atualizado com {cnpj_revenda_formatted}"
+                            )
             except Exception as e:
                 print(f"⚠️ Aviso ao atualizar admin.revendas[]: {e}")
 
@@ -189,7 +200,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
                 "email": body.email,
                 "name": body.name,
                 "cnpj": cnpj_revenda_formatted,
-                "status_code": 201
+                "status_code": 201,
             }
 
         except Exception as cognito_error:
@@ -205,7 +216,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
 
             raise HTTPException(
                 status_code=500,
-                detail=f"Erro ao sincronizar com Cognito. Revenda não foi criada: {str(cognito_error)}"
+                detail=f"Erro ao sincronizar com Cognito. Revenda não foi criada: {str(cognito_error)}",
             )
 
     except HTTPException:
@@ -213,6 +224,7 @@ async def create_revenda_admin(body: AdminCreateRevendaRequest, user: dict = Dep
     except Exception as e:
         print(f"❌ ERRO geral: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erro ao criar revenda: {str(e)}")
 
@@ -228,7 +240,7 @@ async def approve_revenda(email: str, user: dict = Depends(get_current_user)):
         settings.COUCHDB_URL,
         settings.COUCHDB_USERS_DB,
         cognito_region=settings.AWS_REGION,
-        cognito_pool_id=settings.COGNITO_USER_POOL_ID
+        cognito_pool_id=settings.COGNITO_USER_POOL_ID,
     )
 
     try:
@@ -239,13 +251,13 @@ async def approve_revenda(email: str, user: dict = Depends(get_current_user)):
 
         # 2. Atualizar status no Cognito também
         try:
-            cognito_client = boto3.client('cognito-idp', region_name=settings.AWS_REGION)
+            cognito_client = boto3.client(
+                "cognito-idp", region_name=settings.AWS_REGION
+            )
             cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
                 Username=email,
-                UserAttributes=[
-                    {"Name": "custom:status", "Value": "active"}
-                ]
+                UserAttributes=[{"Name": "custom:status", "Value": "active"}],
             )
             print(f"✅ Status atualizado no Cognito para {email}")
         except Exception as cognito_err:
@@ -257,7 +269,9 @@ async def approve_revenda(email: str, user: dict = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao aprovar revenda: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro ao aprovar revenda: {str(e)}"
+        )
 
 
 @router.post("/{email}/reject")
@@ -271,7 +285,7 @@ async def reject_revenda(email: str, user: dict = Depends(get_current_user)):
         settings.COUCHDB_URL,
         settings.COUCHDB_USERS_DB,
         cognito_region=settings.AWS_REGION,
-        cognito_pool_id=settings.COGNITO_USER_POOL_ID
+        cognito_pool_id=settings.COGNITO_USER_POOL_ID,
     )
 
     try:
@@ -282,13 +296,13 @@ async def reject_revenda(email: str, user: dict = Depends(get_current_user)):
 
         # 2. Atualizar status no Cognito também
         try:
-            cognito_client = boto3.client('cognito-idp', region_name=settings.AWS_REGION)
+            cognito_client = boto3.client(
+                "cognito-idp", region_name=settings.AWS_REGION
+            )
             cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
                 Username=email,
-                UserAttributes=[
-                    {"Name": "custom:status", "Value": "rejected"}
-                ]
+                UserAttributes=[{"Name": "custom:status", "Value": "rejected"}],
             )
             print(f"✅ Status atualizado no Cognito para {email}")
         except Exception as cognito_err:
@@ -300,4 +314,6 @@ async def reject_revenda(email: str, user: dict = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erro ao rejeitar revenda: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Erro ao rejeitar revenda: {str(e)}"
+        )

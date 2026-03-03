@@ -21,14 +21,20 @@ from app.utils.validators import (
     validate_domain,
     validate_email,
     validate_name,
-    format_cnpj
+    format_cnpj,
 )
 
 
 class RevendaService:
     """Serviço para gerenciar revendas"""
 
-    def __init__(self, couchdb_url: str, database: str, cognito_region: str = "us-east-1", cognito_pool_id: str = None):
+    def __init__(
+        self,
+        couchdb_url: str,
+        database: str,
+        cognito_region: str = "us-east-1",
+        cognito_pool_id: str = None,
+    ):
         """
         Inicializar RevendaService
 
@@ -40,13 +46,18 @@ class RevendaService:
         """
         # CouchDB
         try:
-            print(f"📝 DEBUG RevendaService: Conectando ao CouchDB URL={couchdb_url}, database={database}")
+            print(
+                f"📝 DEBUG RevendaService: Conectando ao CouchDB URL={couchdb_url}, database={database}"
+            )
             self.server = couchdb.Server(couchdb_url)
             self.db = self.server[database]
-            print(f"✅ DEBUG RevendaService: Conectado com sucesso ao banco '{database}'")
+            print(
+                f"✅ DEBUG RevendaService: Conectado com sucesso ao banco '{database}'"
+            )
         except Exception as e:
             print(f"❌ DEBUG RevendaService: Erro ao conectar: {str(e)}")
             import traceback
+
             traceback.print_exc()
             raise Exception(f"Falha ao conectar ao CouchDB: {e}")
 
@@ -56,7 +67,9 @@ class RevendaService:
 
         if cognito_pool_id:
             try:
-                self.cognito_client = boto3.client('cognito-idp', region_name=cognito_region)
+                self.cognito_client = boto3.client(
+                    "cognito-idp", region_name=cognito_region
+                )
             except Exception as e:
                 print(f"⚠️ Aviso: Cognito não disponível: {e}")
 
@@ -71,20 +84,23 @@ class RevendaService:
         Returns:
             Tuple[bool, Optional[str]]: (existe, mensagem_info)
         """
-        print(f"🔍 DEBUG: Verificando se revenda '{name}' com email '{email}' existe...")
+        print(
+            f"🔍 DEBUG: Verificando se revenda '{name}' com email '{email}' existe..."
+        )
 
         try:
             # Procurar por nome OU email
-            results = list(self.db.find({
-                "selector": {
-                    "type": "revenda",
-                    "$or": [
-                        {"name": name},
-                        {"email": email}
-                    ]
-                },
-                "limit": 10
-            }))
+            results = list(
+                self.db.find(
+                    {
+                        "selector": {
+                            "type": "revenda",
+                            "$or": [{"name": name}, {"email": email}],
+                        },
+                        "limit": 10,
+                    }
+                )
+            )
 
             if results:
                 print(f"⚠️ DEBUG: Encontrados {len(results)} cadastro(s) da revenda")
@@ -107,7 +123,7 @@ class RevendaService:
         cnpj_revenda: str,
         cognito_sub: Optional[str] = None,
         initial_status: str = "pending",
-        cnpj_admin: Optional[str] = None  # CNPJ do admin que cria (para hierarquia)
+        cnpj_admin: Optional[str] = None,  # CNPJ do admin que cria (para hierarquia)
     ) -> Tuple[bool, str, Optional[str]]:
         """
         Criar documento de revenda no CouchDB (permite múltiplos cadastros)
@@ -158,9 +174,7 @@ class RevendaService:
             return False, f"Erro ao criar revenda: {str(e)}", None
 
     def update_cognito_attributes(
-        self,
-        username: str,
-        custom_attributes: Dict[str, str]
+        self, username: str, custom_attributes: Dict[str, str]
     ) -> Tuple[bool, str]:
         """
         Atualizar custom attributes da revenda no Cognito
@@ -184,7 +198,7 @@ class RevendaService:
             self.cognito_client.admin_update_user_attributes(
                 UserPoolId=self.cognito_pool_id,
                 Username=username,
-                UserAttributes=user_attributes
+                UserAttributes=user_attributes,
             )
 
             return True, "Custom attributes atualizados no Cognito"
@@ -198,7 +212,7 @@ class RevendaService:
         name: str,
         cnpj: str,
         cognito_sub: Optional[str] = None,
-        cnpj_admin: Optional[str] = None
+        cnpj_admin: Optional[str] = None,
     ) -> Tuple[bool, str, Optional[Dict]]:
         """
         Registrar revenda completo (CouchDB + Cognito)
@@ -236,7 +250,7 @@ class RevendaService:
             name=name,
             cnpj_revenda=cnpj_formatted,
             cognito_sub=cognito_sub,
-            cnpj_admin=cnpj_admin
+            cnpj_admin=cnpj_admin,
         )
 
         if not success:
@@ -250,8 +264,7 @@ class RevendaService:
 
         # Atualizar Cognito
         cognito_success, cognito_msg = self.update_cognito_attributes(
-            username=email,
-            custom_attributes=custom_attributes
+            username=email, custom_attributes=custom_attributes
         )
 
         if not cognito_success:
@@ -264,7 +277,7 @@ class RevendaService:
             "name": name,
             "cnpj": cnpj_formatted,
             "status": "pending",
-            "message": f"Revenda registrada com sucesso! Aguarde aprovação do administrador."
+            "message": f"Revenda registrada com sucesso! Aguarde aprovação do administrador.",
         }
 
         return True, "Revenda registrada com sucesso", revenda_data
@@ -300,9 +313,9 @@ class RevendaService:
             list: Lista de cadastros (pode ter vários)
         """
         try:
-            results = list(self.db.find({
-                "selector": {"type": "revenda", "name": name}
-            }))
+            results = list(
+                self.db.find({"selector": {"type": "revenda", "name": name}})
+            )
             return [dict(doc) for doc in results]
         except Exception as e:
             print(f"Erro ao obter revenda por nome: {e}")
@@ -323,9 +336,9 @@ class RevendaService:
             list: Lista de cadastros (pode ter vários)
         """
         try:
-            results = list(self.db.find({
-                "selector": {"type": "revenda", "email": email}
-            }))
+            results = list(
+                self.db.find({"selector": {"type": "revenda", "email": email}})
+            )
             return [dict(doc) for doc in results]
         except Exception as e:
             print(f"Erro ao obter revenda por email: {e}")
@@ -351,10 +364,16 @@ class RevendaService:
             revendas = self.get_revenda_by_email(revenda_id)
             revenda = next((r for r in revendas if r.get("status") == "pending"), None)
             if not revenda:
-                return False, f"Revenda com email '{revenda_id}' (pending) não encontrada"
+                return (
+                    False,
+                    f"Revenda com email '{revenda_id}' (pending) não encontrada",
+                )
 
         if revenda.get("status") != "pending":
-            return False, f"Revenda não está em status 'pending' (status: {revenda.get('status')})"
+            return (
+                False,
+                f"Revenda não está em status 'pending' (status: {revenda.get('status')})",
+            )
 
         try:
             revenda["status"] = "active"
@@ -365,7 +384,9 @@ class RevendaService:
         except Exception as e:
             return False, f"Erro ao aprovar revenda: {str(e)}"
 
-    def reject_revenda(self, revenda_id: str, reason: Optional[str] = None) -> Tuple[bool, str]:
+    def reject_revenda(
+        self, revenda_id: str, reason: Optional[str] = None
+    ) -> Tuple[bool, str]:
         """
         Rejeitar revenda (mudar status para 'rejected')
 
@@ -386,10 +407,16 @@ class RevendaService:
             revendas = self.get_revenda_by_email(revenda_id)
             revenda = next((r for r in revendas if r.get("status") == "pending"), None)
             if not revenda:
-                return False, f"Revenda com email '{revenda_id}' (pending) não encontrada"
+                return (
+                    False,
+                    f"Revenda com email '{revenda_id}' (pending) não encontrada",
+                )
 
         if revenda.get("status") != "pending":
-            return False, f"Revenda não está em status 'pending' (status: {revenda.get('status')})"
+            return (
+                False,
+                f"Revenda não está em status 'pending' (status: {revenda.get('status')})",
+            )
 
         try:
             revenda["status"] = "rejected"

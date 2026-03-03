@@ -21,6 +21,7 @@ BR_TZ = ZoneInfo("America/Sao_Paulo")
 # Comandos
 # ============================================================================
 
+
 @router.post("")
 async def send_command(
     request: dict,
@@ -108,7 +109,9 @@ async def send_command(
             "doc_id": doc_id,
             "message": f"Comando '{command}' enviado para {irrigador_id}",
             "status": doc["status"],
-            "will_execute_in": f"{timer_minutes} minuto(s)" if timer_minutes > 0 else "Agora",
+            "will_execute_in": f"{timer_minutes} minuto(s)"
+            if timer_minutes > 0
+            else "Agora",
         }
 
     except HTTPException:

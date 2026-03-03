@@ -30,28 +30,28 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
             {
                 "name": "type-cnpj_admin",
                 "fields": ["type", "cnpj_admin"],
-                "desc": "Índice para filtrar revendas por admin"
+                "desc": "Índice para filtrar revendas por admin",
             },
             {
                 "name": "type-status",
                 "fields": ["type", "status"],
-                "desc": "Índice para filtrar por tipo e status"
+                "desc": "Índice para filtrar por tipo e status",
             },
             {
                 "name": "type-revenda_id",
                 "fields": ["type", "revenda_id"],
-                "desc": "Índice para filtrar clientes por revenda"
+                "desc": "Índice para filtrar clientes por revenda",
             },
             {
                 "name": "email",
                 "fields": ["email"],
-                "desc": "Índice para busca por email"
+                "desc": "Índice para busca por email",
             },
             {
                 "name": "type-cnpj_cliente-sub_role",
                 "fields": ["type", "cnpj_cliente", "sub_role"],
-                "desc": "Índice para filtrar usuários de empresa por cnpj_cliente e sub_role"
-            }
+                "desc": "Índice para filtrar usuários de empresa por cnpj_cliente e sub_role",
+            },
         ]
 
         print(f"✅ Conectado ao banco de dados: {database}")
@@ -63,7 +63,7 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
                 payload = {
                     "index": {"fields": idx["fields"]},
                     "name": idx["name"],
-                    "type": "json"
+                    "type": "json",
                 }
 
                 response = requests.post(url, json=payload)
@@ -81,7 +81,9 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
             except Exception as e:
                 print(f"⚠️  Erro ao criar índice {idx['name']}: {str(e)}")
 
-        print(f"\n✅ Setup de índices concluído! ({success_count}/{len(indexes)} índices)")
+        print(
+            f"\n✅ Setup de índices concluído! ({success_count}/{len(indexes)} índices)"
+        )
         return True, f"Índices configurados ({success_count}/{len(indexes)})"
 
     except Exception as e:

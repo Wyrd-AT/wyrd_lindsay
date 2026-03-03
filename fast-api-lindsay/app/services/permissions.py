@@ -16,6 +16,7 @@ Uso:
         # Aprovar revenda...
         pass
 """
+
 from typing import Dict, Optional, Literal
 from enum import Enum
 
@@ -23,8 +24,10 @@ from enum import Enum
 # Enums
 # =============================================================================
 
+
 class Role(str, Enum):
     """Papéis de usuário no sistema"""
+
     ADMIN = "admin"
     REVENDA = "revenda"
     CLIENTE = "cliente"
@@ -32,6 +35,7 @@ class Role(str, Enum):
 
 class ClienteSubRole(str, Enum):
     """Sub-roles dentro do nível cliente"""
+
     SUPERUSUARIO = "superusuario"
     GERENTE = "gerente"
     COMUM = "comum"
@@ -39,6 +43,7 @@ class ClienteSubRole(str, Enum):
 
 class Permission(str, Enum):
     """Permissões do sistema"""
+
     # Admin
     MANAGE_REVENDAS = "manage_revendas"
     APPROVE_REVENDAS = "approve_revendas"
@@ -63,9 +68,11 @@ class Permission(str, Enum):
     EXPORT_REPORTS = "export_reports"
     MANAGE_COMPANY_USERS = "manage_company_users"
 
+
 # =============================================================================
 # PermissionChecker
 # =============================================================================
+
 
 class PermissionChecker:
     """
@@ -105,7 +112,7 @@ class PermissionChecker:
             Permission.VIEW_OWN_PIVOS,
             Permission.CREATE_OWN_PIVOS,
             Permission.REQUEST_REGISTER,
-        }
+        },
     }
 
     # Permissões por sub-role de cliente
@@ -292,10 +299,7 @@ class PermissionChecker:
         return False
 
     def can_view_cliente(
-        self,
-        cliente_email: str,
-        revenda_id: str,
-        is_owner: bool = False
+        self, cliente_email: str, revenda_id: str, is_owner: bool = False
     ) -> bool:
         """
         Verificar se usuário pode visualizar um cliente
@@ -322,11 +326,7 @@ class PermissionChecker:
         return False
 
     def can_view_pivo(
-        self,
-        pivo_id: str,
-        cliente_email: str,
-        revenda_id: str,
-        is_owner: bool = False
+        self, pivo_id: str, cliente_email: str, revenda_id: str, is_owner: bool = False
     ) -> bool:
         """
         Verificar se usuário pode visualizar um pivô
@@ -439,5 +439,5 @@ class PermissionChecker:
             "status": self.status,
             "is_active": self.is_active(),
             "permissions": [str(p) for p in self.get_permissions()],
-            "access_level": self.get_access_level()
+            "access_level": self.get_access_level(),
         }

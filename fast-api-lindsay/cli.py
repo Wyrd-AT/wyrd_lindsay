@@ -34,9 +34,11 @@ sys.path.insert(0, os.path.dirname(__file__))
 # Setup Database
 # ============================================================================
 
+
 def setup_db():
     """Criar schema e índices no CouchDB"""
     from dotenv import load_dotenv
+
     load_dotenv()
 
     COUCHDB_URL = os.getenv("COUCHDB_URL", "https://admin:wyrd@db.vpn.ind.br")
@@ -70,7 +72,7 @@ def setup_db():
                 "by_domain": {
                     "map": "function(doc) { if(doc.table === 'revenda') emit(doc.domain, null); }"
                 },
-            }
+            },
         }
 
         try:
@@ -92,7 +94,7 @@ def setup_db():
                 "all": {
                     "map": "function(doc) { if(doc.table === 'pivo') emit(null, null); }"
                 },
-            }
+            },
         }
 
         try:
@@ -133,6 +135,7 @@ def setup_db():
         ]
 
         import requests
+
         for idx in indexes:
             try:
                 response = requests.post(
@@ -143,7 +146,9 @@ def setup_db():
                 if response.status_code in (200, 201):
                     logger.info(f"✅ Índice '{idx['name']}' criado")
                 else:
-                    logger.warning(f"⚠️ Erro ao criar índice '{idx['name']}': {response.status_code}")
+                    logger.warning(
+                        f"⚠️ Erro ao criar índice '{idx['name']}': {response.status_code}"
+                    )
             except Exception as e:
                 logger.warning(f"⚠️ Erro ao criar índice '{idx['name']}': {e}")
 
@@ -161,9 +166,11 @@ def setup_db():
 # Create Test Data
 # ============================================================================
 
+
 def create_test_data():
     """Criar dados de teste"""
     from dotenv import load_dotenv
+
     load_dotenv()
 
     COUCHDB_URL = os.getenv("COUCHDB_URL", "https://admin:wyrd@db.vpn.ind.br")
@@ -263,6 +270,7 @@ def create_test_data():
 # MQTT Listener
 # ============================================================================
 
+
 def mqtt_listener():
     """Iniciar MQTT listener"""
     from app.workers.mqtt_listener import main as mqtt_main
@@ -274,6 +282,7 @@ def mqtt_listener():
 # Command Processor
 # ============================================================================
 
+
 def command_processor():
     """Iniciar command processor"""
     from app.workers.command_processor import main as cmd_main
@@ -284,6 +293,7 @@ def command_processor():
 # ============================================================================
 # Simulator
 # ============================================================================
+
 
 def simulate():
     """Iniciar simulador de dados"""
@@ -298,6 +308,7 @@ def simulate():
 # ============================================================================
 # Main
 # ============================================================================
+
 
 def main():
     parser = argparse.ArgumentParser(description="Lindsay API - CLI Commands")

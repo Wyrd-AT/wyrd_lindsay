@@ -42,11 +42,11 @@ class PushService:
 
         # Mapeamento de tipos de alarme
         self.ALARM_PRIORITY_MAP = {
-            "A": "critical",   # Tensão < 50V
-            "B": "high",       # Fim de curso 1
-            "C": "high",       # Fim de curso 2
-            "D": "medium",     # Memória tensão baixa
-            "E": "critical",   # Torre ausente
+            "A": "critical",  # Tensão < 50V
+            "B": "high",  # Fim de curso 1
+            "C": "high",  # Fim de curso 2
+            "D": "medium",  # Memória tensão baixa
+            "E": "critical",  # Torre ausente
         }
 
         self.ALARM_TYPE_DESCRIPTIONS = {
@@ -68,20 +68,15 @@ class PushService:
         """Criar índice no CouchDB para otimizar queries de device_tokens"""
         try:
             index_def = {
-                "index": {
-                    "fields": ["table", "irrigadorIds", "enabled"]
-                },
+                "index": {"fields": ["table", "irrigadorIds", "enabled"]},
                 "name": "idx_device_tokens_irrigadores",
-                "type": "json"
+                "type": "json",
             }
 
             # Usar HTTP diretamente para criar índice Mango
             couchdb_url = os.getenv("COUCHDB_URL", "https://admin:wyrd@db.vpn.ind.br")
             db_name = os.getenv("COUCHDB_DB", "lindsay-data")
-            response = requests.post(
-                f"{couchdb_url}/{db_name}/_index",
-                json=index_def
-            )
+            response = requests.post(f"{couchdb_url}/{db_name}/_index", json=index_def)
 
             if response.status_code in (200, 201):
                 logger.info("✅ Índice de device_tokens verificado")
@@ -268,18 +263,24 @@ class PushService:
             # Processar resposta
             for ticket in response:
                 if ticket["status"] == "ok":
-                    results["tickets"].append({
-                        "status": "ok",
-                        "id": ticket.get("id"),
-                    })
+                    results["tickets"].append(
+                        {
+                            "status": "ok",
+                            "id": ticket.get("id"),
+                        }
+                    )
                 elif ticket["status"] == "error":
                     error_msg = ticket.get("message", "Unknown error")
-                    results["errors"].append({
-                        "status": "error",
-                        "message": error_msg,
-                    })
+                    results["errors"].append(
+                        {
+                            "status": "error",
+                            "message": error_msg,
+                        }
+                    )
 
-            logger.info(f"✅ Push enviado: {len(results['tickets'])} sucesso, {len(results['errors'])} erro")
+            logger.info(
+                f"✅ Push enviado: {len(results['tickets'])} sucesso, {len(results['errors'])} erro"
+            )
             return results
 
         except PushServerError as e:

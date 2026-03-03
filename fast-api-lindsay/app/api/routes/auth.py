@@ -16,7 +16,7 @@ from app.models.schemas import (
     UserRegisterRequest,
     UserLoginRequest,
     UserResponse,
-    TokenResponse
+    TokenResponse,
 )
 from app.services.auth import AuthService
 from app.utils.cognito_utils import get_secret_hash
@@ -29,14 +29,15 @@ security = HTTPBearer(auto_error=False)
 # Dependências
 # ============================================================================
 
+
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
     """Obter usuário autenticado do token"""
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciais não fornecidas"
+            detail="Credenciais não fornecidas",
         )
 
     try:
@@ -64,7 +65,9 @@ def get_current_user(
                 # Revenda: revenda:{domain} - precisa buscar pelo email primeiro
                 try:
                     # Tentar buscar por email
-                    result = db.find({"selector": {"type": "revenda", "email": email}, "limit": 1})
+                    result = db.find(
+                        {"selector": {"type": "revenda", "email": email}, "limit": 1}
+                    )
                     revendas = list(result)
                     if revendas:
                         user_doc = revendas[0]
@@ -94,27 +97,27 @@ def get_current_user(
                 else:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Usuário não encontrado"
+                        detail="Usuário não encontrado",
                     )
             except HTTPException:
                 raise
             except Exception as e:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Usuário não encontrado"
+                    detail="Usuário não encontrado",
                 )
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Erro ao buscar usuário: {str(e)}"
+                detail=f"Erro ao buscar usuário: {str(e)}",
             )
-        
+
         if not user_doc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Usuário não encontrado"
+                detail="Usuário não encontrado",
             )
-        
+
         # Extrair CNPJ correto baseado no tipo do usuário
         user_type_resolved = user_doc.get("type", user_type)
         if user_type_resolved == "admin":
@@ -129,7 +132,9 @@ def get_current_user(
         # Sub-role para clientes (backward compat: sem sub_role = superusuario)
         sub_role_resolved = None
         if user_type_resolved == "cliente":
-            sub_role_resolved = user_doc.get("sub_role") or sub_role_from_token or "superusuario"
+            sub_role_resolved = (
+                user_doc.get("sub_role") or sub_role_from_token or "superusuario"
+            )
 
         return {
             "email": user_doc.get("email", email),
@@ -142,14 +147,14 @@ def get_current_user(
         }
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token inválido: {str(e)}"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Token inválido: {str(e)}"
         )
 
 
 # ============================================================================
 # Rotas
 # ============================================================================
+
 
 @router.post("/register", response_model=UserResponse)
 async def register(request: UserRegisterRequest):
@@ -162,21 +167,21 @@ async def register(request: UserRegisterRequest):
                 email=request.email,
                 password=request.password,
                 name=request.name,
-                cnpj_admin=request.cnpj_admin
+                cnpj_admin=request.cnpj_admin,
             )
         elif request.type == "revenda":
             user = auth_service.register_revenda(
                 email=request.email,
                 password=request.password,
                 name=request.name,
-                domain=request.domain or request.email.split("@")[1]
+                domain=request.domain or request.email.split("@")[1],
             )
         elif request.type == "cliente":
             user = auth_service.register_cliente(
                 email=request.email,
                 password=request.password,
                 name=request.name,
-                revenda_id=request.domain
+                revenda_id=request.domain,
             )
         else:
             raise ValueError(f"Tipo inválido: {request.type}")
@@ -186,7 +191,7 @@ async def register(request: UserRegisterRequest):
             name=user["name"],
             type=user["type"],
             status=user["status"],
-            doc_id=user.get("_id")
+            doc_id=user.get("_id"),
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -202,7 +207,7 @@ async def login(request: UserLoginRequest):
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Email ou senha inválidos"
+                detail="Email ou senha inválidos",
             )
 
         # Gerar token (base64(email:type:cnpj:sub_role))
@@ -232,7 +237,7 @@ async def login(request: UserLoginRequest):
                 status=user["status"],
                 doc_id=user.get("_id"),
                 sub_role=user_sub_role if user_sub_role else None,
-            )
+            ),
         )
     except HTTPException:
         raise
@@ -243,6 +248,7 @@ async def login(request: UserLoginRequest):
 # ============================================================================
 # Registro de Revendas
 # ============================================================================
+
 
 @router.post("/register")
 async def register_revenda(request: dict):
@@ -282,7 +288,7 @@ async def register_revenda(request: dict):
         if user_type != "revenda":
             raise HTTPException(
                 status_code=400,
-                detail="Este endpoint é apenas para revendas (user_type='revenda')"
+                detail="Este endpoint é apenas para revendas (user_type='revenda')",
             )
 
         # Validar senha
@@ -293,14 +299,10 @@ async def register_revenda(request: dict):
         # Inicializar Cognito (requer credenciais AWS)
         try:
             cognito_client = boto3.client(
-                'cognito-idp',
-                region_name=settings.AWS_REGION
+                "cognito-idp", region_name=settings.AWS_REGION
             )
         except Exception as e:
-            raise HTTPException(
-                status_code=500,
-                detail="Cognito não disponível"
-            )
+            raise HTTPException(status_code=500, detail="Cognito não disponível")
 
         # PASSO 1: Criar usuário no Cognito
         try:
@@ -315,8 +317,8 @@ async def register_revenda(request: dict):
                     {"Name": "name", "Value": name},
                     {"Name": "custom:type", "Value": "revenda"},
                     {"Name": "custom:status", "Value": "pending"},
-                    {"Name": "custom:cnpj", "Value": cnpj}
-                ]
+                    {"Name": "custom:cnpj", "Value": cnpj},
+                ],
             }
 
             # Adicionar SecretHash se o cliente tem um secret configurado
@@ -325,27 +327,27 @@ async def register_revenda(request: dict):
                 sign_up_params["SecretHash"] = secret_hash
 
             cognito_response = cognito_client.sign_up(**sign_up_params)
-            cognito_sub = cognito_response['UserSub']
+            cognito_sub = cognito_response["UserSub"]
             print(f"✅ Usuário revenda criado no Cognito: {cognito_sub}")
-            print(f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj}")
+            print(
+                f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj}"
+            )
 
         except ClientError as e:
-            error_code = e.response['Error']['Code']
+            error_code = e.response["Error"]["Code"]
 
-            if error_code == 'UsernameExistsException':
+            if error_code == "UsernameExistsException":
                 raise HTTPException(
-                    status_code=409,
-                    detail="Email já está registrado no sistema"
+                    status_code=409, detail="Email já está registrado no sistema"
                 )
-            elif error_code == 'InvalidPasswordException':
+            elif error_code == "InvalidPasswordException":
                 raise HTTPException(
                     status_code=400,
-                    detail="Senha não atende aos requisitos de segurança"
+                    detail="Senha não atende aos requisitos de segurança",
                 )
             else:
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"Erro ao criar usuário no Cognito: {e}"
+                    status_code=400, detail=f"Erro ao criar usuário no Cognito: {e}"
                 )
 
         # PASSO 2: Criar revenda no CouchDB + sincronizar Cognito
@@ -353,22 +355,18 @@ async def register_revenda(request: dict):
             couchdb_url=settings.COUCHDB_URL,
             database=settings.COUCHDB_USERS_DB,  # ✅ Usar banco de USUÁRIOS (lindsay-users), não de dados!
             cognito_region=settings.AWS_REGION,
-            cognito_pool_id=settings.COGNITO_USER_POOL_ID
+            cognito_pool_id=settings.COGNITO_USER_POOL_ID,
         )
 
         success, message, revenda_data = revenda_service.register_revenda_complete(
-            email=email,
-            name=name,
-            cnpj=cnpj,
-            cognito_sub=cognito_sub
+            email=email, name=name, cnpj=cnpj, cognito_sub=cognito_sub
         )
 
         if not success:
             # Se falhou no CouchDB, deletar o usuário do Cognito
             try:
                 cognito_client.admin_delete_user(
-                    UserPoolId=settings.COGNITO_USER_POOL_ID,
-                    Username=email
+                    UserPoolId=settings.COGNITO_USER_POOL_ID, Username=email
                 )
             except:
                 pass  # Ignorar erro ao limpar
@@ -378,8 +376,7 @@ async def register_revenda(request: dict):
         # PASSO 3: Confirmar usuário no Cognito (admin action)
         try:
             cognito_client.admin_confirm_sign_up(
-                UserPoolId=settings.COGNITO_USER_POOL_ID,
-                Username=email
+                UserPoolId=settings.COGNITO_USER_POOL_ID, Username=email
             )
         except Exception as e:
             print(f"⚠️ Aviso ao confirmar usuário no Cognito: {e}")
@@ -392,18 +389,18 @@ async def register_revenda(request: dict):
             "email": email,
             "name": name,
             "cnpj": revenda_data.get("cnpj"),
-            "next_steps": "Faça login para acompanhar sua solicitação de aprovação"
+            "next_steps": "Faça login para acompanhar sua solicitação de aprovação",
         }
 
     except HTTPException:
         raise
     except Exception as e:
         import traceback
+
         traceback.print_exc()
 
         raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao registrar revenda: {str(e)}"
+            status_code=500, detail=f"Erro ao registrar revenda: {str(e)}"
         )
 
 

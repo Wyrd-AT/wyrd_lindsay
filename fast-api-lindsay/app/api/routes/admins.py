@@ -40,7 +40,9 @@ async def list_admins(user: dict = Depends(get_current_user)):
 
 
 @router.post("", status_code=201)
-async def create_admin(body: AdminCreateAdminRequest, user: dict = Depends(get_current_user)):
+async def create_admin(
+    body: AdminCreateAdminRequest, user: dict = Depends(get_current_user)
+):
     """Criar novo admin (admin only)"""
     checker = PermissionChecker(user)
     if not checker.is_admin():
@@ -67,7 +69,9 @@ async def create_admin(body: AdminCreateAdminRequest, user: dict = Depends(get_c
 
         # PASSO 2: Criar no Cognito
         try:
-            cognito_client = boto3.client('cognito-idp', region_name=settings.AWS_REGION)
+            cognito_client = boto3.client(
+                "cognito-idp", region_name=settings.AWS_REGION
+            )
 
             sign_up_params = {
                 "ClientId": settings.COGNITO_CLIENT_ID,

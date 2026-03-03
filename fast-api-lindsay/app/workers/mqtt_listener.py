@@ -81,6 +81,7 @@ mqtt_listener_client = None
 # Inicialização
 # ============================================================================
 
+
 def init_services() -> bool:
     """Inicializar todas as dependências"""
     global db, alert_service, push_service, mqtt_publisher, mqtt_listener_client
@@ -94,7 +95,9 @@ def init_services() -> bool:
         # Serviços
         alert_service = AlertService(db)
         push_service = PushService(db)
-        mqtt_publisher = MQTTService(MQTT_BROKER, MQTT_PORT, f"{MQTT_CLIENT_ID}_publisher")
+        mqtt_publisher = MQTTService(
+            MQTT_BROKER, MQTT_PORT, f"{MQTT_CLIENT_ID}_publisher"
+        )
 
         # Conectar MQTT publisher
         if not mqtt_publisher.connect():
@@ -111,6 +114,7 @@ def init_services() -> bool:
 # ============================================================================
 # Processing
 # ============================================================================
+
 
 def process_payload(topic: str, payload_str: str) -> None:
     """
@@ -180,7 +184,9 @@ def process_payload(topic: str, payload_str: str) -> None:
             # 4b. Push notifications (Expo)
             push_result = push_service.send_alert_push(irrigador_id, alert_data)
             if push_result.get("success"):
-                logger.info(f"✅ Push enviado para {push_result.get('device_count', 0)} devices")
+                logger.info(
+                    f"✅ Push enviado para {push_result.get('device_count', 0)} devices"
+                )
             else:
                 logger.info(f"ℹ️ Sem devices registrados para push")
 
@@ -218,6 +224,7 @@ def process_payload(topic: str, payload_str: str) -> None:
 # Workers
 # ============================================================================
 
+
 def worker_loop(worker_id: int) -> None:
     """Thread worker que processa fila"""
     logger.info(f"👷 Worker-{worker_id} iniciado")
@@ -241,6 +248,7 @@ def worker_loop(worker_id: int) -> None:
 # ============================================================================
 # MQTT Callbacks
 # ============================================================================
+
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
     """MQTT connect callback"""
@@ -284,6 +292,7 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage):
 # ============================================================================
 # Startup/Shutdown
 # ============================================================================
+
 
 def setup_mqtt_listener() -> bool:
     """Configurar cliente MQTT listener"""
@@ -334,6 +343,7 @@ def shutdown_handler(signum, frame):
 # ============================================================================
 # Main
 # ============================================================================
+
 
 def main():
     """Iniciar listener MQTT"""

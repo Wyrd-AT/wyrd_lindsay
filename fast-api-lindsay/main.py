@@ -32,6 +32,7 @@ from app.services.setup_indexes import setup_indexes
 # Lifespan Management
 # ============================================================================
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerenciar lifecycle da aplicação"""
@@ -79,7 +80,7 @@ app = FastAPI(
     docs_url=settings.DOCS_URL,
     redoc_url=settings.REDOC_URL,
     openapi_url=settings.OPENAPI_URL,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # ============================================================================
@@ -97,6 +98,7 @@ app.add_middleware(
 # ============================================================================
 # Routes
 # ============================================================================
+
 
 # Health check
 @app.get("/health")
@@ -128,5 +130,5 @@ if __name__ == "__main__":
         port=8000,
         log_level=settings.LOG_LEVEL.lower(),
         reload=settings.DEBUG,
-        reload_dirs=["app"] if settings.DEBUG else None
+        reload_dirs=["app"] if settings.DEBUG else None,
     )

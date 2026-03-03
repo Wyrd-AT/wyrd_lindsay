@@ -15,6 +15,7 @@ Uso:
     auth = AuthService(couchdb_url, database_name)
     result = auth.register_revenda('domain@example.com', ...)
 """
+
 import hashlib
 import secrets
 from typing import Dict, Optional, Literal, List
@@ -27,21 +28,25 @@ from pydantic import BaseModel, EmailStr, validator
 # Models
 # =============================================================================
 
+
 class UserType(str, Enum):
     ADMIN = "admin"
     REVENDA = "revenda"
     CLIENTE = "cliente"
+
 
 class UserStatus(str, Enum):
     PENDING = "pending"
     ACTIVE = "active"
     REJECTED = "rejected"
 
+
 class AdminUser(BaseModel):
     email: EmailStr
     name: str
     type: Literal["admin"] = "admin"
     status: Literal["active"] = "active"
+
 
 class RevendaUser(BaseModel):
     email: EmailStr
@@ -50,6 +55,7 @@ class RevendaUser(BaseModel):
     type: Literal["revenda"] = "revenda"
     status: UserStatus = UserStatus.PENDING
 
+
 class ClienteUser(BaseModel):
     email: EmailStr
     name: str
@@ -57,14 +63,17 @@ class ClienteUser(BaseModel):
     type: Literal["cliente"] = "cliente"
     status: UserStatus = UserStatus.PENDING
 
+
 class ApprovalResult(BaseModel):
     status: Literal["success", "error"]
     message: str
     document_id: Optional[str] = None
 
+
 # =============================================================================
 # AuthService
 # =============================================================================
+
 
 class AuthService:
     """Serviço de autenticação e autorização multi-nível"""
@@ -99,10 +108,10 @@ class AuthService:
         """
         salt = secrets.token_hex(16)  # 32 caracteres
         pwd_hash = hashlib.pbkdf2_hmac(
-            'sha256',
+            "sha256",
             password.encode(),
             salt.encode(),
-            100000  # 100k iterations
+            100000,  # 100k iterations
         )
         return f"{salt}${pwd_hash.hex()}"
 
@@ -110,12 +119,9 @@ class AuthService:
     def verify_password(password: str, password_hash: str) -> bool:
         """Verifica se a senha corresponde ao hash"""
         try:
-            salt, stored_hash = password_hash.split('$')
+            salt, stored_hash = password_hash.split("$")
             computed = hashlib.pbkdf2_hmac(
-                'sha256',
-                password.encode(),
-                salt.encode(),
-                100000
+                "sha256", password.encode(), salt.encode(), 100000
             )
             return computed.hex() == stored_hash
         except Exception:
@@ -131,7 +137,7 @@ class AuthService:
         name: str,
         password: str,
         cnpj_admin: Optional[str] = None,
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
     ) -> ApprovalResult:
         """
         Registrar novo ADMIN
@@ -145,8 +151,7 @@ class AuthService:
             existing = self.db.get(doc_id)
             if existing is not None:
                 return ApprovalResult(
-                    status="error",
-                    message=f"Admin '{email}' já existe"
+                    status="error", message=f"Admin '{email}' já existe"
                 )
 
             admin_doc = {
@@ -159,14 +164,14 @@ class AuthService:
                 "revendas": [],
                 "status": "active",
                 "created_by": created_by or "system",
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
             }
 
             self.db.save(admin_doc)
             return ApprovalResult(
                 status="success",
                 message=f"Admin '{email}' registrado com sucesso",
-                document_id=doc_id
+                document_id=doc_id,
             )
 
         except Exception as e:
@@ -177,11 +182,7 @@ class AuthService:
     # =====================================================================
 
     def register_revenda(
-        self,
-        email: str,
-        domain: str,
-        name: str,
-        password: str
+        self, email: str, domain: str, name: str, password: str
     ) -> ApprovalResult:
         """
         Registrar nova REVENDA
@@ -195,8 +196,7 @@ class AuthService:
             existing = self.db.get(doc_id)
             if existing is not None:
                 return ApprovalResult(
-                    status="error",
-                    message=f"Revenda com domínio '{domain}' já existe"
+                    status="error", message=f"Revenda com domínio '{domain}' já existe"
                 )
 
             revenda_doc = {
@@ -208,14 +208,14 @@ class AuthService:
                 "password_hash": self.hash_password(password),
                 "status": "pending",  # Admin deve aprovar
                 "clientes": [],
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
             }
 
             self.db.save(revenda_doc)
             return ApprovalResult(
                 status="success",
                 message=f"Revenda '{domain}' registrada. Aguardando aprovação do admin.",
-                document_id=doc_id
+                document_id=doc_id,
             )
 
         except Exception as e:
@@ -226,7 +226,7 @@ class AuthService:
         revenda_id: str,
         approved_by: str,
         approved: bool = True,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ) -> ApprovalResult:
         """
         ADMIN aprova ou rejeita REVENDA
@@ -243,7 +243,7 @@ class AuthService:
             if revenda_doc.get("status") != "pending":
                 return ApprovalResult(
                     status="error",
-                    message=f"Revenda não está em status 'pending' (status atual: {revenda_doc.get('status')})"
+                    message=f"Revenda não está em status 'pending' (status atual: {revenda_doc.get('status')})",
                 )
 
             revenda_doc["status"] = "active" if approved else "rejected"
@@ -259,11 +259,13 @@ class AuthService:
             return ApprovalResult(
                 status="success",
                 message=f"Revenda {action} com sucesso",
-                document_id=revenda_id
+                document_id=revenda_id,
             )
 
         except couchdb.http.ResourceNotFound:
-            return ApprovalResult(status="error", message=f"Revenda '{revenda_id}' não encontrada")
+            return ApprovalResult(
+                status="error", message=f"Revenda '{revenda_id}' não encontrada"
+            )
         except Exception as e:
             return ApprovalResult(status="error", message=str(e))
 
@@ -272,11 +274,7 @@ class AuthService:
     # =====================================================================
 
     def register_cliente(
-        self,
-        email: str,
-        name: str,
-        revenda_id: str,
-        password: str
+        self, email: str, name: str, revenda_id: str, password: str
     ) -> ApprovalResult:
         """
         Registrar novo CLIENTE
@@ -290,14 +288,13 @@ class AuthService:
 
             if revenda_doc.get("type") != "revenda":
                 return ApprovalResult(
-                    status="error",
-                    message="ID fornecido não é uma revenda válida"
+                    status="error", message="ID fornecido não é uma revenda válida"
                 )
 
             if revenda_doc.get("status") != "active":
                 return ApprovalResult(
                     status="error",
-                    message="Revenda não está ativa para aceitar clientes"
+                    message="Revenda não está ativa para aceitar clientes",
                 )
 
             # Verificar se cliente já existe
@@ -305,7 +302,7 @@ class AuthService:
                 if cliente.get("email") == email:
                     return ApprovalResult(
                         status="error",
-                        message=f"Cliente '{email}' já registrado nesta revenda"
+                        message=f"Cliente '{email}' já registrado nesta revenda",
                     )
 
             # Criar cliente
@@ -316,7 +313,7 @@ class AuthService:
                 "password_hash": self.hash_password(password),
                 "status": "pending",  # Revenda deve aprovar
                 "pivoIds": [],
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
             }
 
             # Adicionar ao array de clientes
@@ -326,11 +323,13 @@ class AuthService:
             return ApprovalResult(
                 status="success",
                 message=f"Cliente '{email}' registrado. Aguardando aprovação da revenda.",
-                document_id=f"cliente:{email}"
+                document_id=f"cliente:{email}",
             )
 
         except couchdb.http.ResourceNotFound:
-            return ApprovalResult(status="error", message=f"Revenda '{revenda_id}' não encontrada")
+            return ApprovalResult(
+                status="error", message=f"Revenda '{revenda_id}' não encontrada"
+            )
         except Exception as e:
             return ApprovalResult(status="error", message=str(e))
 
@@ -339,7 +338,7 @@ class AuthService:
         revenda_id: str,
         cliente_email: str,
         approved: bool = True,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ) -> ApprovalResult:
         """
         REVENDA aprova ou rejeita CLIENTE
@@ -362,7 +361,7 @@ class AuthService:
                     if cliente.get("status") != "pending":
                         return ApprovalResult(
                             status="error",
-                            message=f"Cliente não está em status 'pending' (status: {cliente.get('status')})"
+                            message=f"Cliente não está em status 'pending' (status: {cliente.get('status')})",
                         )
 
                     cliente["status"] = "active" if approved else "rejected"
@@ -376,7 +375,7 @@ class AuthService:
             if not cliente_encontrado:
                 return ApprovalResult(
                     status="error",
-                    message=f"Cliente '{cliente_email}' não encontrado nesta revenda"
+                    message=f"Cliente '{cliente_email}' não encontrado nesta revenda",
                 )
 
             # Salvar revenda com cliente atualizado
@@ -386,11 +385,13 @@ class AuthService:
             return ApprovalResult(
                 status="success",
                 message=f"Cliente {action} com sucesso",
-                document_id=f"cliente:{cliente_email}"
+                document_id=f"cliente:{cliente_email}",
             )
 
         except couchdb.http.ResourceNotFound:
-            return ApprovalResult(status="error", message=f"Revenda '{revenda_id}' não encontrada")
+            return ApprovalResult(
+                status="error", message=f"Revenda '{revenda_id}' não encontrada"
+            )
         except Exception as e:
             return ApprovalResult(status="error", message=str(e))
 
@@ -399,10 +400,7 @@ class AuthService:
     # =====================================================================
 
     def authenticate(
-        self,
-        email: str,
-        password: str,
-        user_type: UserType
+        self, email: str, password: str, user_type: UserType
     ) -> Optional[Dict]:
         """
         Autenticar usuário
@@ -429,23 +427,25 @@ class AuthService:
                         "name": doc["name"],
                         "type": "admin",
                         "status": doc["status"],
-                        "doc_id": doc_id
+                        "doc_id": doc_id,
                     }
 
             elif user_type == UserType.REVENDA:
                 # Buscar por domain (query)
-                results = self.db.view("app/revenda_by_domain", key=email.split('@')[1])
+                results = self.db.view("app/revenda_by_domain", key=email.split("@")[1])
 
                 for row in results:
                     doc = self.db.get(row.value)
-                    if doc.get("email") == email and self.verify_password(password, doc.get("password_hash", "")):
+                    if doc.get("email") == email and self.verify_password(
+                        password, doc.get("password_hash", "")
+                    ):
                         return {
                             "email": doc["email"],
                             "name": doc["name"],
                             "type": "revenda",
                             "status": doc["status"],
                             "domain": doc["domain"],
-                            "doc_id": doc["_id"]
+                            "doc_id": doc["_id"],
                         }
 
         except Exception as e:
@@ -476,7 +476,9 @@ class AuthService:
             print(f"Erro ao buscar clientes pendentes: {e}")
             return []
 
-    def get_revenda_clientes(self, revenda_id: str, status: Optional[str] = None) -> List[Dict]:
+    def get_revenda_clientes(
+        self, revenda_id: str, status: Optional[str] = None
+    ) -> List[Dict]:
         """Obter clientes de uma revenda (opcionalmente filtrados por status)"""
         try:
             revenda_doc = self.db.get(revenda_id)

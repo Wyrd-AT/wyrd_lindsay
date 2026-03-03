@@ -10,7 +10,7 @@ from app.models.schemas import (
     CreatePivoRequest,
     UpdatePivoRequest,
     PivosListResponse,
-    PivosStatsResponse
+    PivosStatsResponse,
 )
 from app.services.pivo import PivoService
 from app.services.permissions import PermissionChecker
@@ -28,29 +28,33 @@ async def list_pivos(user: dict = Depends(get_current_user)):
 
     try:
         pivos = pivo_service.list_pivos(user, checker)
-        return PivosListResponse(
-            total=len(pivos),
-            role=user["type"],
-            pivos=pivos
-        )
+        return PivosListResponse(total=len(pivos), role=user["type"], pivos=pivos)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("")
 async def create_pivo(
-    request: CreatePivoRequest,
-    user: dict = Depends(get_current_user)
+    request: CreatePivoRequest, user: dict = Depends(get_current_user)
 ):
     """Criar novo pivô (apenas admin); associação por cnpj_cliente (enviado em cliente_id)."""
     if user.get("type") != "admin":
-        raise HTTPException(status_code=403, detail="Apenas administradores podem criar pivôs")
+        raise HTTPException(
+            status_code=403, detail="Apenas administradores podem criar pivôs"
+        )
 
     if not request.cliente_id:
-        raise HTTPException(status_code=400, detail="cliente_id é obrigatório (cnpj_cliente do cliente)")
+        raise HTTPException(
+            status_code=400, detail="cliente_id é obrigatório (cnpj_cliente do cliente)"
+        )
 
     cnpj_cliente = request.cliente_id.strip()
-    logger.info("[create_pivo] Requisição: cnpj_cliente=%r, codigo=%r, nome=%r", cnpj_cliente, request.codigo, request.nome)
+    logger.info(
+        "[create_pivo] Requisição: cnpj_cliente=%r, codigo=%r, nome=%r",
+        cnpj_cliente,
+        request.codigo,
+        request.nome,
+    )
 
     db = get_db()
     users_db = get_users_db()
@@ -62,28 +66,48 @@ async def create_pivo(
         cliente_doc = None
         cliente_db = None
         try:
-            found = list(users_db.find({
-                "selector": {"type": "cliente", "cnpj_cliente": cnpj_cliente},
-                "limit": 1
-            }))
+            found = list(
+                users_db.find(
+                    {
+                        "selector": {"type": "cliente", "cnpj_cliente": cnpj_cliente},
+                        "limit": 1,
+                    }
+                )
+            )
             if found:
                 cliente_doc = found[0]
                 cliente_db = users_db
-                logger.info("[create_pivo] Cliente encontrado em %s", settings.COUCHDB_USERS_DB)
+                logger.info(
+                    "[create_pivo] Cliente encontrado em %s", settings.COUCHDB_USERS_DB
+                )
         except Exception as e:
-            logger.exception("[create_pivo] Erro ao buscar em %s: %s", settings.COUCHDB_USERS_DB, e)
+            logger.exception(
+                "[create_pivo] Erro ao buscar em %s: %s", settings.COUCHDB_USERS_DB, e
+            )
         if not cliente_doc:
             try:
-                found = list(db.find({
-                    "selector": {"type": "cliente", "cnpj_cliente": cnpj_cliente},
-                    "limit": 1
-                }))
+                found = list(
+                    db.find(
+                        {
+                            "selector": {
+                                "type": "cliente",
+                                "cnpj_cliente": cnpj_cliente,
+                            },
+                            "limit": 1,
+                        }
+                    )
+                )
                 if found:
                     cliente_doc = found[0]
                     cliente_db = db
-                    logger.info("[create_pivo] Cliente encontrado em %s (fallback)", settings.COUCHDB_DB)
+                    logger.info(
+                        "[create_pivo] Cliente encontrado em %s (fallback)",
+                        settings.COUCHDB_DB,
+                    )
             except Exception as e2:
-                logger.exception("[create_pivo] Fallback em %s: %s", settings.COUCHDB_DB, e2)
+                logger.exception(
+                    "[create_pivo] Fallback em %s: %s", settings.COUCHDB_DB, e2
+                )
 
         if not cliente_doc or cliente_doc.get("type") != "cliente":
             raise HTTPException(status_code=404, detail="Cliente não encontrado")
@@ -100,14 +124,31 @@ async def create_pivo(
         # Resolver nomes do admin e da revenda (para exibição no card)
         if cnpj_admin:
             try:
-                admins = list(users_db.find({"selector": {"type": "admin", "cnpj_admin": cnpj_admin}, "limit": 1}))
+                admins = list(
+                    users_db.find(
+                        {
+                            "selector": {"type": "admin", "cnpj_admin": cnpj_admin},
+                            "limit": 1,
+                        }
+                    )
+                )
                 if admins:
                     nome_admin = admins[0].get("name")
             except Exception:
                 pass
         if cnpj_revenda:
             try:
-                revendas = list(users_db.find({"selector": {"type": "revenda", "cnpj_revenda": cnpj_revenda}, "limit": 1}))
+                revendas = list(
+                    users_db.find(
+                        {
+                            "selector": {
+                                "type": "revenda",
+                                "cnpj_revenda": cnpj_revenda,
+                            },
+                            "limit": 1,
+                        }
+                    )
+                )
                 if revendas:
                     nome_revenda = revendas[0].get("name")
             except Exception:
@@ -128,9 +169,9 @@ async def create_pivo(
                 "revenda_id": revenda_id,
                 "equipamentos": request.equipamentos,
                 "ativo": True,
-                "location": request.location
+                "location": request.location,
             },
-            checker=checker
+            checker=checker,
         )
 
         # Atualizar cliente.irrigadores[] no mesmo banco de onde o doc foi lido (users ou data)
@@ -171,9 +212,7 @@ async def get_pivo(pivo_id: str, user: dict = Depends(get_current_user)):
 
 @router.put("/{pivo_id}")
 async def update_pivo(
-    pivo_id: str,
-    request: UpdatePivoRequest,
-    user: dict = Depends(get_current_user)
+    pivo_id: str, request: UpdatePivoRequest, user: dict = Depends(get_current_user)
 ):
     """Atualizar pivô"""
     db = get_db()

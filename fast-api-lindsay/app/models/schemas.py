@@ -10,6 +10,7 @@ from enum import Enum
 
 class ClienteSubRole(str, Enum):
     """Sub-roles dentro do nível cliente"""
+
     SUPERUSUARIO = "superusuario"
     GERENTE = "gerente"
     COMUM = "comum"
@@ -19,8 +20,10 @@ class ClienteSubRole(str, Enum):
 # Auth Models
 # ============================================================================
 
+
 class UserRegisterRequest(BaseModel):
     """Requisição de registro"""
+
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
@@ -31,12 +34,14 @@ class UserRegisterRequest(BaseModel):
 
 class UserLoginRequest(BaseModel):
     """Requisição de login"""
+
     email: EmailStr
     password: str
 
 
 class UserResponse(BaseModel):
     """Resposta com dados do usuário"""
+
     email: str
     name: str
     type: str
@@ -47,6 +52,7 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     """Resposta com token de autenticação"""
+
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
@@ -56,8 +62,10 @@ class TokenResponse(BaseModel):
 # Revenda Models
 # ============================================================================
 
+
 class RevendaResponse(BaseModel):
     """Dados de revenda"""
+
     _id: Optional[str] = None
     _rev: Optional[str] = None
     email: str
@@ -69,17 +77,20 @@ class RevendaResponse(BaseModel):
 
 class ApprovalRequest(BaseModel):
     """Requisição de aprovação"""
+
     email: str
 
 
 class RevendasListResponse(BaseModel):
     """Lista de revendas"""
+
     total: int
     revendas: list[RevendaResponse]
 
 
 class AdminCreateAdminRequest(BaseModel):
     """Requisição para admin criar outro admin"""
+
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
@@ -88,10 +99,11 @@ class AdminCreateAdminRequest(BaseModel):
 
 class AdminCreateRevendaRequest(BaseModel):
     """Requisição para admin criar revenda"""
+
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
-    cnpj_revenda: str              # CNPJ da revenda a ser criada
+    cnpj_revenda: str  # CNPJ da revenda a ser criada
     cnpj_admin: Optional[str] = None  # CNPJ do admin que cria (para hierarquia)
 
 
@@ -99,30 +111,34 @@ class AdminCreateRevendaRequest(BaseModel):
 # Cliente Models
 # ============================================================================
 
+
 class ClienteResponse(BaseModel):
     """Dados de cliente"""
+
     _id: Optional[str] = None
     _rev: Optional[str] = None
     email: str
     name: str
     status: str
     revenda_id: Optional[str] = None
-    cnpj_cliente: Optional[str] = None   # CNPJ do cliente
-    cnpj_admin: Optional[str] = None     # CNPJ do admin da hierarquia
-    cnpj_revenda: Optional[str] = None   # CNPJ da revenda associada
-    sub_role: Optional[str] = None       # superusuario, gerente, comum
-    irrigadores: List[str] = []          # IDs dos irrigadores vinculados
+    cnpj_cliente: Optional[str] = None  # CNPJ do cliente
+    cnpj_admin: Optional[str] = None  # CNPJ do admin da hierarquia
+    cnpj_revenda: Optional[str] = None  # CNPJ da revenda associada
+    sub_role: Optional[str] = None  # superusuario, gerente, comum
+    irrigadores: List[str] = []  # IDs dos irrigadores vinculados
     created_at: str
 
 
 class ClientesListResponse(BaseModel):
     """Lista de clientes"""
+
     total: int
     clientes: list[ClienteResponse]
 
 
 class AdminCreateClienteRequest(BaseModel):
     """Requisição para admin/revenda criar cliente"""
+
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
@@ -133,6 +149,7 @@ class AdminCreateClienteRequest(BaseModel):
 
 class SuperusuarioCreateUserRequest(BaseModel):
     """Requisição para superusuário criar gerente ou comum dentro da empresa"""
+
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
@@ -143,17 +160,22 @@ class SuperusuarioCreateUserRequest(BaseModel):
 # Pivô Models (FASE 2)
 # ============================================================================
 
+
 class CreatePivoRequest(BaseModel):
     """Requisição para criar pivô"""
+
     codigo: str
     nome: str
-    cliente_id: Optional[str] = None  # doc_id do cliente (ex: "user:email@x.com") - admin/revenda especifica
+    cliente_id: Optional[str] = (
+        None  # doc_id do cliente (ex: "user:email@x.com") - admin/revenda especifica
+    )
     equipamentos: List[str] = []  # ex: ["Painel 1", "Torre 1", "Casa de bombas"]
     location: Optional[Dict[str, float]] = None
 
 
 class UpdatePivoRequest(BaseModel):
     """Requisição para atualizar pivô"""
+
     nome: Optional[str] = None
     ativo: Optional[bool] = None
     location: Optional[Dict[str, float]] = None
@@ -161,6 +183,7 @@ class UpdatePivoRequest(BaseModel):
 
 class PivoResponse(BaseModel):
     """Dados de pivô (created_at/updated_at opcionais para docs antigos do CouchDB)"""
+
     _id: str
     codigo: str
     nome: str
@@ -173,6 +196,7 @@ class PivoResponse(BaseModel):
 
 class PivosListResponse(BaseModel):
     """Lista de pivôs"""
+
     total: int
     role: str
     pivos: list[PivoResponse]
@@ -180,6 +204,7 @@ class PivosListResponse(BaseModel):
 
 class PivosStatsResponse(BaseModel):
     """Estatísticas de pivôs"""
+
     total: int
     ativos: int
     inativos: int
@@ -190,8 +215,10 @@ class PivosStatsResponse(BaseModel):
 # Generic Models
 # ============================================================================
 
+
 class StatusResponse(BaseModel):
     """Resposta genérica de status"""
+
     status: str
     message: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -199,6 +226,7 @@ class StatusResponse(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Resposta de erro"""
+
     detail: str
     status_code: int
     timestamp: datetime = Field(default_factory=datetime.now)

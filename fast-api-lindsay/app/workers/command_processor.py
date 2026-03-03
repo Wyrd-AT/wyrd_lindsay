@@ -69,6 +69,7 @@ mqtt_publisher = None
 # Initialization
 # ============================================================================
 
+
 def init_services() -> bool:
     """Inicializar dependências"""
     global db, mqtt_publisher
@@ -80,7 +81,9 @@ def init_services() -> bool:
         logger.info(f"✅ CouchDB conectado: {COUCHDB_DB}")
 
         # MQTT publisher
-        mqtt_publisher = MQTTService(MQTT_BROKER, MQTT_PORT, f"{MQTT_CLIENT_ID}_commands")
+        mqtt_publisher = MQTTService(
+            MQTT_BROKER, MQTT_PORT, f"{MQTT_CLIENT_ID}_commands"
+        )
         if not mqtt_publisher.connect():
             raise Exception("Falha ao conectar MQTT publisher")
 
@@ -95,6 +98,7 @@ def init_services() -> bool:
 # ============================================================================
 # Processing
 # ============================================================================
+
 
 def mark_as_scheduled(doc_id: str, delay_seconds: int) -> None:
     """Marcar documento como agendado no CouchDB"""
@@ -216,6 +220,7 @@ def process_command(doc_id: str, command_doc: Dict) -> None:
 # CouchDB Changes Listener
 # ============================================================================
 
+
 def listen_changes():
     """Escutar _changes feed do CouchDB"""
     try:
@@ -255,6 +260,7 @@ def listen_changes():
                 logger.warning(f"⚠️ Erro na stream de changes: {e}")
                 # Reconectar após delay
                 import time
+
                 time.sleep(5)
 
     except Exception as e:
@@ -265,6 +271,7 @@ def listen_changes():
 # Startup/Shutdown
 # ============================================================================
 
+
 def shutdown_handler(signum, frame):
     """Handler para sinais de shutdown"""
     logger.info(f"🛑 Recebido sinal {signum}, encerrando...")
@@ -274,6 +281,7 @@ def shutdown_handler(signum, frame):
 # ============================================================================
 # Main
 # ============================================================================
+
 
 def main():
     """Iniciar command processor"""

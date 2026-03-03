@@ -33,34 +33,44 @@ BR_TZ = ZoneInfo("America/Sao_Paulo")
 # Models
 # =============================================================================
 
+
 class PivoModel(BaseModel):
     """Modelo de Pivô"""
+
     codigo: str
     nome: str
     owner_id: str  # Email do cliente que é dono
     cnpj_cliente: Optional[str] = None
-    nome_cliente: Optional[str] = None  # Nome do cliente (guardado no doc para exibição)
+    nome_cliente: Optional[str] = (
+        None  # Nome do cliente (guardado no doc para exibição)
+    )
     cnpj_revenda: Optional[str] = None
-    nome_revenda: Optional[str] = None  # Nome da revenda (guardado no doc para exibição)
+    nome_revenda: Optional[str] = (
+        None  # Nome da revenda (guardado no doc para exibição)
+    )
     cnpj_admin: Optional[str] = None
-    nome_admin: Optional[str] = None   # Nome do admin (guardado no doc para exibição)
+    nome_admin: Optional[str] = None  # Nome do admin (guardado no doc para exibição)
     revenda_id: Optional[str] = None  # doc_id da revenda (ex: "revenda:uuid")
     gerente_id: str = ""  # Email do gerente (revenda) do owner
     equipamentos: List[str] = []  # ["Painel 1", "Torre 1", ...]
     ativo: bool = True
     location: Optional[Dict] = None  # {"lat": -15.79, "lng": -48.10}
 
+
 class PivoDocument(PivoModel):
     """Documento completo do pivô no CouchDB"""
+
     _id: str
     _rev: Optional[str] = None
     type: str = "pivo"
     created_at: str
     updated_at: str
 
+
 # =============================================================================
 # PivoService
 # =============================================================================
+
 
 class PivoService:
     """Serviço de gerenciamento de pivôs com controle de acesso"""
@@ -79,10 +89,7 @@ class PivoService:
     # =====================================================================
 
     def create_pivo(
-        self,
-        user: Dict,
-        pivo_data: Dict,
-        checker: PermissionChecker
+        self, user: Dict, pivo_data: Dict, checker: PermissionChecker
     ) -> Optional[Dict]:
         """
         Criar novo pivô. Apenas admin; hierarquia vem de pivo_data (resolvida na rota a partir do cliente).
@@ -140,11 +147,7 @@ class PivoService:
     # READ / LIST
     # =====================================================================
 
-    def list_pivos(
-        self,
-        user: Dict,
-        checker: PermissionChecker
-    ) -> List[Dict]:
+    def list_pivos(self, user: Dict, checker: PermissionChecker) -> List[Dict]:
         """
         Listar pivôs/irrigadores com base nas permissões do usuário
 
@@ -166,10 +169,9 @@ class PivoService:
             if checker.is_admin():
                 # Admin: irrigadores filtrados por cnpj_admin
                 if user_cnpj:
-                    pivos = self._find_pivos({
-                        "table": "irrigadores",
-                        "cnpj_admin": user_cnpj
-                    })
+                    pivos = self._find_pivos(
+                        {"table": "irrigadores", "cnpj_admin": user_cnpj}
+                    )
                 else:
                     # Admin root sem CNPJ: vê todos
                     pivos = self._find_pivos({"table": "irrigadores"})
@@ -179,20 +181,18 @@ class PivoService:
                 # Revenda: irrigadores filtrados por cnpj_revenda
                 pivos = []
                 if user_cnpj:
-                    pivos = self._find_pivos({
-                        "table": "irrigadores",
-                        "cnpj_revenda": user_cnpj
-                    })
+                    pivos = self._find_pivos(
+                        {"table": "irrigadores", "cnpj_revenda": user_cnpj}
+                    )
                 return [self._normalize_pivo(p) for p in pivos]
 
             elif checker.is_cliente():
                 # Cliente: irrigadores filtrados por cnpj_cliente
                 pivos = []
                 if user_cnpj:
-                    pivos = self._find_pivos({
-                        "table": "irrigadores",
-                        "cnpj_cliente": user_cnpj
-                    })
+                    pivos = self._find_pivos(
+                        {"table": "irrigadores", "cnpj_cliente": user_cnpj}
+                    )
                 return [self._normalize_pivo(p) for p in pivos]
 
             return []
@@ -202,10 +202,7 @@ class PivoService:
             return []
 
     def get_pivo(
-        self,
-        user: Dict,
-        pivo_id: str,
-        checker: PermissionChecker
+        self, user: Dict, pivo_id: str, checker: PermissionChecker
     ) -> Optional[Dict]:
         """
         Buscar pivô específico com verificação de permissão
@@ -234,11 +231,7 @@ class PivoService:
     # =====================================================================
 
     def update_pivo(
-        self,
-        user: Dict,
-        pivo_id: str,
-        pivo_data: Dict,
-        checker: PermissionChecker
+        self, user: Dict, pivo_id: str, pivo_data: Dict, checker: PermissionChecker
     ) -> Optional[Dict]:
         """
         Atualizar pivô
@@ -262,9 +255,8 @@ class PivoService:
             raise ValueError(f"Pivô não encontrado: {pivo_id}")
 
         # Verificar permissão de edição
-        can_edit = (
-            checker.is_admin() or
-            (checker.is_cliente() and pivo.get("owner_id") == user.get("email"))
+        can_edit = checker.is_admin() or (
+            checker.is_cliente() and pivo.get("owner_id") == user.get("email")
         )
 
         if not can_edit:
@@ -290,12 +282,7 @@ class PivoService:
     # DELETE
     # =====================================================================
 
-    def delete_pivo(
-        self,
-        user: Dict,
-        pivo_id: str,
-        checker: PermissionChecker
-    ) -> bool:
+    def delete_pivo(self, user: Dict, pivo_id: str, checker: PermissionChecker) -> bool:
         """
         Deletar pivô
 
@@ -330,10 +317,10 @@ class PivoService:
     def _find_pivos(self, selector: Dict) -> List[Dict]:
         """
         Buscar pivôs/irrigadores no CouchDB usando query Mango
-        
+
         Args:
             selector: Seletor Mango (ex: {"table": "irrigadores"} ou {"type": "pivo"})
-        
+
         Returns:
             Lista de documentos de pivôs/irrigadores
         """
@@ -341,53 +328,56 @@ class PivoService:
             # Tentar query Mango
             result = self.db.find({"selector": selector})
             pivos = list(result)
-            
+
             # Se não encontrou nada, tentar método alternativo
             if not pivos:
-                print(f"⚠️  Query Mango não retornou resultados, tentando método alternativo...")
+                print(
+                    f"⚠️  Query Mango não retornou resultados, tentando método alternativo..."
+                )
                 # Buscar por _all_docs como fallback
                 try:
-                    all_docs = self.db.view('_all_docs', include_docs=True, limit=1000)
+                    all_docs = self.db.view("_all_docs", include_docs=True, limit=1000)
                     pivos = [
-                        row.doc for row in all_docs 
-                        if row.doc and all(
-                            row.doc.get(k) == v 
-                            for k, v in selector.items()
-                        )
+                        row.doc
+                        for row in all_docs
+                        if row.doc
+                        and all(row.doc.get(k) == v for k, v in selector.items())
                     ]
                     if pivos:
-                        print(f"✅ Encontrados {len(pivos)} pivô(s) usando método alternativo")
+                        print(
+                            f"✅ Encontrados {len(pivos)} pivô(s) usando método alternativo"
+                        )
                 except Exception as e2:
                     print(f"⚠️  Método alternativo também falhou: {e2}")
-            
+
             return pivos
-            
+
         except Exception as e:
             print(f"❌ Erro ao buscar pivôs: {e}")
             print(f"   Selector usado: {selector}")
-            
+
             # Tentar criar índice se o erro for relacionado a índice
             if "index" in str(e).lower() or "no_usable_index" in str(e).lower():
                 print(f"⚠️  Parece que falta um índice. Tentando criar...")
                 try:
                     # Criar índice para os campos usados
                     if "table" in selector:
-                        self.db.create_index(['table'])
+                        self.db.create_index(["table"])
                     if "type" in selector:
-                        self.db.create_index(['type'])
+                        self.db.create_index(["type"])
                     print(f"✅ Índice criado. Tente novamente.")
                 except Exception as e3:
                     print(f"❌ Erro ao criar índice: {e3}")
-            
+
             return []
 
     def _normalize_pivo(self, pivo: Dict) -> Dict:
         """
         Normalizar documento de pivô/irrigador para formato padrão
-        
+
         Args:
             pivo: Documento do CouchDB
-        
+
         Returns:
             Documento normalizado
         """
@@ -398,7 +388,10 @@ class PivoService:
         normalized = {
             "_id": pivo.get("_id", ""),
             "codigo": pivo.get("codigo", ""),
-            "nome": pivo.get("nome") or pivo.get("name") or pivo.get("irrigador") or pivo.get("codigo", "Sem nome"),
+            "nome": pivo.get("nome")
+            or pivo.get("name")
+            or pivo.get("irrigador")
+            or pivo.get("codigo", "Sem nome"),
             "owner_id": pivo.get("owner_id") or pivo.get("companyId") or "",
             "gerente_id": pivo.get("gerente_id") or "",
             "ativo": pivo.get("ativo", True),
@@ -411,24 +404,26 @@ class PivoService:
             "nome_revenda": pivo.get("nome_revenda"),
             "nome_admin": pivo.get("nome_admin"),
         }
-        
+
         # Preservar outros campos úteis
         if "equipamentos" in pivo:
             normalized["equipamentos"] = pivo["equipamentos"]
         if "contacts" in pivo:
             normalized["contacts"] = pivo["contacts"]
-        
+
         return normalized
 
-    def _can_view_pivo(self, user: Dict, pivo: Dict, checker: PermissionChecker) -> bool:
+    def _can_view_pivo(
+        self, user: Dict, pivo: Dict, checker: PermissionChecker
+    ) -> bool:
         """
         Verificar se usuário pode visualizar um pivô
-        
+
         Args:
             user: Usuário autenticado
             pivo: Documento do pivô
             checker: PermissionChecker
-        
+
         Returns:
             True se pode visualizar, False caso contrário
         """
@@ -452,11 +447,7 @@ class PivoService:
     # Statistics
     # =====================================================================
 
-    def get_pivos_stats(
-        self,
-        user: Dict,
-        checker: PermissionChecker
-    ) -> Dict:
+    def get_pivos_stats(self, user: Dict, checker: PermissionChecker) -> Dict:
         """
         Obter estatísticas de pivôs para dashboard
 

@@ -27,6 +27,7 @@ BR_TZ = ZoneInfo("America/Sao_Paulo")
 
 class EventType(str, Enum):
     """Tipos de evento suportados"""
+
     VETOR_TENSAO = "vetor_tensao"
     VETOR_SW = "vetor_sw"
     EVENT = "event"
@@ -46,10 +47,22 @@ class AlertService:
 
         # Mapeamento de monitores
         self.MONITOR_TENSAO = {
-            "01": "MT01", "02": "MT02", "03": "MT03", "04": "MT04",
-            "05": "MT05", "06": "MT06", "07": "MT07", "08": "MT08",
-            "09": "MT09", "10": "MT10", "11": "MT11", "12": "MT12",
-            "13": "MT13", "14": "MT14", "17": "Painel 1", "18": "Painel 2",
+            "01": "MT01",
+            "02": "MT02",
+            "03": "MT03",
+            "04": "MT04",
+            "05": "MT05",
+            "06": "MT06",
+            "07": "MT07",
+            "08": "MT08",
+            "09": "MT09",
+            "10": "MT10",
+            "11": "MT11",
+            "12": "MT12",
+            "13": "MT13",
+            "14": "MT14",
+            "17": "Painel 1",
+            "18": "Painel 2",
         }
 
         # Status mapping
@@ -127,7 +140,9 @@ class AlertService:
                 "status": self.STATUS_MAP.get(status, "Desconhecido"),
                 "estado": status,
                 "timestamp": datetime.now(BR_TZ),
-                "timestamp_formatted": datetime.now(BR_TZ).strftime("%H:%M:%S %d/%m/%Y"),
+                "timestamp_formatted": datetime.now(BR_TZ).strftime(
+                    "%H:%M:%S %d/%m/%Y"
+                ),
             }
 
         except Exception as e:
@@ -169,7 +184,9 @@ class AlertService:
                 "status": self.STATUS_MAP.get(status, "Desconhecido"),
                 "estado": status,
                 "timestamp": datetime.now(BR_TZ),
-                "timestamp_formatted": datetime.now(BR_TZ).strftime("%H:%M:%S %d/%m/%Y"),
+                "timestamp_formatted": datetime.now(BR_TZ).strftime(
+                    "%H:%M:%S %d/%m/%Y"
+                ),
             }
 
         except Exception as e:
@@ -203,7 +220,9 @@ class AlertService:
                 "description": f"Evento {event_type}{monitor}",
                 "responsible": "A definir",
                 "timestamp": datetime.now(BR_TZ),
-                "timestamp_formatted": datetime.now(BR_TZ).strftime("%H:%M:%S %d/%m/%Y"),
+                "timestamp_formatted": datetime.now(BR_TZ).strftime(
+                    "%H:%M:%S %d/%m/%Y"
+                ),
             }
 
         except Exception as e:
@@ -333,10 +352,12 @@ class AlertService:
             if data_type not in doc["counts"]:
                 doc["counts"][data_type] = []
 
-            doc["counts"][data_type].append({
-                "alert_id": alert_id,
-                "timestamp": datetime.now(BR_TZ).isoformat(),
-            })
+            doc["counts"][data_type].append(
+                {
+                    "alert_id": alert_id,
+                    "timestamp": datetime.now(BR_TZ).isoformat(),
+                }
+            )
 
             doc["last_updated"] = datetime.now(BR_TZ).isoformat()
             self.db.save(doc)

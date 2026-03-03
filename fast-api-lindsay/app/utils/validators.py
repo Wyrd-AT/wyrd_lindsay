@@ -14,6 +14,7 @@ from typing import Tuple
 
 class ValidationError(Exception):
     """Exceção para erros de validação"""
+
     pass
 
 
@@ -34,7 +35,7 @@ def validate_cpf(cpf: str) -> Tuple[bool, str]:
         (False, "CPF inválido: todos os dígitos iguais")
     """
     # Remove caracteres especiais
-    cpf_clean = ''.join(filter(str.isdigit, cpf))
+    cpf_clean = "".join(filter(str.isdigit, cpf))
 
     # Verifica comprimento
     if len(cpf_clean) != 11:
@@ -82,7 +83,7 @@ def validate_cnpj(cnpj: str) -> Tuple[bool, str]:
         (False, "CNPJ inválido: todos os dígitos iguais")
     """
     # Remove caracteres especiais
-    cnpj_clean = ''.join(filter(str.isdigit, cnpj))
+    cnpj_clean = "".join(filter(str.isdigit, cnpj))
 
     # Verifica comprimento
     if len(cnpj_clean) != 14:
@@ -127,7 +128,7 @@ def format_cnpj(cnpj: str) -> str:
         >>> format_cnpj("12345678000199")
         "12.345.678/0001-99"
     """
-    cnpj_clean = ''.join(filter(str.isdigit, cnpj))
+    cnpj_clean = "".join(filter(str.isdigit, cnpj))
 
     if len(cnpj_clean) != 14:
         return cnpj  # Retorna original se inválido
@@ -146,7 +147,7 @@ def validate_email(email: str) -> Tuple[bool, str]:
         Tuple[bool, str]: (válido, mensagem_erro)
     """
     # Padrão RFC 5322 simplificado
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
     if not email or len(email) > 254:
         return False, "Email deve ter entre 1 e 254 caracteres"
@@ -174,7 +175,7 @@ def validate_cnpj_or_cpf(value: str) -> Tuple[bool, str]:
         (True, "")
     """
     # Remove caracteres especiais para contar dígitos
-    digits_only = ''.join(filter(str.isdigit, value))
+    digits_only = "".join(filter(str.isdigit, value))
 
     if len(digits_only) == 14:
         # Validar como CNPJ
@@ -203,13 +204,13 @@ def validate_domain(domain: str) -> Tuple[bool, str]:
         (False, "Domínio inválido")
     """
     # Padrão para validar domínios
-    pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+    pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
 
     if not domain or len(domain) > 255:
         return False, "Domínio deve ter entre 1 e 255 caracteres"
 
     # Deve ter pelo menos um ponto
-    if '.' not in domain:
+    if "." not in domain:
         return False, "Domínio deve conter pelo menos um ponto"
 
     if not re.match(pattern, domain):
@@ -276,14 +277,14 @@ def validate_phone(phone: str) -> Tuple[bool, str]:
         return False, "Telefone não pode estar vazio"
 
     # Remove caracteres especiais
-    phone_clean = ''.join(filter(str.isdigit, phone))
+    phone_clean = "".join(filter(str.isdigit, phone))
 
     # Deve ter 11 dígitos (com DDD) ou 10 (sem 9)
     if len(phone_clean) < 10 or len(phone_clean) > 13:
         return False, "Telefone inválido"
 
     # Se tem 13, verifica se começa com 55 (código do Brasil)
-    if len(phone_clean) == 13 and not phone_clean.startswith('55'):
+    if len(phone_clean) == 13 and not phone_clean.startswith("55"):
         return False, "Código de país inválido"
 
     return True, ""
@@ -309,7 +310,9 @@ def validate_name(name: str) -> Tuple[bool, str]:
         return False, "Nome muito longo (máximo 255 caracteres)"
 
     # Permite letras, números, espaços, hífens, apóstrofos
-    pattern = r"^[a-zA-Z0-9\s\-'àáâãäåèéêëìíîïòóôõöùúûüýÿñçÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÝŸÑÇ]+$"
+    pattern = (
+        r"^[a-zA-Z0-9\s\-'àáâãäåèéêëìíîïòóôõöùúûüýÿñçÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜÝŸÑÇ]+$"
+    )
 
     if not re.match(pattern, name):
         return False, "Nome contém caracteres inválidos"
