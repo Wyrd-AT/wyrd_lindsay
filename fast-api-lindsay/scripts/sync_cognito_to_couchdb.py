@@ -21,6 +21,8 @@ from datetime import datetime
 from typing import List, Dict, Optional
 import argparse
 
+from app.core.aws import get_cognito_client
+
 # Adicionar o diretório raiz ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -310,7 +312,7 @@ Exemplos:
     print(f"{Colors.OKCYAN}Região: {args.region}{Colors.ENDC}\n")
 
     try:
-        cognito_client = boto3.client("cognito-idp", region_name=args.region)
+        cognito_client = get_cognito_client()
         # Testar conexão
         cognito_client.describe_user_pool(UserPoolId=args.user_pool_id)
         print(f"{Colors.OKGREEN}✅ Conectado ao Cognito com sucesso!{Colors.ENDC}\n")

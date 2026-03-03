@@ -10,6 +10,8 @@ from app.services.permissions import PermissionChecker
 from app.utils.cognito_utils import get_secret_hash
 from app.api.routes.auth import get_current_user
 
+from app.core.aws import get_cognito_client
+
 router = APIRouter(prefix="/admins")
 
 
@@ -41,7 +43,9 @@ async def list_admins(user: dict = Depends(get_current_user)):
 
 @router.post("", status_code=201)
 async def create_admin(
-    body: AdminCreateAdminRequest, user: dict = Depends(get_current_user)
+    body: AdminCreateAdminRequest,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
 ):
     """Criar novo admin (admin only)"""
     checker = PermissionChecker(user)
@@ -49,7 +53,6 @@ async def create_admin(
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     doc_id = None
-    cognito_client = None
 
     try:
         # PASSO 1: Criar no CouchDB
@@ -69,10 +72,6 @@ async def create_admin(
 
         # PASSO 2: Criar no Cognito
         try:
-            cognito_client = boto3.client(
-                "cognito-idp", region_name=settings.AWS_REGION
-            )
-
             sign_up_params = {
                 "ClientId": settings.COGNITO_CLIENT_ID,
                 "Username": body.email,

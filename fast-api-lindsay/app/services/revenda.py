@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Dict, Optional, Tuple
 import couchdb
 import uuid
+from app.core.aws import get_cognito_client
 from app.utils.validators import (
     validate_cnpj,
     validate_cpf,
@@ -67,9 +68,7 @@ class RevendaService:
 
         if cognito_pool_id:
             try:
-                self.cognito_client = boto3.client(
-                    "cognito-idp", region_name=cognito_region
-                )
+                self.cognito_client = get_cognito_client()
             except Exception as e:
                 print(f"⚠️ Aviso: Cognito não disponível: {e}")
 

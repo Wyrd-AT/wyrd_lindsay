@@ -3,6 +3,7 @@
 import boto3
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
+from app.core.aws import get_cognito_client
 from app.core.database import get_db, get_users_db
 from app.core.config import settings
 from app.models.schemas import (
@@ -142,7 +143,9 @@ async def get_pending_clientes(user: dict = Depends(get_current_user)):
 
 @router.post("", status_code=201)
 async def create_cliente_admin(
-    body: AdminCreateClienteRequest, user: dict = Depends(get_current_user)
+    body: AdminCreateClienteRequest,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
 ):
     """Criar cliente (admin ou revenda - criado já com status active)"""
     checker = PermissionChecker(user)
@@ -199,12 +202,8 @@ async def create_cliente_admin(
     if not is_valid_password:
         raise HTTPException(status_code=400, detail=password_error)
 
-    cognito_client = None
     cognito_sub = None
     try:
-        # 1. Criar usuário no Cognito via admin_create_user (sem enviar email de confirmação)
-        cognito_client = boto3.client("cognito-idp", region_name=settings.AWS_REGION)
-
         create_response = cognito_client.admin_create_user(
             UserPoolId=settings.COGNITO_USER_POOL_ID,
             Username=body.email,
@@ -396,7 +395,9 @@ async def list_company_users(user: dict = Depends(get_current_user)):
 
 @router.post("/company-users", status_code=201)
 async def create_company_user(
-    body: SuperusuarioCreateUserRequest, user: dict = Depends(get_current_user)
+    body: SuperusuarioCreateUserRequest,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
 ):
     """Superusuário cria gerente ou comum dentro da sua empresa"""
     checker = PermissionChecker(user)
@@ -436,18 +437,8 @@ async def create_company_user(
     if not is_valid_password:
         raise HTTPException(status_code=400, detail=password_error)
 
-    cognito_client = None
     cognito_sub = None
     try:
-        # 1. Criar no Cognito
-        cognito_client = boto3.client(
-            "cognito-idp",
-            region_name=settings.AWS_REGION,
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            aws_session_token=settings.AWS_SESSION_TOKEN,
-        )
-
         create_response = cognito_client.admin_create_user(
             UserPoolId=settings.COGNITO_USER_POOL_ID,
             Username=body.email,

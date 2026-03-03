@@ -2,6 +2,7 @@
 
 import boto3
 from fastapi import APIRouter, HTTPException, status, Depends
+from app.core.aws import get_cognito_client
 from app.core.database import get_db, get_users_db
 from app.core.config import settings
 from app.models.schemas import (
@@ -74,7 +75,9 @@ async def get_pending_revendas(user: dict = Depends(get_current_user)):
 
 @router.post("", status_code=201)
 async def create_revenda_admin(
-    body: AdminCreateRevendaRequest, user: dict = Depends(get_current_user)
+    body: AdminCreateRevendaRequest,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
 ):
     """Criar revenda (admin only - criada já com status active)"""
     checker = PermissionChecker(user)
@@ -97,7 +100,6 @@ async def create_revenda_admin(
     print(f"📝 DEBUG: CNPJ formatado = '{cnpj_revenda_formatted}'")
 
     doc_id = None
-    cognito_client = None
 
     try:
         # ✅ PASSO 1: Criar documento no CouchDB PRIMEIRO (sem Cognito Sub ainda)
@@ -126,10 +128,6 @@ async def create_revenda_admin(
 
         # ✅ PASSO 2: Criar usuário no Cognito (DEPOIS de CouchDB funcionar)
         try:
-            cognito_client = boto3.client(
-                "cognito-idp", region_name=settings.AWS_REGION
-            )
-
             # ✅ Passar custom attributes JÁ no sign_up
             sign_up_params = {
                 "ClientId": settings.COGNITO_CLIENT_ID,
@@ -230,7 +228,11 @@ async def create_revenda_admin(
 
 
 @router.post("/{email}/approve")
-async def approve_revenda(email: str, user: dict = Depends(get_current_user)):
+async def approve_revenda(
+    email: str,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
+):
     """Aprovar revenda (admin only) - muda status de pending para active"""
     checker = PermissionChecker(user)
     if not checker.can_approve_revendas():
@@ -251,9 +253,6 @@ async def approve_revenda(email: str, user: dict = Depends(get_current_user)):
 
         # 2. Atualizar status no Cognito também
         try:
-            cognito_client = boto3.client(
-                "cognito-idp", region_name=settings.AWS_REGION
-            )
             cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
                 Username=email,
@@ -275,7 +274,11 @@ async def approve_revenda(email: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/{email}/reject")
-async def reject_revenda(email: str, user: dict = Depends(get_current_user)):
+async def reject_revenda(
+    email: str,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
+):
     """Rejeitar revenda (admin only) - muda status de pending para rejected"""
     checker = PermissionChecker(user)
     if not checker.can_approve_revendas():
@@ -296,9 +299,6 @@ async def reject_revenda(email: str, user: dict = Depends(get_current_user)):
 
         # 2. Atualizar status no Cognito também
         try:
-            cognito_client = boto3.client(
-                "cognito-idp", region_name=settings.AWS_REGION
-            )
             cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
                 Username=email,

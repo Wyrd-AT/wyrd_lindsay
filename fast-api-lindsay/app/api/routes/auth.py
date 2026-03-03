@@ -10,6 +10,7 @@ import couchdb
 import boto3
 from botocore.exceptions import ClientError
 
+from app.core.aws import get_cognito_client
 from app.core.database import get_db, get_users_db
 from app.core.config import settings
 from app.models.schemas import (
@@ -251,7 +252,7 @@ async def login(request: UserLoginRequest):
 
 
 @router.post("/register")
-async def register_revenda(request: dict):
+async def register_revenda(request: dict, cognito_client=Depends(get_cognito_client)):
     """
     Registrar uma nova revenda
 
@@ -295,14 +296,6 @@ async def register_revenda(request: dict):
         is_valid, msg = validate_password(password)
         if not is_valid:
             raise HTTPException(status_code=400, detail=msg)
-
-        # Inicializar Cognito (requer credenciais AWS)
-        try:
-            cognito_client = boto3.client(
-                "cognito-idp", region_name=settings.AWS_REGION
-            )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail="Cognito não disponível")
 
         # PASSO 1: Criar usuário no Cognito
         try:
