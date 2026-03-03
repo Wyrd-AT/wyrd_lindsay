@@ -440,7 +440,13 @@ async def create_company_user(
     cognito_sub = None
     try:
         # 1. Criar no Cognito
-        cognito_client = boto3.client("cognito-idp", region_name=settings.AWS_REGION)
+        cognito_client = boto3.client(
+            "cognito-idp",
+            region_name=settings.AWS_REGION,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            aws_session_token=settings.AWS_SESSION_TOKEN,
+        )
 
         create_response = cognito_client.admin_create_user(
             UserPoolId=settings.COGNITO_USER_POOL_ID,

@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     )  # Se vazio, cliente não tem secret
     COGNITO_USER_POOL_ID: str = os.getenv("COGNITO_USER_POOL_ID", "sa-east-1_bm329gdfB")
 
+    # AWS
+    AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    AWS_SESSION_TOKEN: str = os.getenv("AWS_SESSION_TOKEN", "")
+
     # Timezone
     TIMEZONE: str = "America/Sao_Paulo"
     TZ: ZoneInfo = ZoneInfo("America/Sao_Paulo")
