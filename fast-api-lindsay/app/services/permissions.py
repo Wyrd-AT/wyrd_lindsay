@@ -97,6 +97,8 @@ class PermissionChecker:
             Permission.VIEW_OWN_PIVOS,
             Permission.RESOLVE_ALERTS,
             Permission.EXPORT_REPORTS,
+            Permission.APPROVE_CLIENTES,
+            Permission.CREATE_CLIENTE,
         },
         Role.REVENDA: {
             Permission.MANAGE_CLIENTES,
