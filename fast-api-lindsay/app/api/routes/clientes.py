@@ -22,7 +22,7 @@ router = APIRouter(prefix="/clientes")
 
 @router.get("", response_model=ClientesListResponse)
 async def list_clientes(user: dict = Depends(get_current_user)):
-    """Listar clientes - Para admin, busca clientes de todas as suas revendas"""
+    """Listar clientes - Para admin, busca todos. Para revenda, busca os seus."""
     checker = PermissionChecker(user)
     if not checker.can_view_clientes():
         raise HTTPException(status_code=403, detail="Acesso negado")
@@ -30,61 +30,10 @@ async def list_clientes(user: dict = Depends(get_current_user)):
     db_conn = get_users_db()
     try:
         if user.get("type") == "admin":
-            # Admin: busca clientes de todas as suas revendas
-            admin_cnpj = user.get("cnpj")
-
-            if admin_cnpj:
-                # 1. Buscar revendas do admin (cnpj_admin == admin.cnpj)
-                revendas = list(
-                    db_conn.find(
-                        {
-                            "selector": {"type": "revenda", "cnpj_admin": admin_cnpj},
-                            "limit": 500,
-                        }
-                    )
-                )
-            else:
-                # Fallback: admin root (sem cnpj) vê todas as revendas
-                revendas = list(
-                    db_conn.find({"selector": {"type": "revenda"}, "limit": 500})
-                )
-
-            revenda_ids = [r.get("_id") for r in revendas]
-
-            # 2. Buscar clientes cujo revenda_id está na lista de revendas
-            if revenda_ids:
-                clientes_raw = list(
-                    db_conn.find(
-                        {
-                            "selector": {
-                                "type": "cliente",
-                                "revenda_id": {"$in": revenda_ids},
-                            },
-                            "limit": 1000,
-                        }
-                    )
-                )
-            else:
-                clientes_raw = []
-
-            # 3. Formatar resposta
-            clientes = [
-                {
-                    "_id": c.get("_id"),
-                    "_rev": c.get("_rev"),
-                    "email": c.get("email"),
-                    "name": c.get("name"),
-                    "status": c.get("status"),
-                    "revenda_id": c.get("revenda_id"),
-                    "cnpj_cliente": c.get("cnpj_cliente"),
-                    "cnpj_admin": c.get("cnpj_admin"),
-                    "cnpj_revenda": c.get("cnpj_revenda"),
-                    "sub_role": c.get("sub_role"),
-                    "irrigadores": c.get("irrigadores", []),
-                    "created_at": c.get("created_at"),
-                }
-                for c in clientes_raw
-            ]
+            # Admin global: Busca absolutamente TODOS os clientes do banco
+            clientes_raw = list(
+                db_conn.find({"selector": {"type": "cliente"}, "limit": 2000})
+            )
         else:
             # Revenda: busca clientes cujo revenda_id == doc_id da revenda
             revenda_doc_id = user.get("doc_id")
@@ -103,23 +52,24 @@ async def list_clientes(user: dict = Depends(get_current_user)):
             else:
                 clientes_raw = []
 
-            clientes = [
-                {
-                    "_id": c.get("_id"),
-                    "_rev": c.get("_rev"),
-                    "email": c.get("email"),
-                    "name": c.get("name"),
-                    "status": c.get("status"),
-                    "revenda_id": c.get("revenda_id"),
-                    "cnpj_cliente": c.get("cnpj_cliente"),
-                    "cnpj_admin": c.get("cnpj_admin"),
-                    "cnpj_revenda": c.get("cnpj_revenda"),
-                    "sub_role": c.get("sub_role"),
-                    "irrigadores": c.get("irrigadores", []),
-                    "created_at": c.get("created_at"),
-                }
-                for c in clientes_raw
-            ]
+        # Formatar resposta
+        clientes = [
+            {
+                "_id": c.get("_id"),
+                "_rev": c.get("_rev"),
+                "email": c.get("email"),
+                "name": c.get("name"),
+                "status": c.get("status"),
+                "revenda_id": c.get("revenda_id"),
+                "cnpj_cliente": c.get("cnpj_cliente"),
+                "cnpj_admin": c.get("cnpj_admin"),
+                "cnpj_revenda": c.get("cnpj_revenda"),
+                "sub_role": c.get("sub_role"),
+                "irrigadores": c.get("irrigadores", []),
+                "created_at": c.get("created_at"),
+            }
+            for c in clientes_raw
+        ]
 
         return ClientesListResponse(total=len(clientes), clientes=clientes)
     except Exception as e:
