@@ -47,10 +47,18 @@ export default function Overview({
   const [noChangeCount, setNoChangeCount] = useState(0);
 
   /* ----------------- WhatsApp por irrigador ----------------- */
+  // const {
+  //   enabled: whatsappEnabled,
+  //   loading: whatsappLoading,
+  //   toggle: toggleWhatsapp,
+  // } = useWhatsappPerIrrigador(pivoId, email);
+
   const {
-    enabled: whatsappEnabled,
-    loading: whatsappLoading,
-    toggle: toggleWhatsapp,
+    msgEnabled,
+    callEnabled,
+    toggleMsg,
+    toggleCall,
+    loading: notificationLoading,
   } = useWhatsappPerIrrigador(pivoId, email);
 
   /* ----------------- Carregar snapshots via getRecentAll ----------------- */
@@ -436,22 +444,22 @@ export default function Overview({
               <button
                 type="button"
                 role="switch"
-                aria-checked={whatsappEnabled}
+                aria-checked={msgEnabled}
                 aria-label="Alternar notificações WhatsApp/SMS"
-                onClick={toggleWhatsapp}
-                disabled={whatsappLoading}
+                onClick={toggleMsg}
+                disabled={notificationLoading}
                 className={clsx(
                   "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
                   "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400",
                   "disabled:cursor-not-allowed disabled:opacity-60",
-                  whatsappEnabled
+                  msgEnabled
                     ? "bg-green-600 hover:bg-green-700"
                     : "bg-gray-600 hover:bg-gray-700",
                 )}
                 title={
-                  whatsappLoading
+                  notificationLoading
                     ? "Atualizando..."
-                    : whatsappEnabled
+                    : msgEnabled
                       ? "Notificações ATIVADAS - Clique para desativar"
                       : "Notificações DESATIVADAS - Clique para ativar"
                 }
@@ -460,19 +468,63 @@ export default function Overview({
                   aria-hidden="true"
                   className={clsx(
                     "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
-                    whatsappEnabled ? "translate-x-6" : "translate-x-0",
+                    msgEnabled ? "translate-x-6" : "translate-x-0",
                   )}
                 />
               </button>
               <span
                 className={clsx(
                   "text-xs font-medium uppercase",
-                  whatsappEnabled ? "text-green-400" : "text-gray-500",
+                  msgEnabled ? "text-green-400" : "text-gray-500",
                 )}
               >
-                {whatsappLoading
+                {notificationLoading ? "..." : msgEnabled ? "Ativo" : "Inativo"}
+              </span>
+            </div>
+
+            {/* Toggle WhatsApp para este irrigador */}
+            <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4">
+              <span className="text-sm text-gray-300">Ligação WhatsApp</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={callEnabled}
+                aria-label="Alternar notificações WhatsApp/SMS"
+                onClick={toggleCall}
+                disabled={notificationLoading}
+                className={clsx(
+                  "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-400",
+                  "disabled:cursor-not-allowed disabled:opacity-60",
+                  callEnabled
+                    ? "bg-green-600 hover:bg-green-700"
+                    : "bg-gray-600 hover:bg-gray-700",
+                )}
+                title={
+                  notificationLoading
+                    ? "Atualizando..."
+                    : callEnabled
+                      ? "Notificações ATIVADAS - Clique para desativar"
+                      : "Notificações DESATIVADAS - Clique para ativar"
+                }
+              >
+                <span
+                  aria-hidden="true"
+                  className={clsx(
+                    "pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition",
+                    callEnabled ? "translate-x-6" : "translate-x-0",
+                  )}
+                />
+              </button>
+              <span
+                className={clsx(
+                  "text-xs font-medium uppercase",
+                  callEnabled ? "text-green-400" : "text-gray-500",
+                )}
+              >
+                {notificationLoading
                   ? "..."
-                  : whatsappEnabled
+                  : callEnabled
                     ? "Ativo"
                     : "Inativo"}
               </span>

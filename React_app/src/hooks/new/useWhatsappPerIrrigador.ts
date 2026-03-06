@@ -23,6 +23,7 @@ interface WhatsappConfig {
   table: string;
   irrigador_id: string;
   whatsapp_enabled: boolean;
+  whatsapp_call_enabled?: boolean; // Novo campo opcional (para retrocompatibilidade)
   updated_at: string;
   updated_by: string;
 }
@@ -31,14 +32,17 @@ export function useWhatsappPerIrrigador(
   irrigadorId: string | null,
   userEmail?: string,
 ) {
-  const [enabled, setEnabled] = useState<boolean>(true); // Default: ativado
+  // const [enabled, setEnabled] = useState<boolean>(true); // Default: ativado
+  const [msgEnabled, setMsgEnabled] = useState<boolean>(true); // Padrão msg: ativada
+  const [callEnabled, setCallEnabled] = useState<boolean>(false); // Padrão ligação: desativada
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   // Busca configuração do irrigador
   const fetchConfig = useCallback(async () => {
     if (!irrigadorId) {
-      setEnabled(true);
+      setMsgEnabled(true);
+      setCallEnabled(false);
       return;
     }
 
@@ -50,18 +54,22 @@ export function useWhatsappPerIrrigador(
       const doc = await getDoc<WhatsappConfig>(DB_NAME, docId);
 
       if (doc) {
-        setEnabled(doc.whatsapp_enabled ?? true);
+        setMsgEnabled(doc.whatsapp_enabled ?? true);
+        setCallEnabled(doc.whatsapp_call_enabled ?? false); // Lê a ligação
       } else {
-        setEnabled(true); // Padrão: ativado se não existir documento
+        setMsgEnabled(true);
+        setCallEnabled(false);
       }
     } catch (err: any) {
       // 404 significa que não existe configuração - usa padrão (ativado)
       if (err?.response?.status === 404 || err?.status === 404) {
-        setEnabled(true);
+        setMsgEnabled(true);
+        setCallEnabled(false);
       } else {
         console.error("[useWhatsappPerIrrigador] Error fetching config:", err);
         setError(err?.message || "Erro ao buscar configuração");
-        setEnabled(true); // Em caso de erro, assume ativado
+        setMsgEnabled(true);
+        setCallEnabled(false);
       }
     } finally {
       setLoading(false);
@@ -70,11 +78,15 @@ export function useWhatsappPerIrrigador(
 
   // Atualiza configuração
   const updateConfig = useCallback(
-    async (newEnabled: boolean) => {
+    async (updates: { msg?: boolean; call?: boolean }) => {
       if (!irrigadorId) return;
 
       setLoading(true);
       setError(null);
+
+      const newMsgState = updates.msg !== undefined ? updates.msg : msgEnabled;
+      const newCallState =
+        updates.call !== undefined ? updates.call : callEnabled;
 
       try {
         const docId = `whatsapp_config:${irrigadorId}`;
@@ -95,14 +107,16 @@ export function useWhatsappPerIrrigador(
           _id: docId,
           table: "whatsapp_config",
           irrigador_id: irrigadorId,
-          whatsapp_enabled: newEnabled,
+          whatsapp_enabled: newMsgState,
+          whatsapp_call_enabled: newCallState,
           updated_at: now,
           updated_by: userEmail || "Desconhecido",
           ...(existingDoc?._rev ? { _rev: existingDoc._rev } : {}),
         };
 
         await upsertDoc(DB_NAME, docToSave);
-        setEnabled(newEnabled);
+        setMsgEnabled(newMsgState);
+        setCallEnabled(newCallState);
 
         //console.log(`[useWhatsappPerIrrigador] WhatsApp ${newEnabled ? 'ativado' : 'desativado'} para ${irrigadorId}`);
       } catch (err: any) {
@@ -114,13 +128,17 @@ export function useWhatsappPerIrrigador(
         setLoading(false);
       }
     },
-    [irrigadorId, userEmail, fetchConfig],
+    [irrigadorId, userEmail, msgEnabled, callEnabled, fetchConfig],
   );
 
-  // Toggle (alterna entre ativado/desativado)
-  const toggle = useCallback(async () => {
-    await updateConfig(!enabled);
-  }, [enabled, updateConfig]);
+  const toggleMsg = useCallback(
+    () => updateConfig({ msg: !msgEnabled }),
+    [msgEnabled, updateConfig],
+  );
+  const toggleCall = useCallback(
+    () => updateConfig({ call: !callEnabled }),
+    [callEnabled, updateConfig],
+  );
 
   // Carrega configuração ao montar ou quando irrigadorId muda
   useEffect(() => {
@@ -128,11 +146,12 @@ export function useWhatsappPerIrrigador(
   }, [fetchConfig]);
 
   return {
-    enabled,
+    msgEnabled,
+    callEnabled,
     loading,
     error,
-    updateConfig,
-    toggle,
+    toggleMsg,
+    toggleCall,
     refresh: fetchConfig,
   };
 }
