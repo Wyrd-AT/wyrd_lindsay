@@ -11,15 +11,11 @@
  *   const alertas = await alerts.listAlerts();
  */
 
-import * as auth from './fastapi-auth';
-import * as alerts from './fastapi-alerts';
-import * as commands from './fastapi-commands';
+import * as auth from "./fastapi-auth";
+import * as alerts from "./fastapi-alerts";
+import * as commands from "./fastapi-commands";
 
-export {
-  auth,
-  alerts,
-  commands,
-};
+export { auth, alerts, commands };
 
 /**
  * Função auxiliar para configurar a API
@@ -27,7 +23,7 @@ export {
  */
 export const initializeAPI = (baseURL) => {
   if (baseURL) {
-    import('axios').then(({ default: axios }) => {
+    import("axios").then(({ default: axios }) => {
       // Não temos acesso direto ao apiClient aqui,
       // mas isso é mais para documentação
       //console.log('✅ API configurada para:', baseURL);

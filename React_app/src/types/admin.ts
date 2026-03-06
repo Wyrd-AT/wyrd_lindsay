@@ -5,11 +5,11 @@
 export interface Revenda {
   _id: string;
   _rev?: string;
-  type: 'revenda';
+  type: "revenda";
   email: string;
   name: string;
   domain: string;
-  status: 'pending' | 'active' | 'rejected';
+  status: "pending" | "active" | "rejected";
   created_at: string;
   cnpj?: string;
 }
@@ -17,24 +17,24 @@ export interface Revenda {
 export interface Cliente {
   _id: string;
   _rev?: string;
-  type: 'cliente';
+  type: "cliente";
   email: string;
   name: string;
-  status: 'pending' | 'active' | 'rejected';
+  status: "pending" | "active" | "rejected";
   created_at: string;
-  revenda_id?: string;      // ID da revenda associada
-  documento?: string;       // CPF ou CNPJ do cliente
-  cnpj_admin?: string;      // Herdado do admin da hierarquia
-  cnpj_revenda?: string;    // Herdado da revenda associada
-  sub_role?: 'superusuario' | 'gerente' | 'comum';
+  revenda_id?: string; // ID da revenda associada
+  documento?: string; // CPF ou CNPJ do cliente
+  cnpj_admin?: string; // Herdado do admin da hierarquia
+  cnpj_revenda?: string; // Herdado da revenda associada
+  sub_role?: "superusuario" | "gerente" | "comum";
 }
 
 export interface Pivo {
   _id: string;
   _rev?: string;
-  type: 'pivo';
+  type: "pivo";
   name: string;
-  status: 'active' | 'inactive' | 'maintenance' | 'alarmed';
+  status: "active" | "inactive" | "maintenance" | "alarmed";
   owner_id: string; // cliente_id
   created_at: string;
   last_data?: string;

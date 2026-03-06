@@ -3,6 +3,7 @@
 This repository contains the frontend code for the WYRD-JBT project. It's built using React, TypeScript, TailwindCSS, shadcn/ui and Vite.
 
 The project is a Citrus Test manager, with the following features:
+
 - Register and login using email and password (JWT Authentication)
 - Create new Clients with almost one task
 - Create new tests for a Client and set the author as 'owner'
@@ -24,6 +25,7 @@ Please, before running the project, run the backend project in the following rep
 ### Running the Application
 
 1. Clone the repository:
+
    ```
    git clone https://github.com/Wyrd-AT/wyrd-jbt.git
    cd wyrd-jbt
@@ -64,7 +66,7 @@ In the project directory, you can run:
 
 ## Testing
 
-There are a example of tests in the `src/blocks/__tests__/AddTask.test.tsx` file. 
+There are a example of tests in the `src/blocks/__tests__/AddTask.test.tsx` file.
 We use `vitest` to run the tests.
 
 To run the tests, run the following command:
@@ -85,22 +87,21 @@ The results will be displayed in the console:
    Start at  07:05:40
    Duration  443ms
 ```
+
 There are a Deprecartion Warning in 'punycode' module.
 The version used is punycode@2.3.1, that is not deprecated.
 The warning can be ignored.
 
-
-apagar 
+apagar
 
 {
-  "selector": {
-    "table": {
-      "$regex": "command"
-    }
-  },
-  "limit": 2000
+"selector": {
+"table": {
+"$regex": "command"
 }
-
+},
+"limit": 2000
+}
 
 import couchdb
 import paho.mqtt.client as mqtt
@@ -114,30 +115,31 @@ DEFAULT_MQTT_TOPIC = "default_topic"
 
 server = couchdb.Server(COUCHDB_URL)
 try:
-    db = server[DATABASE_NAME]
+db = server[DATABASE_NAME]
 except couchdb.http.ResourceNotFound:
-    db = server.create(DATABASE_NAME)
+db = server.create(DATABASE_NAME)
 
 mqtt_client = mqtt.Client()
 mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
 mqtt_client.loop_start()
 
 # dicionário para guardar timers ativos por doc_id
+
 timers = {}
 
 def publish_mqtt(payload, topic, qos, doc):
-    if payload is not None:
-        mqtt_client.publish(topic, payload, qos=qos)
-        print(f"Publicado no MQTT -> Tópico: {topic}, Payload: {payload}")
-    else:
-        print(f"Documento {doc.get('_id')} não possui payload.")
+if payload is not None:
+mqtt_client.publish(topic, payload, qos=qos)
+print(f"Publicado no MQTT -> Tópico: {topic}, Payload: {payload}")
+else:
+print(f"Documento {doc.get('\_id')} não possui payload.")
 
 def timer_mqtt(payload, topic, qos, doc, delay):
-    """
-    Cria/atualiza um timer para o doc: cancela o anterior (se houver)
-    e agenda um novo publish após 'delay' segundos.
-    """
-    doc_id = doc.get("_id")
+"""
+Cria/atualiza um timer para o doc: cancela o anterior (se houver)
+e agenda um novo publish após 'delay' segundos.
+"""
+doc_id = doc.get("\_id")
 
     # cancela timer anterior, se existir
     if doc_id in timers:
@@ -156,11 +158,11 @@ def timer_mqtt(payload, topic, qos, doc, delay):
     print(f"[TIMER] Agendado doc {doc_id} em {delay}s -> Tópico: {topic}")
 
 def listen_changes():
-    changes = db.changes(feed='continuous', include_docs=True, heartbeat=1000)
-    for change in changes:
-        doc = change.get("doc")
-        if not doc:
-            continue
+changes = db.changes(feed='continuous', include_docs=True, heartbeat=1000)
+for change in changes:
+doc = change.get("doc")
+if not doc:
+continue
 
         # ignora origens que não sejam externas
         if doc.get("origin") in ("esp32", "scheduler"):
@@ -188,4 +190,4 @@ def listen_changes():
             publish_mqtt(payload, topic, qos, doc)
 
 if _name_ == "_main_":
-    listen_changes()
+listen_changes()

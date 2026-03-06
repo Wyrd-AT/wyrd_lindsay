@@ -19,7 +19,6 @@ import { useTensionData } from "../../hooks/new/useTensionData.ts";
 import { useChangesListener } from "../../hooks/new/useChangesListener";
 import { Irrigador } from "../../helpers/helperOverview.tsx";
 
-
 type RecentSWDoc = {
   data?: any;
   updated_at?: string;
@@ -33,9 +32,9 @@ type RecentTensaoDoc = {
 };
 
 const periodOptions = [
-  { value: 'last24h', label: '24 h' },
-  { value: 'last7d', label: '7 dias' },
-  { value: 'last30d', label: '30 dias' },
+  { value: "last24h", label: "24 h" },
+  { value: "last7d", label: "7 dias" },
+  { value: "last30d", label: "30 dias" },
 ];
 
 export default function MaquinaRevenda() {
@@ -43,14 +42,13 @@ export default function MaquinaRevenda() {
   const navigate = useNavigate();
   const { machineId } = useParams();
 
-  const cnpjCliente = user?.cnpj ?? '';
+  const cnpjCliente = user?.cnpj ?? "";
   const irrigadores = useIrrigadores(cnpjCliente);
 
   const [flash, setFlash] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState('last24h');
+  const [selectedPeriod, setSelectedPeriod] = useState("last24h");
   const [errorData, setErrorData] = useState<string | null>(null);
-
 
   useEffect(() => {
     if (!isAuthenticated || !cnpjCliente || !user) {
@@ -59,22 +57,24 @@ export default function MaquinaRevenda() {
   }, [isAuthenticated, navigate]);
 
   const selectedDoc = useMemo<Irrigador | undefined>(
-    () => (irrigadores as Irrigador[]).find((doc) => String(doc.codigo) === String(machineId)),
-    [irrigadores, machineId]
+    () =>
+      (irrigadores as Irrigador[]).find(
+        (doc) => String(doc.codigo) === String(machineId),
+      ),
+    [irrigadores, machineId],
   );
-
 
   //console.log("Selected Document:", selectedDoc);
 
   const chartRef = useRef(null);
 
-
   const equipamentos = useMemo(() => {
-    const arr = Array.isArray(selectedDoc?.equipamentos) ? selectedDoc.equipamentos : [];
+    const arr = Array.isArray(selectedDoc?.equipamentos)
+      ? selectedDoc.equipamentos
+      : [];
     if (arr.length >= 2) return arr;
-    return ['Painel 1', 'Painel 2'];
+    return ["Painel 1", "Painel 2"];
   }, [selectedDoc?.equipamentos]);
-
 
   const handleMachineChange = (id: string) => {
     setFlash(true);
@@ -82,15 +82,11 @@ export default function MaquinaRevenda() {
     setTimeout(() => setFlash(false), 200);
   };
 
-  
   {
     errorData && (
-      <div className="text-center py-2 text-red-400 text-sm">
-        {errorData}
-      </div>
-    )
+      <div className="text-center py-2 text-red-400 text-sm">{errorData}</div>
+    );
   }
-
 
   return (
     <div
@@ -104,11 +100,11 @@ export default function MaquinaRevenda() {
       <BodyContent>
         <SelectExport
           selectedMachine={machineId}
-          getDisplayName={id => `Pivô ${id}`}
+          getDisplayName={(id) => `Pivô ${id}`}
           redirectBase="/maquina"
           onMachineChange={handleMachineChange}
-          onclick_details={() => { }}
-          onExport={() => { }}
+          onclick_details={() => {}}
+          onExport={() => {}}
           onMessage={() => setIsMensagemOpen(true)}
         />
 
@@ -117,10 +113,7 @@ export default function MaquinaRevenda() {
           cnpjCliente={cnpjCliente}
           email={user?.email}
           equipamentoNames={equipamentos}
-
-
         />
-
 
         <div className="flex flex-wrap gap-3 items-center mt-4 py-4 px-2 bg-[#222222] rounded-t-lg">
           <div className="flex items-center">
@@ -130,18 +123,16 @@ export default function MaquinaRevenda() {
             <select
               id="periodSelect"
               value={selectedPeriod}
-              onChange={e => setSelectedPeriod(e.target.value)}
+              onChange={(e) => setSelectedPeriod(e.target.value)}
               className="bg-gray-700 text-white p-0.5 rounded"
             >
-              {periodOptions.map(opt => (
+              {periodOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
             </select>
           </div>
-
-
         </div>
 
         <TensionTimeChart
@@ -150,7 +141,6 @@ export default function MaquinaRevenda() {
           limit={1000}
           height={400}
           equipmentNames={equipamentos}
-
         />
         <AlertHistory machineId={machineId} equipamentos={equipamentos} />
       </BodyContent>

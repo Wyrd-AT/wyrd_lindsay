@@ -8,17 +8,17 @@
  * - Criar cliente auto-vincula à própria revenda
  */
 
-import { useEffect, useState } from 'react';
-import { useAuthStore, selectIsActiveUser } from '../../stores/new/authStore';
-import Sidebar from '../../components/new/sidebar';
-import BodyContent from '../../components/new/body';
-import Header from '../../components/new/header';
-import PermissionGuard from '../../components/new/PermissionGuard';
-import { ClientePendingApprovals } from '../../components/new/ClientePendingApprovals';
-import { CreateClienteModal } from '../../components/new/CreateClienteModal';
-import { useRevendaClientes } from '../../hooks/new/useRevendaClientes';
-import { useRevendaStats } from '../../hooks/new/useRevendaStats';
-import type { Cliente } from '../../types/admin';
+import { useEffect, useState } from "react";
+import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
+import Sidebar from "../../components/new/sidebar";
+import BodyContent from "../../components/new/body";
+import Header from "../../components/new/header";
+import PermissionGuard from "../../components/new/PermissionGuard";
+import { ClientePendingApprovals } from "../../components/new/ClientePendingApprovals";
+import { CreateClienteModal } from "../../components/new/CreateClienteModal";
+import { useRevendaClientes } from "../../hooks/new/useRevendaClientes";
+import { useRevendaStats } from "../../hooks/new/useRevendaStats";
+import type { Cliente } from "../../types/admin";
 
 interface StatCard {
   label: string;
@@ -67,7 +67,7 @@ export function GerenciarClientesRevendaPage() {
   };
 
   return (
-    <PermissionGuard allowedRoles={['revenda']} requireActive>
+    <PermissionGuard allowedRoles={["revenda"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -96,14 +96,14 @@ export function GerenciarClientesRevendaPage() {
             <StatsSection
               cards={[
                 {
-                  label: 'Total de Clientes',
+                  label: "Total de Clientes",
                   value: stats?.totalClientes || 0,
                   subValue: `${stats?.activeClientes || 0} ativos`,
                 },
                 {
-                  label: 'Clientes Pendentes',
+                  label: "Clientes Pendentes",
                   value: stats?.pendingClientes || 0,
-                  subValue: 'Aguardando aprovação',
+                  subValue: "Aguardando aprovação",
                 },
               ]}
               loading={loadingStats}
@@ -112,7 +112,9 @@ export function GerenciarClientesRevendaPage() {
 
           {/* Fila de Aprovações de Clientes (revenda aprova seus clientes; não usar RevendaPendingApprovals) */}
           <div className="px-4 mb-8">
-            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">Clientes Pendentes</h2>
+            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">
+              Clientes Pendentes
+            </h2>
             <ClientePendingApprovals onApprovalChange={handleRefresh} />
           </div>
 
@@ -149,7 +151,10 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[1, 2].map((i) => (
-          <div key={i} className="h-24 bg-dashboard-bg-secondary animate-pulse rounded-lg" />
+          <div
+            key={i}
+            className="h-24 bg-dashboard-bg-secondary animate-pulse rounded-lg"
+          />
         ))}
       </div>
     );
@@ -162,9 +167,15 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
           key={card.label}
           className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors"
         >
-          <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
-          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
-          <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
+          <p className="text-sm text-dashboard-text-secondary font-medium">
+            {card.label}
+          </p>
+          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+            {card.value}
+          </p>
+          <p className="text-xs text-dashboard-text-tertiary mt-1">
+            {card.subValue}
+          </p>
         </div>
       ))}
     </div>
@@ -178,17 +189,24 @@ interface ClientesSectionProps {
   onCreateClick: () => void;
 }
 
-function ClientesSection({ clientes, loading, onRefresh, onCreateClick }: ClientesSectionProps) {
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+function ClientesSection({
+  clientes,
+  loading,
+  onRefresh,
+  onCreateClick,
+}: ClientesSectionProps) {
+  const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const filteredClientes = clientes.filter((c) =>
-    filterStatus === 'all' ? true : c.status === filterStatus
+    filterStatus === "all" ? true : c.status === filterStatus,
   );
 
   return (
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-dashboard-text-primary">Clientes</h2>
+        <h2 className="text-xl font-semibold text-dashboard-text-primary">
+          Clientes
+        </h2>
         <div className="flex gap-2">
           <button
             onClick={onCreateClick}
@@ -201,31 +219,37 @@ function ClientesSection({ clientes, loading, onRefresh, onCreateClick }: Client
             disabled={loading}
             className="px-3 py-1 text-sm bg-dashboard-bg-tertiary hover:bg-dashboard-border disabled:opacity-50 rounded transition text-white"
           >
-            {loading ? 'Carregando...' : 'Atualizar'}
+            {loading ? "Carregando..." : "Atualizar"}
           </button>
         </div>
       </div>
 
       {/* Filtros */}
       <div className="mb-4 flex gap-2 flex-wrap">
-        {['all', 'active', 'pending', 'rejected'].map((status) => (
+        {["all", "active", "pending", "rejected"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
             className={`px-3 py-1 rounded text-sm transition ${
               filterStatus === status
-                ? 'bg-dashboard-accent text-black font-bold'
-                : 'bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border'
+                ? "bg-dashboard-accent text-black font-bold"
+                : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
             }`}
           >
-            {status === 'all'
-              ? 'Todos'
-              : status === 'active'
-              ? 'Ativos'
-              : status === 'pending'
-              ? 'Pendentes'
-              : 'Rejeitados'}
-            &nbsp;({clientes.filter((c) => (status === 'all' ? true : c.status === status)).length})
+            {status === "all"
+              ? "Todos"
+              : status === "active"
+                ? "Ativos"
+                : status === "pending"
+                  ? "Pendentes"
+                  : "Rejeitados"}
+            &nbsp;(
+            {
+              clientes.filter((c) =>
+                status === "all" ? true : c.status === status,
+              ).length
+            }
+            )
           </button>
         ))}
       </div>
@@ -237,7 +261,10 @@ function ClientesSection({ clientes, loading, onRefresh, onCreateClick }: Client
         </div>
       ) : filteredClientes.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
-          <p>Nenhum cliente{filterStatus !== 'all' ? ` com status "${filterStatus}"` : ''}</p>
+          <p>
+            Nenhum cliente
+            {filterStatus !== "all" ? ` com status "${filterStatus}"` : ""}
+          </p>
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
@@ -248,23 +275,27 @@ function ClientesSection({ clientes, loading, onRefresh, onCreateClick }: Client
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-dashboard-text-primary">{cliente.name}</h3>
-                  <p className="text-sm text-dashboard-text-secondary mt-1">{cliente.email}</p>
+                  <h3 className="font-semibold text-dashboard-text-primary">
+                    {cliente.name}
+                  </h3>
+                  <p className="text-sm text-dashboard-text-secondary mt-1">
+                    {cliente.email}
+                  </p>
                 </div>
                 <span
                   className={`text-xs px-2 py-1 rounded font-bold ${
-                    cliente.status === 'active'
-                      ? 'bg-green-900 text-green-100'
-                      : cliente.status === 'pending'
-                      ? 'bg-yellow-900 text-yellow-100'
-                      : 'bg-red-900 text-red-100'
+                    cliente.status === "active"
+                      ? "bg-green-900 text-green-100"
+                      : cliente.status === "pending"
+                        ? "bg-yellow-900 text-yellow-100"
+                        : "bg-red-900 text-red-100"
                   }`}
                 >
-                  {cliente.status === 'active'
-                    ? 'Ativo'
-                    : cliente.status === 'pending'
-                    ? 'Pendente'
-                    : 'Rejeitado'}
+                  {cliente.status === "active"
+                    ? "Ativo"
+                    : cliente.status === "pending"
+                      ? "Pendente"
+                      : "Rejeitado"}
                 </span>
               </div>
             </div>

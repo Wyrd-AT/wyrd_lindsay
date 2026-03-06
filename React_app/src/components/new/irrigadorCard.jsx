@@ -23,13 +23,13 @@ export default function IrrigadorCard({
   const showAdmin = false; // nunca exibir nome do admin no card
 
   // se tiver alerta, pisca border e badge
-  const borderClass = alertCount > 0
-    ? " border-4 border-red-600 animate-blink-border"
-    : "border-b border-gray-700";
-    
-  const badgeClass = alertCount > 0
-    ?  "bg-red-500 animate-blink-bg"
-    : "text-[#39393a]";
+  const borderClass =
+    alertCount > 0
+      ? " border-4 border-red-600 animate-blink-border"
+      : "border-b border-gray-700";
+
+  const badgeClass =
+    alertCount > 0 ? "bg-red-500 animate-blink-bg" : "text-[#39393a]";
 
   return (
     <Link
@@ -72,9 +72,7 @@ export default function IrrigadorCard({
             </p>
           )}
           <p className="text-lg text-gray-300 truncate">
-            {lastAlertDate
-              ? `Último dado: ${lastAlertDate}`
-              : "Sem alertas"}
+            {lastAlertDate ? `Último dado: ${lastAlertDate}` : "Sem alertas"}
           </p>
         </div>
 
@@ -89,8 +87,8 @@ export default function IrrigadorCard({
               {alertCount == 0
                 ? `NENHUM ALERTA`
                 : alertCount > 1
-                ? `ALARMADO`
-                : `ATENÇÃO`}
+                  ? `ALARMADO`
+                  : `ATENÇÃO`}
             </p>
           </span>
         </div>

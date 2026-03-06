@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
+import React, { useEffect, useState, useCallback } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
 
 interface Pivo {
   _id: string;
@@ -60,7 +60,11 @@ export default function PivosSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newPivo, setNewPivo] = useState({ codigo: '', nome: '', location: null });
+  const [newPivo, setNewPivo] = useState({
+    codigo: "",
+    nome: "",
+    location: null,
+  });
 
   const loadPivos = useCallback(async () => {
     if (!fetchPivos) return;
@@ -72,8 +76,8 @@ export default function PivosSection({
       const data = await fetchPivos();
       setPivos(data || []);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao buscar pivôs');
-      console.error('Erro ao buscar pivôs:', err);
+      setError(err?.message || "Erro ao buscar pivôs");
+      console.error("Erro ao buscar pivôs:", err);
     } finally {
       setLoading(false);
     }
@@ -95,13 +99,13 @@ export default function PivosSection({
         gerente_id: authState.user?.gerente_id,
       });
 
-      setNewPivo({ codigo: '', nome: '', location: null });
+      setNewPivo({ codigo: "", nome: "", location: null });
       setShowCreateForm(false);
 
       // Recarregar lista
       await loadPivos();
     } catch (err: any) {
-      setError(err?.message || 'Erro ao criar pivô');
+      setError(err?.message || "Erro ao criar pivô");
     } finally {
       setLoading(false);
     }
@@ -110,34 +114,41 @@ export default function PivosSection({
   // Determinar título baseado no role
   const getTitle = () => {
     const role = authState.user?.type;
-    if (role === 'admin') return 'Todos os Pivôs';
-    if (role === 'revenda') return 'Pivôs dos Meus Clientes';
-    return 'Meus Pivôs';
+    if (role === "admin") return "Todos os Pivôs";
+    if (role === "revenda") return "Pivôs dos Meus Clientes";
+    return "Meus Pivôs";
   };
 
   return (
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6 border border-dashboard-border">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-dashboard-text-primary">{getTitle()}</h2>
-        {showCreateButton && authState.user?.type === 'cliente' && (
+        <h2 className="text-xl font-bold text-dashboard-text-primary">
+          {getTitle()}
+        </h2>
+        {showCreateButton && authState.user?.type === "cliente" && (
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
             className="px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover text-white rounded-lg font-bold transition"
           >
-            {showCreateForm ? 'Cancelar' : '+ Novo Pivô'}
+            {showCreateForm ? "Cancelar" : "+ Novo Pivô"}
           </button>
         )}
       </div>
 
       {/* Formulário de Criação */}
-      {showCreateForm && authState.user?.type === 'cliente' && (
-        <form onSubmit={handleCreatePivo} className="mb-6 p-4 bg-dashboard-bg-tertiary rounded-lg border border-dashboard-border">
+      {showCreateForm && authState.user?.type === "cliente" && (
+        <form
+          onSubmit={handleCreatePivo}
+          className="mb-6 p-4 bg-dashboard-bg-tertiary rounded-lg border border-dashboard-border"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
               type="text"
               placeholder="Código do Pivô (ex: P001)"
               value={newPivo.codigo}
-              onChange={(e) => setNewPivo({ ...newPivo, codigo: e.target.value })}
+              onChange={(e) =>
+                setNewPivo({ ...newPivo, codigo: e.target.value })
+              }
               className="px-3 py-2 border border-dashboard-border rounded-lg bg-dashboard-bg-secondary text-dashboard-text-primary placeholder-dashboard-text-tertiary"
               required
             />
@@ -155,21 +166,23 @@ export default function PivosSection({
             disabled={loading}
             className="mt-4 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover text-white rounded-lg disabled:opacity-50 font-bold transition"
           >
-            {loading ? 'Criando...' : 'Criar Pivô'}
+            {loading ? "Criando..." : "Criar Pivô"}
           </button>
         </form>
       )}
 
       {/* Mensagens de Status */}
-      {loading && <p className="text-dashboard-text-secondary">Carregando pivôs...</p>}
+      {loading && (
+        <p className="text-dashboard-text-secondary">Carregando pivôs...</p>
+      )}
       {error && <p className="text-red-400">{error}</p>}
 
       {/* Lista de Pivôs */}
       {!loading && pivos.length === 0 ? (
         <p className="text-dashboard-text-secondary text-center py-8">
-          {authState.user?.type === 'cliente'
-            ? 'Nenhum pivô cadastrado. Crie um novo!'
-            : 'Nenhum pivô encontrado'}
+          {authState.user?.type === "cliente"
+            ? "Nenhum pivô cadastrado. Crie um novo!"
+            : "Nenhum pivô encontrado"}
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -179,18 +192,22 @@ export default function PivosSection({
               onClick={() => onSelectPivo?.(pivo)}
               className="border border-dashboard-border rounded-lg p-4 bg-dashboard-bg-tertiary hover:bg-dashboard-border transition cursor-pointer"
             >
-              <h3 className="font-bold text-lg text-dashboard-text-primary">{pivo.nome}</h3>
-              <p className="text-dashboard-text-secondary text-sm">Código: {pivo.codigo}</p>
+              <h3 className="font-bold text-lg text-dashboard-text-primary">
+                {pivo.nome}
+              </h3>
+              <p className="text-dashboard-text-secondary text-sm">
+                Código: {pivo.codigo}
+              </p>
 
               {/* Status */}
               <div className="mt-3 flex items-center gap-2">
                 <div
                   className={`w-3 h-3 rounded-full ${
-                    pivo.ativo ? 'bg-green-500' : 'bg-red-500'
+                    pivo.ativo ? "bg-green-500" : "bg-red-500"
                   }`}
                 />
                 <span className="text-sm text-dashboard-text-secondary">
-                  {pivo.ativo ? 'Ativo' : 'Inativo'}
+                  {pivo.ativo ? "Ativo" : "Inativo"}
                 </span>
               </div>
 
@@ -203,7 +220,8 @@ export default function PivosSection({
 
               {/* Data */}
               <p className="text-xs text-dashboard-text-tertiary mt-2">
-                Criado em: {new Date(pivo.created_at).toLocaleDateString('pt-BR')}
+                Criado em:{" "}
+                {new Date(pivo.created_at).toLocaleDateString("pt-BR")}
               </p>
             </div>
           ))}

@@ -44,7 +44,9 @@ function ForgotPassword() {
       setMessage("Your password has been reset successfully.");
       setTimeout(() => navigate("/"), 3000); // Redireciona para o login após 3 segundos
     } catch (err) {
-      setError("Failed to reset password. Please check the code and try again.");
+      setError(
+        "Failed to reset password. Please check the code and try again.",
+      );
     }
   };
 
@@ -52,14 +54,26 @@ function ForgotPassword() {
     <div className="flex min-h-screen items-center justify-center bg-[#272727]">
       <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96 relative">
         <div className="flex justify-center mb-6">
-            <img src="/fieldnet.svg" alt="FieldNet Logo" width="150" height="50" />
-          </div>        
+          <img
+            src="/fieldnet.svg"
+            alt="FieldNet Logo"
+            width="150"
+            height="50"
+          />
+        </div>
 
-        <h2 className="text-[#4ade80] text-2xl font-semibold text-center mb-4">Forgot Password</h2>
-          <hr className="border-[#4ade80] mb-4" />
+        <h2 className="text-[#4ade80] text-2xl font-semibold text-center mb-4">
+          Forgot Password
+        </h2>
+        <hr className="border-[#4ade80] mb-4" />
         {step === 1 && (
           <div className="space-y-4">
-            <label htmlFor="email" className="text-gray-400 block text-sm font-medium mb-1">Email *</label>
+            <label
+              htmlFor="email"
+              className="text-gray-400 block text-sm font-medium mb-1"
+            >
+              Email *
+            </label>
             <input
               id="email"
               type="email"
@@ -68,7 +82,10 @@ function ForgotPassword() {
               required
               className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
             />
-            <button className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition mb-2" onClick={handleRequestCode}>
+            <button
+              className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition mb-2"
+              onClick={handleRequestCode}
+            >
               Send Confirmation Code
             </button>
           </div>
@@ -76,7 +93,12 @@ function ForgotPassword() {
         {step === 2 && (
           <div className="space-y-4">
             <div>
-              <label htmlFor="confirmationCode" className="text-gray-400 block text-sm font-medium mb-1">Confirmation Code *</label>
+              <label
+                htmlFor="confirmationCode"
+                className="text-gray-400 block text-sm font-medium mb-1"
+              >
+                Confirmation Code *
+              </label>
               <input
                 id="confirmationCode"
                 value={confirmationCode}
@@ -86,7 +108,13 @@ function ForgotPassword() {
               />
             </div>
             <div>
-              <label htmlFor="newPassword" className="text-gray-400 block text-sm font-medium mb-1"> New Password *</label>
+              <label
+                htmlFor="newPassword"
+                className="text-gray-400 block text-sm font-medium mb-1"
+              >
+                {" "}
+                New Password *
+              </label>
               <input
                 id="newPassword"
                 type="password"
@@ -96,7 +124,10 @@ function ForgotPassword() {
                 className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
-            <button className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition mb-2" onClick={handleResetPassword}>
+            <button
+              className="w-full bg-[#444444] text-white py-2 px-4 rounded text-center hover:bg-gray-600 transition mb-2"
+              onClick={handleResetPassword}
+            >
               Reset Password
             </button>
           </div>

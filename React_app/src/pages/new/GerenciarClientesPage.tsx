@@ -7,17 +7,17 @@
  * - Ações: criar, ver detalhes
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAuthStore, selectIsActiveUser } from '../../stores/new/authStore';
-import Sidebar from '../../components/new/sidebar';
-import BodyContent from '../../components/new/body';
-import Header from '../../components/new/header';
-import PermissionGuard from '../../components/new/PermissionGuard';
-import { CreateClienteModal } from '../../components/new/CreateClienteModal';
-import { useAdminClientes } from '../../hooks/new/useAdminClientes';
-import { useAdminStats } from '../../hooks/new/useAdminStats';
-import { useAdminRevendas } from '../../hooks/new/useAdminRevendas';
-import type { Cliente } from '../../types/admin';
+import React, { useEffect, useState } from "react";
+import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
+import Sidebar from "../../components/new/sidebar";
+import BodyContent from "../../components/new/body";
+import Header from "../../components/new/header";
+import PermissionGuard from "../../components/new/PermissionGuard";
+import { CreateClienteModal } from "../../components/new/CreateClienteModal";
+import { useAdminClientes } from "../../hooks/new/useAdminClientes";
+import { useAdminStats } from "../../hooks/new/useAdminStats";
+import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
+import type { Cliente } from "../../types/admin";
 
 interface StatCard {
   label: string;
@@ -43,10 +43,7 @@ export function GerenciarClientesPage() {
     fetchClientes,
   } = useAdminClientes();
 
-  const {
-    allRevendas,
-    loading: loadingRevendas,
-  } = useAdminRevendas();
+  const { allRevendas, loading: loadingRevendas } = useAdminRevendas();
 
   const {
     stats,
@@ -63,7 +60,7 @@ export function GerenciarClientesPage() {
   }, [isActiveUser]);
 
   return (
-    <PermissionGuard allowedRoles={['admin']} requireActive>
+    <PermissionGuard allowedRoles={["admin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -95,12 +92,12 @@ export function GerenciarClientesPage() {
             <StatsSection
               cards={[
                 {
-                  label: 'Total de Clientes',
+                  label: "Total de Clientes",
                   value: stats?.totalClientes || 0,
                   subValue: `${stats?.activeClientes || 0} ativos`,
                 },
                 {
-                  label: 'Clientes Pendentes',
+                  label: "Clientes Pendentes",
                   value: stats?.pendingClientes || 0,
                   subValue: `${stats?.rejectedClientes || 0} rejeitados`,
                 },
@@ -146,7 +143,10 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
       <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
+            <div
+              key={i}
+              className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"
+            ></div>
           ))}
         </div>
       </div>
@@ -160,9 +160,15 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
           key={card.label}
           className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors"
         >
-          <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
-          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
-          <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
+          <p className="text-sm text-dashboard-text-secondary font-medium">
+            {card.label}
+          </p>
+          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+            {card.value}
+          </p>
+          <p className="text-xs text-dashboard-text-tertiary mt-1">
+            {card.subValue}
+          </p>
         </div>
       ))}
     </div>
@@ -185,10 +191,10 @@ function ClientesSection({
   onRefresh,
   onCreateClick,
 }: ClientesSectionProps) {
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const filteredClientes = clientes.filter((c) =>
-    filterStatus === 'all' ? true : c.status === filterStatus
+    filterStatus === "all" ? true : c.status === filterStatus,
   );
 
   return (
@@ -209,35 +215,37 @@ function ClientesSection({
             disabled={loading}
             className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 rounded transition text-white font-bold"
           >
-            {loading ? 'Carregando...' : 'Atualizar'}
+            {loading ? "Carregando..." : "Atualizar"}
           </button>
         </div>
       </div>
 
       {/* Filtros */}
       <div className="mb-4 flex gap-2 flex-wrap">
-        {['all', 'active', 'pending', 'rejected'].map((status) => (
+        {["all", "active", "pending", "rejected"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
             className={`px-3 py-1 rounded text-sm transition ${
               filterStatus === status
-                ? 'bg-dashboard-accent text-black font-bold'
-                : 'bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border'
+                ? "bg-dashboard-accent text-black font-bold"
+                : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
             }`}
           >
-            {status === 'all'
-              ? 'Todos'
-              : status === 'active'
-              ? 'Ativos'
-              : status === 'pending'
-              ? 'Pendentes'
-              : 'Rejeitados'}
-            ({
+            {status === "all"
+              ? "Todos"
+              : status === "active"
+                ? "Ativos"
+                : status === "pending"
+                  ? "Pendentes"
+                  : "Rejeitados"}
+            (
+            {
               clientes.filter((c) =>
-                status === 'all' ? true : c.status === status
+                status === "all" ? true : c.status === status,
               ).length
-            })
+            }
+            )
           </button>
         ))}
       </div>
@@ -249,7 +257,10 @@ function ClientesSection({
         </div>
       ) : filteredClientes.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
-          <p>Nenhum cliente {filterStatus !== 'all' ? `com status "${filterStatus}"` : ''}</p>
+          <p>
+            Nenhum cliente{" "}
+            {filterStatus !== "all" ? `com status "${filterStatus}"` : ""}
+          </p>
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
@@ -260,8 +271,12 @@ function ClientesSection({
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-dashboard-text-primary">{cliente.name}</h3>
-                  <p className="text-sm text-dashboard-text-secondary mt-1">{cliente.email}</p>
+                  <h3 className="font-semibold text-dashboard-text-primary">
+                    {cliente.name}
+                  </h3>
+                  <p className="text-sm text-dashboard-text-secondary mt-1">
+                    {cliente.email}
+                  </p>
                   {cliente.revenda_id && (
                     <p className="text-xs text-dashboard-text-tertiary mt-1">
                       Revenda: {cliente.revenda_id}
@@ -270,18 +285,18 @@ function ClientesSection({
                 </div>
                 <span
                   className={`text-xs px-2 py-1 rounded font-bold ${
-                    cliente.status === 'active'
-                      ? 'bg-green-900 text-green-100'
-                      : cliente.status === 'pending'
-                      ? 'bg-yellow-900 text-yellow-100'
-                      : 'bg-red-900 text-red-100'
+                    cliente.status === "active"
+                      ? "bg-green-900 text-green-100"
+                      : cliente.status === "pending"
+                        ? "bg-yellow-900 text-yellow-100"
+                        : "bg-red-900 text-red-100"
                   }`}
                 >
-                  {cliente.status === 'active'
-                    ? 'Ativo'
-                    : cliente.status === 'pending'
-                    ? 'Pendente'
-                    : 'Rejeitado'}
+                  {cliente.status === "active"
+                    ? "Ativo"
+                    : cliente.status === "pending"
+                      ? "Pendente"
+                      : "Rejeitado"}
                 </span>
               </div>
             </div>

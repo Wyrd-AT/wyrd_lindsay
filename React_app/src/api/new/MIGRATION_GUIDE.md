@@ -5,16 +5,18 @@
 ### Autenticação
 
 **ANTES (Cognito):**
+
 ```javascript
-import { signIn } from '@/api/new/auth';
+import { signIn } from "@/api/new/auth";
 const result = await signIn(email, password);
 const token = result.AuthenticationResult.AccessToken;
 const idToken = result.AuthenticationResult.IdToken;
 ```
 
 **DEPOIS (FastAPI):**
+
 ```javascript
-import { auth } from '@/api/new/fastapi-api';
+import { auth } from "@/api/new/fastapi-api";
 const { token, user } = await auth.login(email, password);
 // token é automaticamente armazenado no store
 ```
@@ -26,14 +28,14 @@ const { token, user } = await auth.login(email, password);
 ### 1. LOGIN
 
 ```javascript
-import { auth } from '@/api/new/fastapi-api';
+import { auth } from "@/api/new/fastapi-api";
 
 const handleLogin = async (email, password) => {
   try {
     const { token, user } = await auth.login(email, password);
     //console.log('✅ Logado como:', user.email, '(tipo:', user.type + ')');
   } catch (error) {
-    console.error('❌ Erro:', error.message);
+    console.error("❌ Erro:", error.message);
   }
 };
 ```
@@ -41,14 +43,18 @@ const handleLogin = async (email, password) => {
 ### 2. LISTAR ALERTAS
 
 ```javascript
-import { alerts } from '@/api/new/fastapi-api';
+import { alerts } from "@/api/new/fastapi-api";
 
 const handleLoadAlerts = async () => {
   try {
-    const { total, alerts: alertList, role } = await alerts.listAlerts(null, 50);
+    const {
+      total,
+      alerts: alertList,
+      role,
+    } = await alerts.listAlerts(null, 50);
     //console.log(`✅ ${total} alertas encontrados (você é ${role})`);
   } catch (error) {
-    console.error('Erro ao carregar alertas:', error.message);
+    console.error("Erro ao carregar alertas:", error.message);
   }
 };
 ```
@@ -56,7 +62,7 @@ const handleLoadAlerts = async () => {
 ### 3. ENVIAR COMANDO
 
 ```javascript
-import { commands } from '@/api/new/fastapi-api';
+import { commands } from "@/api/new/fastapi-api";
 
 // Opção 1: Comando rápido
 const handleStartPivo = async (irrigadorId, pivoId) => {
@@ -64,7 +70,7 @@ const handleStartPivo = async (irrigadorId, pivoId) => {
     const result = await commands.startPivo(irrigadorId, pivoId, 60, 80);
     //console.log('✅ Comando enviado:', result.doc_id);
   } catch (error) {
-    console.error('Erro:', error.message);
+    console.error("Erro:", error.message);
   }
 };
 
@@ -73,14 +79,14 @@ const handleScheduleCommand = async (irrigadorId) => {
   try {
     const result = await commands.scheduleCommand(
       irrigadorId,
-      'start',
+      "start",
       30, // agendar para 30 minutos depois
       { duration: 120, flow_rate: 90 },
-      'pivo_001'
+      "pivo_001",
     );
     //console.log('✅ Comando agendado para:', result.will_execute_in);
   } catch (error) {
-    console.error('Erro:', error.message);
+    console.error("Erro:", error.message);
   }
 };
 ```
@@ -88,8 +94,8 @@ const handleScheduleCommand = async (irrigadorId) => {
 ### 4. REGISTRAR DEVICE TOKEN (Push)
 
 ```javascript
-import { alerts } from '@/api/new/fastapi-api';
-import * as Notifications from 'expo-notifications';
+import { alerts } from "@/api/new/fastapi-api";
+import * as Notifications from "expo-notifications";
 
 const handleRegisterPush = async () => {
   try {
@@ -98,13 +104,13 @@ const handleRegisterPush = async () => {
 
     // Registrar no backend
     const result = await alerts.registerDeviceToken(token, {
-      model: 'iPhone 12',
-      os: 'iOS',
+      model: "iPhone 12",
+      os: "iOS",
     });
 
     //console.log('✅ Device registrado para push');
   } catch (error) {
-    console.error('Erro:', error.message);
+    console.error("Erro:", error.message);
   }
 };
 ```
@@ -112,20 +118,20 @@ const handleRegisterPush = async () => {
 ### 5. ENVIAR NOTIFICAÇÃO MANUAL
 
 ```javascript
-import { alerts } from '@/api/new/fastapi-api';
+import { alerts } from "@/api/new/fastapi-api";
 
 const handleSendNotification = async () => {
   try {
     const result = await alerts.sendNotification(
-      'Teste de notificação',
-      ['+5511999999999'],           // phones
-      ['user@example.com'],         // emails
-      ['sms', 'whatsapp', 'email']  // channels
+      "Teste de notificação",
+      ["+5511999999999"], // phones
+      ["user@example.com"], // emails
+      ["sms", "whatsapp", "email"], // channels
     );
 
     //console.log('✅ Notificações enviadas:', result.channels);
   } catch (error) {
-    console.error('Erro:', error.message);
+    console.error("Erro:", error.message);
   }
 };
 ```
@@ -133,14 +139,17 @@ const handleSendNotification = async () => {
 ### 6. OBTER HISTÓRICO DE NOTIFICAÇÕES
 
 ```javascript
-import { alerts } from '@/api/new/fastapi-api';
+import { alerts } from "@/api/new/fastapi-api";
 
 const handleGetHistory = async () => {
   try {
-    const { total, logs } = await alerts.getNotificationHistory('irrigador_123', 50);
+    const { total, logs } = await alerts.getNotificationHistory(
+      "irrigador_123",
+      50,
+    );
     //console.log(`Histórico: ${total} notificações push enviadas`);
   } catch (error) {
-    console.error('Erro:', error.message);
+    console.error("Erro:", error.message);
   }
 };
 ```
@@ -148,7 +157,7 @@ const handleGetHistory = async () => {
 ### 7. VERIFICAR AUTENTICAÇÃO
 
 ```javascript
-import { auth } from '@/api/new/fastapi-api';
+import { auth } from "@/api/new/fastapi-api";
 
 // Verificar se está logado
 const isLoggedIn = auth.isAuthenticated();
@@ -165,11 +174,13 @@ const email = auth.getUserEmail();
 ## 🔧 Configuração de Ambiente
 
 ### `.env.development`
+
 ```ini
 VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
 ### `.env.production`
+
 ```ini
 VITE_API_BASE_URL=https://api.example.com/api
 ```
@@ -178,23 +189,24 @@ VITE_API_BASE_URL=https://api.example.com/api
 
 ## 📝 Mapeamento de Mudanças
 
-| Funcionalidade | Antes (Cognito) | Depois (FastAPI) | Nota |
-|---|---|---|---|
-| **Login** | `signIn()` | `auth.login()` | Mais simples |
-| **Token** | JWT (3 partes) | Base64(email:type) | Dev-friendly |
-| **Alertas** | Não tinha | `alerts.listAlerts()` | NOVO |
-| **Comandos** | Não tinha REST | `commands.sendCommand()` | NOVO |
-| **Push** | Customizado | `alerts.registerDeviceToken()` | NOVO |
-| **User Data** | Decodificar JWT | `auth.getCurrentUser()` | Automático |
+| Funcionalidade | Antes (Cognito) | Depois (FastAPI)               | Nota         |
+| -------------- | --------------- | ------------------------------ | ------------ |
+| **Login**      | `signIn()`      | `auth.login()`                 | Mais simples |
+| **Token**      | JWT (3 partes)  | Base64(email:type)             | Dev-friendly |
+| **Alertas**    | Não tinha       | `alerts.listAlerts()`          | NOVO         |
+| **Comandos**   | Não tinha REST  | `commands.sendCommand()`       | NOVO         |
+| **Push**       | Customizado     | `alerts.registerDeviceToken()` | NOVO         |
+| **User Data**  | Decodificar JWT | `auth.getCurrentUser()`        | Automático   |
 
 ---
 
 ## 🚀 Atualizar Componentes
 
 ### Antes
+
 ```typescript
-import { signIn } from '@/api/new/auth';
-import { decodeToken } from '@/stores/new/authStore';
+import { signIn } from "@/api/new/auth";
+import { decodeToken } from "@/stores/new/authStore";
 
 const handleLogin = async (email, password) => {
   const result = await signIn(email, password);
@@ -204,8 +216,9 @@ const handleLogin = async (email, password) => {
 ```
 
 ### Depois
+
 ```typescript
-import { auth } from '@/api/new/fastapi-api';
+import { auth } from "@/api/new/fastapi-api";
 
 const handleLogin = async (email, password) => {
   const { user } = await auth.login(email, password);
@@ -232,7 +245,7 @@ const handleLogin = async (email, password) => {
 
 ```javascript
 // Imports
-import { auth, alerts, commands } from '@/api/new/fastapi-api';
+import { auth, alerts, commands } from "@/api/new/fastapi-api";
 
 // Auth
 await auth.register(email, password, name, type);

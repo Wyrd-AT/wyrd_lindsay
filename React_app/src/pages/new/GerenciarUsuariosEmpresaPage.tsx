@@ -6,14 +6,14 @@
  * - Permite criar gerentes e comuns
  */
 
-import { useEffect, useState, useCallback } from 'react';
-import { useAuthStore, selectIsSuperusuario } from '../../stores/new/authStore';
-import Sidebar from '../../components/new/sidebar';
-import BodyContent from '../../components/new/body';
-import Header from '../../components/new/header';
-import PermissionGuard from '../../components/new/PermissionGuard';
-import { CreateCompanyUserModal } from '../../components/new/CreateCompanyUserModal';
-import { fetchCompanyUsers } from '../../api/new/fastapi-admin';
+import { useEffect, useState, useCallback } from "react";
+import { useAuthStore, selectIsSuperusuario } from "../../stores/new/authStore";
+import Sidebar from "../../components/new/sidebar";
+import BodyContent from "../../components/new/body";
+import Header from "../../components/new/header";
+import PermissionGuard from "../../components/new/PermissionGuard";
+import { CreateCompanyUserModal } from "../../components/new/CreateCompanyUserModal";
+import { fetchCompanyUsers } from "../../api/new/fastapi-admin";
 
 interface CompanyUser {
   _id: string;
@@ -38,7 +38,9 @@ export function GerenciarUsuariosEmpresaPage() {
       const data = await fetchCompanyUsers();
       setUsers(data.users || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar usuários');
+      setError(
+        err instanceof Error ? err.message : "Erro ao carregar usuários",
+      );
     } finally {
       setLoading(false);
     }
@@ -52,42 +54,62 @@ export function GerenciarUsuariosEmpresaPage() {
 
   const subRoleLabel = (role: string) => {
     switch (role) {
-      case 'superusuario': return 'Superusuário';
-      case 'gerente': return 'Gerente';
-      case 'comum': return 'Comum';
-      default: return role;
+      case "superusuario":
+        return "Superusuário";
+      case "gerente":
+        return "Gerente";
+      case "comum":
+        return "Comum";
+      default:
+        return role;
     }
   };
 
   const subRoleBadgeClass = (role: string) => {
     switch (role) {
-      case 'superusuario': return 'bg-purple-900 text-purple-100';
-      case 'gerente': return 'bg-blue-900 text-blue-100';
-      case 'comum': return 'bg-gray-700 text-gray-100';
-      default: return 'bg-gray-700 text-gray-100';
+      case "superusuario":
+        return "bg-purple-900 text-purple-100";
+      case "gerente":
+        return "bg-blue-900 text-blue-100";
+      case "comum":
+        return "bg-gray-700 text-gray-100";
+      default:
+        return "bg-gray-700 text-gray-100";
     }
   };
 
   const statusBadgeClass = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-900 text-green-100';
-      case 'pending': return 'bg-yellow-900 text-yellow-100';
-      case 'rejected': return 'bg-red-900 text-red-100';
-      default: return 'bg-gray-700 text-gray-100';
+      case "active":
+        return "bg-green-900 text-green-100";
+      case "pending":
+        return "bg-yellow-900 text-yellow-100";
+      case "rejected":
+        return "bg-red-900 text-red-100";
+      default:
+        return "bg-gray-700 text-gray-100";
     }
   };
 
   const statusLabel = (status: string) => {
     switch (status) {
-      case 'active': return 'Ativo';
-      case 'pending': return 'Pendente';
-      case 'rejected': return 'Rejeitado';
-      default: return status;
+      case "active":
+        return "Ativo";
+      case "pending":
+        return "Pendente";
+      case "rejected":
+        return "Rejeitado";
+      default:
+        return status;
     }
   };
 
   return (
-    <PermissionGuard allowedRoles={['cliente']} allowedSubRoles={['superusuario']} requireActive>
+    <PermissionGuard
+      allowedRoles={["cliente"]}
+      allowedSubRoles={["superusuario"]}
+      requireActive
+    >
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -107,7 +129,7 @@ export function GerenciarUsuariosEmpresaPage() {
                 disabled={loading}
                 className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition text-black text-sm px-3"
               >
-                {loading ? 'Carregando...' : 'Atualizar'}
+                {loading ? "Carregando..." : "Atualizar"}
               </button>
             </div>
           </div>
@@ -123,19 +145,27 @@ export function GerenciarUsuariosEmpresaPage() {
           <div className="px-4 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-                <p className="text-sm text-dashboard-text-secondary font-medium">Total</p>
-                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{users.length}</p>
-              </div>
-              <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-                <p className="text-sm text-dashboard-text-secondary font-medium">Gerentes</p>
+                <p className="text-sm text-dashboard-text-secondary font-medium">
+                  Total
+                </p>
                 <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
-                  {users.filter(u => u.sub_role === 'gerente').length}
+                  {users.length}
                 </p>
               </div>
               <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-                <p className="text-sm text-dashboard-text-secondary font-medium">Comuns</p>
+                <p className="text-sm text-dashboard-text-secondary font-medium">
+                  Gerentes
+                </p>
                 <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
-                  {users.filter(u => u.sub_role === 'comum').length}
+                  {users.filter((u) => u.sub_role === "gerente").length}
+                </p>
+              </div>
+              <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
+                <p className="text-sm text-dashboard-text-secondary font-medium">
+                  Comuns
+                </p>
+                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+                  {users.filter((u) => u.sub_role === "comum").length}
                 </p>
               </div>
             </div>
@@ -144,7 +174,9 @@ export function GerenciarUsuariosEmpresaPage() {
           {/* Users List */}
           <div className="px-4 mb-8">
             <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-dashboard-text-primary mb-4">Usuários</h2>
+              <h2 className="text-xl font-semibold text-dashboard-text-primary mb-4">
+                Usuários
+              </h2>
 
               {loading ? (
                 <div className="flex justify-center py-8">
@@ -163,14 +195,22 @@ export function GerenciarUsuariosEmpresaPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-dashboard-text-primary">{user.name}</h3>
-                          <p className="text-sm text-dashboard-text-secondary mt-1">{user.email}</p>
+                          <h3 className="font-semibold text-dashboard-text-primary">
+                            {user.name}
+                          </h3>
+                          <p className="text-sm text-dashboard-text-secondary mt-1">
+                            {user.email}
+                          </p>
                         </div>
                         <div className="flex gap-2">
-                          <span className={`text-xs px-2 py-1 rounded font-bold ${subRoleBadgeClass(user.sub_role)}`}>
+                          <span
+                            className={`text-xs px-2 py-1 rounded font-bold ${subRoleBadgeClass(user.sub_role)}`}
+                          >
                             {subRoleLabel(user.sub_role)}
                           </span>
-                          <span className={`text-xs px-2 py-1 rounded font-bold ${statusBadgeClass(user.status)}`}>
+                          <span
+                            className={`text-xs px-2 py-1 rounded font-bold ${statusBadgeClass(user.status)}`}
+                          >
                             {statusLabel(user.status)}
                           </span>
                         </div>

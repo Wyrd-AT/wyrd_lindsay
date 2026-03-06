@@ -8,17 +8,17 @@
  * - Ações: criar, aprovar, rejeitar
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAuthStore, selectIsActiveUser } from '../../stores/new/authStore';
-import Sidebar from '../../components/new/sidebar';
-import BodyContent from '../../components/new/body';
-import Header from '../../components/new/header';
-import PermissionGuard from '../../components/new/PermissionGuard';
-import { RevendaPendingApprovals } from '../../components/new/RevendaPendingApprovals';
-import { CreateRevendaModal } from '../../components/new/CreateRevendaModal';
-import { useAdminRevendas } from '../../hooks/new/useAdminRevendas';
-import { useAdminStats } from '../../hooks/new/useAdminStats';
-import type { Revenda } from '../../types/admin';
+import React, { useEffect, useState } from "react";
+import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
+import Sidebar from "../../components/new/sidebar";
+import BodyContent from "../../components/new/body";
+import Header from "../../components/new/header";
+import PermissionGuard from "../../components/new/PermissionGuard";
+import { RevendaPendingApprovals } from "../../components/new/RevendaPendingApprovals";
+import { CreateRevendaModal } from "../../components/new/CreateRevendaModal";
+import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
+import { useAdminStats } from "../../hooks/new/useAdminStats";
+import type { Revenda } from "../../types/admin";
 
 interface StatCard {
   label: string;
@@ -61,7 +61,7 @@ export function GerenciarRevendasPage() {
   }, [isActiveUser]);
 
   return (
-    <PermissionGuard allowedRoles={['admin']} requireActive>
+    <PermissionGuard allowedRoles={["admin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -94,12 +94,12 @@ export function GerenciarRevendasPage() {
             <StatsSection
               cards={[
                 {
-                  label: 'Total de Revendas',
+                  label: "Total de Revendas",
                   value: stats?.totalRevendas || 0,
                   subValue: `${stats?.activeRevendas || 0} ativas`,
                 },
                 {
-                  label: 'Revendas Pendentes',
+                  label: "Revendas Pendentes",
                   value: stats?.pendingRevendas || 0,
                   subValue: `${stats?.rejectedRevendas || 0} rejeitadas`,
                 },
@@ -155,7 +155,10 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
       <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
+            <div
+              key={i}
+              className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"
+            ></div>
           ))}
         </div>
       </div>
@@ -169,9 +172,15 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
           key={card.label}
           className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors"
         >
-          <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
-          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
-          <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
+          <p className="text-sm text-dashboard-text-secondary font-medium">
+            {card.label}
+          </p>
+          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+            {card.value}
+          </p>
+          <p className="text-xs text-dashboard-text-tertiary mt-1">
+            {card.subValue}
+          </p>
         </div>
       ))}
     </div>
@@ -194,10 +203,10 @@ function RevendasSection({
   onRefresh,
   onCreateClick,
 }: RevendasSectionProps) {
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const filteredRevendas = revendas.filter((r) =>
-    filterStatus === 'all' ? true : r.status === filterStatus
+    filterStatus === "all" ? true : r.status === filterStatus,
   );
 
   return (
@@ -218,35 +227,37 @@ function RevendasSection({
             disabled={loading}
             className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 rounded transition text-white font-bold"
           >
-            {loading ? 'Carregando...' : 'Atualizar'}
+            {loading ? "Carregando..." : "Atualizar"}
           </button>
         </div>
       </div>
 
       {/* Filtros */}
       <div className="mb-4 flex gap-2 flex-wrap">
-        {['all', 'active', 'pending', 'rejected'].map((status) => (
+        {["all", "active", "pending", "rejected"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
             className={`px-3 py-1 rounded text-sm transition ${
               filterStatus === status
-                ? 'bg-dashboard-accent text-black font-bold'
-                : 'bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border'
+                ? "bg-dashboard-accent text-black font-bold"
+                : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
             }`}
           >
-            {status === 'all'
-              ? 'Todas'
-              : status === 'active'
-              ? 'Ativas'
-              : status === 'pending'
-              ? 'Pendentes'
-              : 'Rejeitadas'}
-            ({
+            {status === "all"
+              ? "Todas"
+              : status === "active"
+                ? "Ativas"
+                : status === "pending"
+                  ? "Pendentes"
+                  : "Rejeitadas"}
+            (
+            {
               revendas.filter((r) =>
-                status === 'all' ? true : r.status === status
+                status === "all" ? true : r.status === status,
               ).length
-            })
+            }
+            )
           </button>
         ))}
       </div>
@@ -258,7 +269,10 @@ function RevendasSection({
         </div>
       ) : filteredRevendas.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
-          <p>Nenhuma revenda {filterStatus !== 'all' ? `com status "${filterStatus}"` : ''}</p>
+          <p>
+            Nenhuma revenda{" "}
+            {filterStatus !== "all" ? `com status "${filterStatus}"` : ""}
+          </p>
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
@@ -269,8 +283,12 @@ function RevendasSection({
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h3 className="font-semibold text-dashboard-text-primary">{revenda.name}</h3>
-                  <p className="text-sm text-dashboard-text-secondary mt-1">{revenda.email}</p>
+                  <h3 className="font-semibold text-dashboard-text-primary">
+                    {revenda.name}
+                  </h3>
+                  <p className="text-sm text-dashboard-text-secondary mt-1">
+                    {revenda.email}
+                  </p>
                   <p className="text-xs text-dashboard-text-tertiary mt-1">
                     Domínio: {revenda.domain}
                   </p>
@@ -282,18 +300,18 @@ function RevendasSection({
                 </div>
                 <span
                   className={`text-xs px-2 py-1 rounded font-bold ${
-                    revenda.status === 'active'
-                      ? 'bg-green-900 text-green-100'
-                      : revenda.status === 'pending'
-                      ? 'bg-yellow-900 text-yellow-100'
-                      : 'bg-red-900 text-red-100'
+                    revenda.status === "active"
+                      ? "bg-green-900 text-green-100"
+                      : revenda.status === "pending"
+                        ? "bg-yellow-900 text-yellow-100"
+                        : "bg-red-900 text-red-100"
                   }`}
                 >
-                  {revenda.status === 'active'
-                    ? 'Ativa'
-                    : revenda.status === 'pending'
-                    ? 'Pendente'
-                    : 'Rejeitada'}
+                  {revenda.status === "active"
+                    ? "Ativa"
+                    : revenda.status === "pending"
+                      ? "Pendente"
+                      : "Rejeitada"}
                 </span>
               </div>
             </div>

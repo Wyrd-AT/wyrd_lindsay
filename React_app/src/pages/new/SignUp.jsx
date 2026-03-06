@@ -26,7 +26,6 @@ const SignUp = () => {
     setShowTermsModal(true);
   }, []);
 
-
   const toggleShowPassword = () => {
     setShowPassword(!showPassword);
   };
@@ -56,14 +55,14 @@ const SignUp = () => {
 
     try {
       // CASO 1: Registro de Revenda (novo fluxo)
-      if (userType === 'revenda') {
+      if (userType === "revenda") {
         try {
           const response = await registerRevenda(
             email,
             password,
             name,
-            domain || email.split('@')[1],
-            cnpj
+            domain || email.split("@")[1],
+            cnpj,
           );
 
           //console.log("✅ Revenda registrada com sucesso:", response);
@@ -76,10 +75,11 @@ const SignUp = () => {
           setTimeout(() => {
             navigate("/");
           }, 3000);
-
         } catch (error) {
           console.error("Revenda registration error:", error);
-          setError(error.message || "Erro ao registrar revenda. Tente novamente.");
+          setError(
+            error.message || "Erro ao registrar revenda. Tente novamente.",
+          );
         }
         return;
       }
@@ -88,7 +88,7 @@ const SignUp = () => {
       const customAttributes = {
         name: name,
         type: userType,
-        status: userType === 'admin' ? 'active' : 'pending', // Admin ativo, outros pendentes
+        status: userType === "admin" ? "active" : "pending", // Admin ativo, outros pendentes
       };
 
       // Adicionar telefone se fornecido
@@ -98,7 +98,6 @@ const SignUp = () => {
 
       await signUp(email, password, customAttributes);
       setStep(2); // Avança para a etapa de confirmação
-
     } catch (error) {
       console.error("Registration error:", error);
       setError(error.message || "Erro ao registrar. Tente novamente.");
@@ -109,7 +108,7 @@ const SignUp = () => {
     try {
       await confirmSignUp(email, confirmationCode); // Confirmação de código
       setShowSuccessPopup(true); // Exibe popup de sucesso
-      handleCloseSuccessPopup()
+      handleCloseSuccessPopup();
     } catch (error) {
       setError("Invalid confirmation code. Please try again.");
     }
@@ -130,7 +129,7 @@ const SignUp = () => {
       return false;
     }
     // Validação específica para revenda
-    if (userType === 'revenda' && !domain && !email.includes('@')) {
+    if (userType === "revenda" && !domain && !email.includes("@")) {
       setError("Revenda deve ter um domínio válido");
       return false;
     }
@@ -162,16 +161,28 @@ const SignUp = () => {
       <div className="w-3/5 h-full flex align-middle justify-center items-center">
         <div className="bg-[#313131] p-8 rounded-lg shadow-md w-96 relative">
           <div className="flex justify-center mb-6">
-            <img src="/fieldnet.svg" alt="FieldNet Logo" width="150" height="50" />
+            <img
+              src="/fieldnet.svg"
+              alt="FieldNet Logo"
+              width="150"
+              height="50"
+            />
           </div>
 
-          <h2 className="text-[#4ade80] text-2xl font-semibold text-center mb-4">Novo Usuário</h2>
+          <h2 className="text-[#4ade80] text-2xl font-semibold text-center mb-4">
+            Novo Usuário
+          </h2>
           <hr className="border-[#4ade80] mb-4" />
 
           {step === 1 ? (
             <form onSubmit={(e) => e.preventDefault()}>
               <div>
-                <label htmlFor="name" className="text-gray-400 block text-sm font-medium mb-1">Name *</label>
+                <label
+                  htmlFor="name"
+                  className="text-gray-400 block text-sm font-medium mb-1"
+                >
+                  Name *
+                </label>
                 <input
                   id="name"
                   type="text"
@@ -183,7 +194,12 @@ const SignUp = () => {
                 />
               </div>
               <div>
-                <label htmlFor="email" className="text-gray-400 block text-sm font-medium mb-1">Email *</label>
+                <label
+                  htmlFor="email"
+                  className="text-gray-400 block text-sm font-medium mb-1"
+                >
+                  Email *
+                </label>
                 <input
                   id="email"
                   type="email"
@@ -195,7 +211,12 @@ const SignUp = () => {
                 />
               </div>
               <div>
-                <label htmlFor="userType" className="text-gray-400 block text-sm font-medium mb-1">Tipo de Usuário *</label>
+                <label
+                  htmlFor="userType"
+                  className="text-gray-400 block text-sm font-medium mb-1"
+                >
+                  Tipo de Usuário *
+                </label>
                 <select
                   id="userType"
                   value={userType}
@@ -208,21 +229,29 @@ const SignUp = () => {
                   <option value="admin">Admin</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {userType === 'admin' && '⚠️ Admin será criado com status ativo'}
-                  {userType === 'revenda' && '⚠️ Revenda precisa de aprovação do admin'}
-                  {userType === 'cliente' && '⚠️ Cliente precisa de aprovação da revenda'}
+                  {userType === "admin" &&
+                    "⚠️ Admin será criado com status ativo"}
+                  {userType === "revenda" &&
+                    "⚠️ Revenda precisa de aprovação do admin"}
+                  {userType === "cliente" &&
+                    "⚠️ Cliente precisa de aprovação da revenda"}
                 </p>
               </div>
-              {userType === 'revenda' && (
+              {userType === "revenda" && (
                 <>
                   <div>
-                    <label htmlFor="domain" className="text-gray-400 block text-sm font-medium mb-1">Domínio (opcional)</label>
+                    <label
+                      htmlFor="domain"
+                      className="text-gray-400 block text-sm font-medium mb-1"
+                    >
+                      Domínio (opcional)
+                    </label>
                     <input
                       id="domain"
                       type="text"
                       value={domain}
                       onChange={(e) => setDomain(e.target.value)}
-                      placeholder={email ? email.split('@')[1] : "exemplo.com"}
+                      placeholder={email ? email.split("@")[1] : "exemplo.com"}
                       className="w-full px-3 py-2 bg-[#444444] text-white border border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
@@ -230,7 +259,12 @@ const SignUp = () => {
                     </p>
                   </div>
                   <div>
-                    <label htmlFor="cnpj" className="text-gray-400 block text-sm font-medium mb-1">CNPJ *</label>
+                    <label
+                      htmlFor="cnpj"
+                      className="text-gray-400 block text-sm font-medium mb-1"
+                    >
+                      CNPJ *
+                    </label>
                     <input
                       id="cnpj"
                       type="text"
@@ -248,7 +282,12 @@ const SignUp = () => {
                 </>
               )}
               <div>
-                <label htmlFor="phoneNumber" className="text-gray-400 block text-sm font-medium mb-1">Telefone (opcional)</label>
+                <label
+                  htmlFor="phoneNumber"
+                  className="text-gray-400 block text-sm font-medium mb-1"
+                >
+                  Telefone (opcional)
+                </label>
                 <input
                   id="phoneNumber"
                   type="tel"
@@ -259,11 +298,18 @@ const SignUp = () => {
                 />
               </div>
               <div>
-                <label htmlFor="password" className="text-gray-400 block text-sm font-medium mb-1">Password *</label>
-                <div className="relative"> {/* 1: container relative */}
+                <label
+                  htmlFor="password"
+                  className="text-gray-400 block text-sm font-medium mb-1"
+                >
+                  Password *
+                </label>
+                <div className="relative">
+                  {" "}
+                  {/* 1: container relative */}
                   <input
                     id="password"
-                    type={showPassword ? "text" : "password"}  // altera o tipo conforme o estado
+                    type={showPassword ? "text" : "password"} // altera o tipo conforme o estado
                     value={password}
                     onChange={handlePasswordChange}
                     required
@@ -295,17 +341,45 @@ const SignUp = () => {
               </div>
 
               <div className="password-rules text-sm text-gray-500 my-4">
-                <p className={passwordCriteria.containsUpperCase ? 'text-green-600' : 'text-red-600'}>
-                  {passwordCriteria.containsUpperCase ? '✅' : '❌'} At least 1 uppercase letter
+                <p
+                  className={
+                    passwordCriteria.containsUpperCase
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  {passwordCriteria.containsUpperCase ? "✅" : "❌"} At least 1
+                  uppercase letter
                 </p>
-                <p className={passwordCriteria.containsLowerCase ? 'text-green-600' : 'text-red-600'}>
-                  {passwordCriteria.containsLowerCase ? '✅' : '❌'} At least 1 lowercase letter
+                <p
+                  className={
+                    passwordCriteria.containsLowerCase
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  {passwordCriteria.containsLowerCase ? "✅" : "❌"} At least 1
+                  lowercase letter
                 </p>
-                <p className={passwordCriteria.containsNumber ? 'text-green-600' : 'text-red-600'}>
-                  {passwordCriteria.containsNumber ? '✅' : '❌'} At least 1 number
+                <p
+                  className={
+                    passwordCriteria.containsNumber
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  {passwordCriteria.containsNumber ? "✅" : "❌"} At least 1
+                  number
                 </p>
-                <p className={passwordCriteria.containsSpecialChar ? 'text-green-600' : 'text-red-600'}>
-                  {passwordCriteria.containsSpecialChar ? '✅' : '❌'} At least 1 special character
+                <p
+                  className={
+                    passwordCriteria.containsSpecialChar
+                      ? "text-green-600"
+                      : "text-red-600"
+                  }
+                >
+                  {passwordCriteria.containsSpecialChar ? "✅" : "❌"} At least
+                  1 special character
                 </p>
               </div>
               {error && <p className="text-red-500">{error}</p>}
@@ -314,7 +388,9 @@ const SignUp = () => {
                 disabled={!termsAccepted}
                 className="w-full bg-[#4ade80] text-white py-2 px-4 rounded text-center hover:bg-[#36b55c] disabled:bg-gray-500 disabled:cursor-not-allowed transition mb-2"
               >
-                {!termsAccepted ? "Aceite os Termos para Continuar" : "Criar Usuário"}
+                {!termsAccepted
+                  ? "Aceite os Termos para Continuar"
+                  : "Criar Usuário"}
               </button>
               {!termsAccepted && (
                 <p className="text-gray-400 text-sm text-center">
@@ -325,7 +401,12 @@ const SignUp = () => {
           ) : (
             <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
               <div>
-                <label htmlFor="confirmationCode" className="text-gray-400 block text-sm font-medium mb-1">Confirmation Code *</label>
+                <label
+                  htmlFor="confirmationCode"
+                  className="text-gray-400 block text-sm font-medium mb-1"
+                >
+                  Confirmation Code *
+                </label>
                 <input
                   id="confirmationCode"
                   type="text"
@@ -344,7 +425,6 @@ const SignUp = () => {
               </button>
             </form>
           )}
-
         </div>
       </div>
     </div>

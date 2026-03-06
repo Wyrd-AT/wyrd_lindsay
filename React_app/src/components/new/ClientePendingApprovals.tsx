@@ -4,19 +4,19 @@
  * Para uso exclusivo de Revendas
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import type { Cliente } from '../../types/admin';
+import React, { useEffect, useState } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import type { Cliente } from "../../types/admin";
 
 interface ClientePendingApprovalsProps {
   onApprovalChange?: () => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = ({
-  onApprovalChange,
-}) => {
+export const ClientePendingApprovals: React.FC<
+  ClientePendingApprovalsProps
+> = ({ onApprovalChange }) => {
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
 
@@ -36,8 +36,8 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
     try {
       const response = await fetch(`${API_BASE_URL}/api/clientes/pending`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -48,9 +48,9 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
       const data = await response.json();
       setPendingClientes(data.clientes || []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao carregar';
+      const message = err instanceof Error ? err.message : "Erro ao carregar";
       setError(message);
-      console.error('❌ Erro ao carregar clientes pendentes:', err);
+      console.error("❌ Erro ao carregar clientes pendentes:", err);
     } finally {
       setLoading(false);
     }
@@ -60,14 +60,14 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
     loadPendingClientes();
   }, [token]);
 
-  const makeRequest = async (endpoint: string, method: string = 'POST') => {
-    if (!token) throw new Error('Não autenticado');
+  const makeRequest = async (endpoint: string, method: string = "POST") => {
+    if (!token) throw new Error("Não autenticado");
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method,
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
     });
 
@@ -87,11 +87,13 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
     setActionLoading(true);
     try {
       await makeRequest(`/api/clientes/${cliente.email}/approve`);
-      setPendingClientes((prev) => prev.filter((c) => c.email !== cliente.email));
+      setPendingClientes((prev) =>
+        prev.filter((c) => c.email !== cliente.email),
+      );
       setSelectedCliente(null);
       if (onApprovalChange) onApprovalChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao aprovar');
+      setError(err instanceof Error ? err.message : "Erro ao aprovar");
     } finally {
       setActionLoading(false);
     }
@@ -105,11 +107,13 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
     setActionLoading(true);
     try {
       await makeRequest(`/api/clientes/${cliente.email}/reject`);
-      setPendingClientes((prev) => prev.filter((c) => c.email !== cliente.email));
+      setPendingClientes((prev) =>
+        prev.filter((c) => c.email !== cliente.email),
+      );
       setSelectedCliente(null);
       if (onApprovalChange) onApprovalChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao rejeitar');
+      setError(err instanceof Error ? err.message : "Erro ao rejeitar");
     } finally {
       setActionLoading(false);
     }
@@ -120,7 +124,9 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500 mx-auto mb-2"></div>
-          <p className="text-dashboard-text-secondary">Carregando clientes pendentes...</p>
+          <p className="text-dashboard-text-secondary">
+            Carregando clientes pendentes...
+          </p>
         </div>
       </div>
     );
@@ -131,7 +137,9 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-xl font-bold text-dashboard-text-primary">Clientes Pendentes</h2>
+          <h2 className="text-xl font-bold text-dashboard-text-primary">
+            Clientes Pendentes
+          </h2>
           <p className="text-sm text-dashboard-text-secondary mt-1">
             {pendingClientes.length} cliente(s) aguardando aprovação
           </p>
@@ -155,8 +163,12 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
       {/* Empty State */}
       {pendingClientes.length === 0 && !loading && (
         <div className="text-center py-12">
-          <p className="text-dashboard-text-secondary text-lg">Nenhum cliente pendente</p>
-          <p className="text-dashboard-text-tertiary text-sm mt-2">Todos os clientes já foram aprovados ou rejeitados.</p>
+          <p className="text-dashboard-text-secondary text-lg">
+            Nenhum cliente pendente
+          </p>
+          <p className="text-dashboard-text-tertiary text-sm mt-2">
+            Todos os clientes já foram aprovados ou rejeitados.
+          </p>
         </div>
       )}
 
@@ -165,7 +177,11 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
         {pendingClientes.map((cliente) => (
           <div
             key={cliente._id}
-            onClick={() => setSelectedCliente(selectedCliente === cliente._id ? null : cliente._id)}
+            onClick={() =>
+              setSelectedCliente(
+                selectedCliente === cliente._id ? null : cliente._id,
+              )
+            }
             className="bg-dashboard-bg-tertiary border border-dashboard-border rounded p-4 cursor-pointer hover:bg-dashboard-border transition"
           >
             {/* Card Header */}
@@ -181,13 +197,13 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
                   {cliente.email}
                 </p>
                 <p className="text-xs text-dashboard-text-tertiary mt-2">
-                  {new Date(cliente.created_at).toLocaleString('pt-BR')}
+                  {new Date(cliente.created_at).toLocaleString("pt-BR")}
                 </p>
               </div>
 
               {/* Indicator */}
               <span className="text-dashboard-text-secondary">
-                {selectedCliente === cliente._id ? '▼' : '▶'}
+                {selectedCliente === cliente._id ? "▼" : "▶"}
               </span>
             </div>
 
@@ -198,11 +214,13 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
                   <div>
                     <p className="text-dashboard-text-tertiary text-xs">ID</p>
                     <p className="text-dashboard-text-secondary font-mono text-xs break-all">
-                      {cliente._id.replace('user:', '')}
+                      {cliente._id.replace("user:", "")}
                     </p>
                   </div>
                   <div>
-                    <p className="text-dashboard-text-tertiary text-xs">Status</p>
+                    <p className="text-dashboard-text-tertiary text-xs">
+                      Status
+                    </p>
                     <p className="text-yellow-400 font-semibold">Pendente</p>
                   </div>
                 </div>
@@ -217,7 +235,7 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
                     disabled={actionLoading}
                     className="flex-1 px-4 py-2 bg-green-900 hover:bg-green-800 text-green-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition font-bold"
                   >
-                    {actionLoading ? 'Aprovando...' : 'Aprovar'}
+                    {actionLoading ? "Aprovando..." : "Aprovar"}
                   </button>
 
                   <button
@@ -228,7 +246,7 @@ export const ClientePendingApprovals: React.FC<ClientePendingApprovalsProps> = (
                     disabled={actionLoading}
                     className="flex-1 px-4 py-2 bg-red-900 hover:bg-red-800 text-red-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition font-bold"
                   >
-                    {actionLoading ? 'Rejeitando...' : 'Rejeitar'}
+                    {actionLoading ? "Rejeitando..." : "Rejeitar"}
                   </button>
                 </div>
               </div>

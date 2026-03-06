@@ -4,9 +4,9 @@
  * - Listar clientes por status
  */
 
-import { useCallback, useState } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import type { Cliente } from '../../types/admin';
+import { useCallback, useState } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import type { Cliente } from "../../types/admin";
 
 interface UseAdminClientesReturn {
   clientes: Cliente[];
@@ -15,7 +15,7 @@ interface UseAdminClientesReturn {
   fetchClientes: () => Promise<void>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const useAdminClientes = (): UseAdminClientesReturn => {
   const token = useAuthStore((state) => state.token);
@@ -29,14 +29,14 @@ export const useAdminClientes = (): UseAdminClientesReturn => {
   const makeRequest = useCallback(
     async (endpoint: string) => {
       if (!token) {
-        throw new Error('Não autenticado');
+        throw new Error("Não autenticado");
       }
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -47,7 +47,7 @@ export const useAdminClientes = (): UseAdminClientesReturn => {
 
       return response.json();
     },
-    [token]
+    [token],
   );
 
   /**
@@ -57,13 +57,14 @@ export const useAdminClientes = (): UseAdminClientesReturn => {
     setLoading(true);
     setError(null);
     try {
-      const data = await makeRequest('/api/clientes');
+      const data = await makeRequest("/api/clientes");
       setClientes(data.clientes || []);
       //console.log('✅ Clientes carregados:', data.clientes?.length || 0);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao buscar clientes';
+      const message =
+        err instanceof Error ? err.message : "Erro ao buscar clientes";
       setError(message);
-      console.error('❌ Erro ao buscar clientes:', err);
+      console.error("❌ Erro ao buscar clientes:", err);
     } finally {
       setLoading(false);
     }

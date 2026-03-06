@@ -4,8 +4,8 @@
  * Usado por admin (com seletor de revenda) e revenda (revenda_id auto-preenchido)
  */
 
-import React, { useState } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
+import React, { useState } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
 
 interface Revenda {
   _id: string;
@@ -21,7 +21,7 @@ interface CreateClienteModalProps {
   showRevendaField?: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
   closeModal,
@@ -30,7 +30,13 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
 }) => {
   const token = useAuthStore((state) => state.token);
 
-  const [form, setForm] = useState({ name: '', email: '', password: '', cnpj_cliente: '', revenda_id: '' });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    cnpj_cliente: "",
+    revenda_id: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,10 +61,10 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/clientes`, {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       });
@@ -70,7 +76,7 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
 
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar cliente');
+      setError(err instanceof Error ? err.message : "Erro ao criar cliente");
     } finally {
       setLoading(false);
     }
@@ -80,7 +86,9 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-dashboard-bg-secondary rounded-lg p-6 w-full max-w-md border border-dashboard-border shadow-xl">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-dashboard-text-primary">Criar Cliente</h2>
+          <h2 className="text-xl font-bold text-dashboard-text-primary">
+            Criar Cliente
+          </h2>
           <button
             onClick={closeModal}
             className="text-dashboard-text-secondary hover:text-white text-2xl leading-none"
@@ -97,7 +105,9 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">Nome</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Nome
+            </label>
             <input
               type="text"
               required
@@ -109,7 +119,9 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">Email</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Email
+            </label>
             <input
               type="email"
               required
@@ -121,7 +133,9 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">Senha</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Senha
+            </label>
             <input
               type="password"
               required
@@ -134,12 +148,16 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">CNPJ do Cliente</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              CNPJ do Cliente
+            </label>
             <input
               type="text"
               required
               value={form.cnpj_cliente}
-              onChange={(e) => setForm({ ...form, cnpj_cliente: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, cnpj_cliente: e.target.value })
+              }
               className="w-full bg-dashboard-bg-tertiary border border-dashboard-border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none focus:border-dashboard-accent"
               placeholder="XX.XXX.XXX/0001-XX"
             />
@@ -153,7 +171,9 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
               </label>
               <select
                 value={form.revenda_id}
-                onChange={(e) => setForm({ ...form, revenda_id: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, revenda_id: e.target.value })
+                }
                 className="w-full bg-dashboard-bg-tertiary border border-dashboard-border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none focus:border-dashboard-accent"
               >
                 <option value="">Sem revenda</option>
@@ -179,7 +199,7 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
               disabled={loading}
               className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 text-black font-bold rounded transition"
             >
-              {loading ? 'Criando...' : 'Criar Cliente'}
+              {loading ? "Criando..." : "Criar Cliente"}
             </button>
           </div>
         </form>

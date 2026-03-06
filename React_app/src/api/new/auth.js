@@ -1,19 +1,23 @@
-import { useAuthStore } from '../../stores/new/authStore.ts';
-import api, { COGNITO_CLIENT_ID } from './api';
-import { getDoc, COUCH_USERS_DB } from './couch';
+import { useAuthStore } from "../../stores/new/authStore.ts";
+import api, { COGNITO_CLIENT_ID } from "./api";
+import { getDoc, COUCH_USERS_DB } from "./couch";
 
 // IMPORTANTE: CLIENT_SECRET deve estar em .env como VITE_COGNITO_CLIENT_SECRET
 // AVISO: CLIENT_SECRET nunca deve ser exposto em produção no frontend!
 // Para aplicações públicas, use um cliente Cognito SEM secret.
-const COGNITO_CLIENT_SECRET = import.meta.env.VITE_COGNITO_CLIENT_SECRET || '1jeh2l3f1uf4pjaqcf77i7a2rccucjlg7cnc3lu89n9hhc25qcv6';
+const COGNITO_CLIENT_SECRET =
+  import.meta.env.VITE_COGNITO_CLIENT_SECRET ||
+  "1jeh2l3f1uf4pjaqcf77i7a2rccucjlg7cnc3lu89n9hhc25qcv6";
 
 // Função para calcular SECRET_HASH (HMAC-SHA256)
 const calculateSecretHash = async (username) => {
   //console.log('\n🔑 Iniciando cálculo de SECRET_HASH...');
 
   if (!COGNITO_CLIENT_SECRET) {
-    console.warn('⚠️ COGNITO_CLIENT_SECRET não definido - SECRET_HASH não será calculado');
-    return '';
+    console.warn(
+      "⚠️ COGNITO_CLIENT_SECRET não definido - SECRET_HASH não será calculado",
+    );
+    return "";
   }
 
   //console.log('✅ CLIENT_SECRET está disponível');
@@ -33,16 +37,16 @@ const calculateSecretHash = async (username) => {
 
     // Calcular HMAC-SHA256
     const key = await crypto.subtle.importKey(
-      'raw',
+      "raw",
       secretBuffer,
-      { name: 'HMAC', hash: 'SHA-256' },
+      { name: "HMAC", hash: "SHA-256" },
       false,
-      ['sign']
+      ["sign"],
     );
 
     //console.log('✅ Chave HMAC importada');
 
-    const signature = await crypto.subtle.sign('HMAC', key, messageBuffer);
+    const signature = await crypto.subtle.sign("HMAC", key, messageBuffer);
 
     //console.log('✅ HMAC-SHA256 calculado');
 
@@ -55,7 +59,7 @@ const calculateSecretHash = async (username) => {
 
     return hashString;
   } catch (err) {
-    console.error('❌ Erro ao calcular SECRET_HASH:', err);
+    console.error("❌ Erro ao calcular SECRET_HASH:", err);
     throw err;
   }
 };
@@ -63,14 +67,19 @@ const calculateSecretHash = async (username) => {
 // Função auxiliar para decodificar JWT
 const decodeToken = (token) => {
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => {
+          return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+        })
+        .join(""),
+    );
     return JSON.parse(jsonPayload);
   } catch (error) {
-    console.error('Erro ao decodificar token:', error);
+    console.error("Erro ao decodificar token:", error);
     return {};
   }
 };
@@ -83,7 +92,7 @@ export const signUp = async (email, password, customAttributes = {}) => {
     // Atributos padrão do Cognito (sempre disponíveis)
     const userAttributes = [
       {
-        Name: 'email',
+        Name: "email",
         Value: email,
       },
     ];
@@ -91,13 +100,13 @@ export const signUp = async (email, password, customAttributes = {}) => {
     // Adicionar atributos padrão (não customizados)
     if (customAttributes.name) {
       userAttributes.push({
-        Name: 'name',
+        Name: "name",
         Value: customAttributes.name,
       });
     }
     if (customAttributes.phone_number) {
       userAttributes.push({
-        Name: 'phone_number',
+        Name: "phone_number",
         Value: customAttributes.phone_number,
       });
     }
@@ -106,7 +115,7 @@ export const signUp = async (email, password, customAttributes = {}) => {
     // configurados no User Pool do Cognito. Se não estiverem configurados, o signUp falhará.
     // Por enquanto, não enviamos custom attributes no signUp.
     // Eles devem ser configurados depois via AdminUpdateUserAttributes ou no console AWS.
-    
+
     // NOTA: Se os custom attributes estiverem configurados no Cognito, descomente abaixo:
     /*
     if (customAttributes.type) {
@@ -160,14 +169,16 @@ export const signUp = async (email, password, customAttributes = {}) => {
       payload.SecretHash = secretHash;
     }
 
-    const response = await api.post('/', payload, {
+    const response = await api.post("/", payload, {
       headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.SignUp',
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.SignUp",
       },
     });
     return response.data;
   } catch (error) {
-    throw new Error(`Erro ao registrar usuário: ${error.response.data.message}`);
+    throw new Error(
+      `Erro ao registrar usuário: ${error.response.data.message}`,
+    );
   }
 };
 
@@ -183,18 +194,19 @@ export const signUp = async (email, password, customAttributes = {}) => {
  */
 export const registerRevenda = async (email, password, name, domain, cnpj) => {
   try {
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const API_BASE_URL =
+      import.meta.env.VITE_API_URL || "http://localhost:8000";
 
     const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         email,
         password,
         name,
-        user_type: 'revenda',
+        user_type: "revenda",
         domain,
         cnpj,
       }),
@@ -203,7 +215,9 @@ export const registerRevenda = async (email, password, name, domain, cnpj) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || `Erro ao registrar revenda: ${response.status}`);
+      throw new Error(
+        data.detail || `Erro ao registrar revenda: ${response.status}`,
+      );
     }
 
     //console.log('✅ Revenda registrada com sucesso:');
@@ -213,10 +227,12 @@ export const registerRevenda = async (email, password, name, domain, cnpj) => {
     //console.log('   Status:', data.message);
 
     return data;
-
   } catch (error) {
-    console.error('❌ Erro ao registrar revenda:', error);
-    throw new Error(error.message || 'Falha ao registrar revenda. Por favor, tente novamente.');
+    console.error("❌ Erro ao registrar revenda:", error);
+    throw new Error(
+      error.message ||
+        "Falha ao registrar revenda. Por favor, tente novamente.",
+    );
   }
 };
 
@@ -237,9 +253,9 @@ export const confirmSignUp = async (email, confirmationCode) => {
       payload.SecretHash = secretHash;
     }
 
-    const response = await api.post('/', payload, {
+    const response = await api.post("/", payload, {
       headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ConfirmSignUp',
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.ConfirmSignUp",
       },
     });
     return response.data;
@@ -262,9 +278,10 @@ export const resendConfirmationCode = async (email) => {
       payload.SecretHash = secretHash;
     }
 
-    const response = await api.post('/', payload, {
+    const response = await api.post("/", payload, {
       headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ResendConfirmationCode',
+        "X-Amz-Target":
+          "AWSCognitoIdentityProviderService.ResendConfirmationCode",
       },
     });
     return response.data;
@@ -299,7 +316,7 @@ export const signIn = async (email, password) => {
     }
 
     const payload = {
-      AuthFlow: 'USER_PASSWORD_AUTH',
+      AuthFlow: "USER_PASSWORD_AUTH",
       ClientId: COGNITO_CLIENT_ID,
       AuthParameters: authParameters,
     };
@@ -315,9 +332,9 @@ export const signIn = async (email, password) => {
     //   }
     // }, null, 2));
 
-    const response = await api.post('/', payload, {
+    const response = await api.post("/", payload, {
       headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth",
       },
     });
     //console.log('✅ Resposta completa do Cognito:');
@@ -342,15 +359,16 @@ export const signIn = async (email, password) => {
     //console.log('   cognito:groups:', tokenPayload['cognito:groups']);
 
     // Extrair tipo do usuário (custom:type do Cognito ou inferir)
-    let userType = tokenPayload['custom:type'] ||
-                   tokenPayload['cognito:groups']?.[0] ||
-                   null; // Não usar fallback ainda
-    
+    let userType =
+      tokenPayload["custom:type"] ||
+      tokenPayload["cognito:groups"]?.[0] ||
+      null; // Não usar fallback ainda
+
     // Se não encontrou o tipo no Cognito, verificar se é admin pelo email ou CouchDB
     if (!userType) {
       // Verificar se é admin pelo email conhecido
-      if (userEmail === 'admin@company.com') {
-        userType = 'admin';
+      if (userEmail === "admin@company.com") {
+        userType = "admin";
         //console.log('✅ Admin identificado pelo email:', userEmail);
       } else {
         // Tentar verificar no CouchDB se existe documento admin:email
@@ -358,8 +376,8 @@ export const signIn = async (email, password) => {
           const adminDocId = `admin:${userEmail}`;
           try {
             const adminDoc = await getDoc(COUCH_USERS_DB, adminDocId);
-            if (adminDoc && adminDoc.type === 'admin') {
-              userType = 'admin';
+            if (adminDoc && adminDoc.type === "admin") {
+              userType = "admin";
               //console.log('✅ Admin identificado no CouchDB:', adminDocId);
             }
           } catch (err) {
@@ -367,19 +385,19 @@ export const signIn = async (email, password) => {
             //console.log('ℹ️ Documento admin não encontrado no CouchDB:', adminDocId);
           }
         } catch (err) {
-          console.warn('⚠️ Erro ao verificar admin no CouchDB:', err);
+          console.warn("⚠️ Erro ao verificar admin no CouchDB:", err);
         }
       }
-      
+
       // Se ainda não identificou, verificar se é revenda pelo domínio
-      if (!userType && userEmail.includes('@')) {
-        const domain = userEmail.split('@')[1];
+      if (!userType && userEmail.includes("@")) {
+        const domain = userEmail.split("@")[1];
         try {
           const revendaDocId = `revenda:${domain}`;
           try {
             const revendaDoc = await getDoc(COUCH_USERS_DB, revendaDocId);
-            if (revendaDoc && revendaDoc.type === 'revenda') {
-              userType = 'revenda';
+            if (revendaDoc && revendaDoc.type === "revenda") {
+              userType = "revenda";
               //console.log('✅ Revenda identificada no CouchDB:', revendaDocId);
             }
           } catch (err) {
@@ -389,24 +407,27 @@ export const signIn = async (email, password) => {
           // Ignora erro
         }
       }
-      
+
       // Fallback: se não identificou, assume cliente
       if (!userType) {
-        userType = 'cliente';
+        userType = "cliente";
         //console.log('ℹ️ Tipo não identificado, assumindo cliente');
       }
     }
-    
+
     // Extrair doc_id do Cognito (formato: admin:admin@company.com)
-    const docId = tokenPayload['custom:doc_id'] || 
-                  (userType === 'admin' ? `admin:${userEmail}` : null) ||
-                  (userType === 'revenda' ? `revenda:${tokenPayload['custom:domain'] || userEmail.split('@')[1]}` : null) ||
-                  (userType === 'cliente' ? `user:${userEmail}` : null);
-    
+    const docId =
+      tokenPayload["custom:doc_id"] ||
+      (userType === "admin" ? `admin:${userEmail}` : null) ||
+      (userType === "revenda"
+        ? `revenda:${tokenPayload["custom:domain"] || userEmail.split("@")[1]}`
+        : null) ||
+      (userType === "cliente" ? `user:${userEmail}` : null);
+
     // Consultar CouchDB para obter status, CNPJ e sub_role
-    let userStatus = tokenPayload['custom:status'] || null;
-    let userCnpj = tokenPayload['custom:cnpj'] || null;
-    let userSubRole = tokenPayload['custom:sub_role'] || null;
+    let userStatus = tokenPayload["custom:status"] || null;
+    let userCnpj = tokenPayload["custom:cnpj"] || null;
+    let userSubRole = tokenPayload["custom:sub_role"] || null;
 
     if (docId) {
       try {
@@ -417,18 +438,26 @@ export const signIn = async (email, password) => {
             //console.log('✅ Status obtido do CouchDB:', userStatus);
           }
           // Sub-role para clientes (backward compat: sem sub_role = superusuario)
-          if (userType === 'cliente') {
-            userSubRole = userDoc.sub_role || userSubRole || 'superusuario';
+          if (userType === "cliente") {
+            userSubRole = userDoc.sub_role || userSubRole || "superusuario";
             //console.log('✅ Sub-role do cliente:', userSubRole);
           }
           // CNPJ: admin/revenda/cliente têm no documento; Cognito pode não ter custom:cnpj
-          if (!userCnpj && userType === 'admin' && userDoc.cnpj_admin) {
+          if (!userCnpj && userType === "admin" && userDoc.cnpj_admin) {
             userCnpj = userDoc.cnpj_admin;
             //console.log('✅ CNPJ do admin obtido do CouchDB:', userCnpj);
-          } else if (!userCnpj && userType === 'revenda' && (userDoc.cnpj_revenda || userDoc.cnpj)) {
+          } else if (
+            !userCnpj &&
+            userType === "revenda" &&
+            (userDoc.cnpj_revenda || userDoc.cnpj)
+          ) {
             userCnpj = userDoc.cnpj_revenda || userDoc.cnpj;
             //console.log('✅ CNPJ da revenda obtido do CouchDB:', userCnpj);
-          } else if (!userCnpj && userType === 'cliente' && (userDoc.cnpj_cliente || userDoc.cnpj)) {
+          } else if (
+            !userCnpj &&
+            userType === "cliente" &&
+            (userDoc.cnpj_cliente || userDoc.cnpj)
+          ) {
             userCnpj = userDoc.cnpj_cliente || userDoc.cnpj;
             //console.log('✅ CNPJ do cliente obtido do CouchDB:', userCnpj);
           }
@@ -439,11 +468,11 @@ export const signIn = async (email, password) => {
     }
 
     // Admin sempre deve ser "active"
-    if (userType === 'admin') {
-      userStatus = 'active'; // Admin sempre ativo
+    if (userType === "admin") {
+      userStatus = "active"; // Admin sempre ativo
     } else if (!userStatus) {
       // Se não encontrou status, usar 'active' como padrão (usuários existentes)
-      userStatus = 'active';
+      userStatus = "active";
       //console.log('ℹ️ Status não encontrado, usando padrão: active');
     }
 
@@ -454,27 +483,28 @@ export const signIn = async (email, password) => {
       name: tokenPayload.name,
       phone_number: tokenPayload.phone_number,
       sub: tokenPayload.sub,
-      type: userType || 'cliente', // Garantir que sempre tenha um valor
-      status: userStatus || 'active', // Garantir que sempre tenha um valor
+      type: userType || "cliente", // Garantir que sempre tenha um valor
+      status: userStatus || "active", // Garantir que sempre tenha um valor
       // CNPJ do doc (CouchDB) ou do Cognito - crítico para filtragem (admin/revenda/cliente)
-      cnpj: userCnpj ?? tokenPayload['custom:cnpj'] ?? undefined,
+      cnpj: userCnpj ?? tokenPayload["custom:cnpj"] ?? undefined,
       doc_id: docId, // ✅ ID do documento no CouchDB
       // Sub-role para clientes (superusuario, gerente, comum)
-      sub_role: userType === 'cliente' ? (userSubRole || 'superusuario') : undefined,
+      sub_role:
+        userType === "cliente" ? userSubRole || "superusuario" : undefined,
     };
-    
+
     // Garantir que admin sempre tenha status active
-    if (user.type === 'admin') {
-      user.status = 'active';
+    if (user.type === "admin") {
+      user.status = "active";
     }
-    
+
     // Log final do objeto user antes de salvar
-    console.log('📦 User object final antes de salvar:', {
+    console.log("📦 User object final antes de salvar:", {
       email: user.email,
       type: user.type,
       status: user.status,
       doc_id: user.doc_id,
-      fullObject: user
+      fullObject: user,
     });
 
     //console.log('👤 User object criado:', user);
@@ -483,8 +513,10 @@ export const signIn = async (email, password) => {
     //console.log('   Status:', user.status);
 
     // Criar token no formato base64(email:type:cnpj:sub_role) para o FastAPI
-    const fastApiToken = btoa(`${user.email}:${userType}:${user.cnpj || ''}:${user.sub_role || ''}`);
-    
+    const fastApiToken = btoa(
+      `${user.email}:${userType}:${user.cnpj || ""}:${user.sub_role || ""}`,
+    );
+
     //console.log('🔑 Token FastAPI gerado:', fastApiToken);
     //console.log('   Email:', user.email);
     //console.log('   Type:', userType);
@@ -494,50 +526,57 @@ export const signIn = async (email, password) => {
     // Usar o token FastAPI para comunicação com a API
     //console.log('💾 Salvando no store:', { email: user.email, type: user.type, status: user.status });
     useAuthStore.getState().login(user, fastApiToken);
-    
+
     // Verificar se foi salvo corretamente
     const savedUser = useAuthStore.getState().user;
-    console.log('✅ Usuário salvo no store:', { 
-      email: savedUser?.email, 
-      type: savedUser?.type, 
+    console.log("✅ Usuário salvo no store:", {
+      email: savedUser?.email,
+      type: savedUser?.type,
       status: savedUser?.status,
-      isActive: savedUser?.status === 'active'
+      isActive: savedUser?.status === "active",
     });
 
     return response.data;
   } catch (error) {
-    console.error('\n❌ ===== ERRO NA AUTENTICAÇÃO =====');
-    console.error('Status:', error.response?.status);
-    console.error('Tipo de erro (Cognito):', error.response?.data?.__type);
-    console.error('Mensagem de erro:', error.response?.data?.message);
-    console.error('Payload completo da resposta:', JSON.stringify(error.response?.data, null, 2));
-    console.error('Headers da resposta:', error.response?.headers);
-    console.error('Mensagem do erro:', error.message);
-    console.error('Stack trace:', error.stack);
+    console.error("\n❌ ===== ERRO NA AUTENTICAÇÃO =====");
+    console.error("Status:", error.response?.status);
+    console.error("Tipo de erro (Cognito):", error.response?.data?.__type);
+    console.error("Mensagem de erro:", error.response?.data?.message);
+    console.error(
+      "Payload completo da resposta:",
+      JSON.stringify(error.response?.data, null, 2),
+    );
+    console.error("Headers da resposta:", error.response?.headers);
+    console.error("Mensagem do erro:", error.message);
+    console.error("Stack trace:", error.stack);
 
     // Log adicional para análise
-    console.error('\n📋 Resumo do erro:');
-    console.error('- Email tentado:', email);
-    console.error('- CLIENT_ID usado:', COGNITO_CLIENT_ID);
-    console.error('- CLIENT_SECRET configurado:', !!COGNITO_CLIENT_SECRET);
-    console.error('- AuthFlow:', 'USER_PASSWORD_AUTH');
+    console.error("\n📋 Resumo do erro:");
+    console.error("- Email tentado:", email);
+    console.error("- CLIENT_ID usado:", COGNITO_CLIENT_ID);
+    console.error("- CLIENT_SECRET configurado:", !!COGNITO_CLIENT_SECRET);
+    console.error("- AuthFlow:", "USER_PASSWORD_AUTH");
 
     const cognitoType = error.response?.data?.__type;
     const cognitoMessage = error.response?.data?.message;
 
     // Mensagem amigável para o usuário
-    if (cognitoType === 'NotAuthorizedException') {
+    if (cognitoType === "NotAuthorizedException") {
       throw new Error(
-        cognitoMessage && cognitoMessage.includes('password')
+        cognitoMessage && cognitoMessage.includes("password")
           ? 'Email ou senha incorretos. Verifique os dados ou use "Esqueci minha senha".'
-          : 'Não autorizado. Verifique seu email e senha.'
+          : "Não autorizado. Verifique seu email e senha.",
       );
     }
-    if (cognitoType === 'UserNotFoundException') {
-      throw new Error('Usuário não encontrado. Verifique o email ou crie uma conta.');
+    if (cognitoType === "UserNotFoundException") {
+      throw new Error(
+        "Usuário não encontrado. Verifique o email ou crie uma conta.",
+      );
     }
-    if (cognitoType === 'UserNotConfirmedException') {
-      throw new Error('Conta não confirmada. Verifique seu email e confirme o cadastro.');
+    if (cognitoType === "UserNotConfirmedException") {
+      throw new Error(
+        "Conta não confirmada. Verifique seu email e confirme o cadastro.",
+      );
     }
 
     throw new Error(cognitoMessage || cognitoType || error.message);
@@ -559,19 +598,25 @@ export const forgotPassword = async (email) => {
       payload.SecretHash = secretHash;
     }
 
-    const response = await api.post('/', payload, {
+    const response = await api.post("/", payload, {
       headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ForgotPassword',
+        "X-Amz-Target": "AWSCognitoIdentityProviderService.ForgotPassword",
       },
     });
     return response.data; // Resposta pode incluir detalhes sobre como proceder
   } catch (error) {
-    throw new Error(`Erro ao iniciar fluxo de recuperação de senha: ${error.message}`);
+    throw new Error(
+      `Erro ao iniciar fluxo de recuperação de senha: ${error.message}`,
+    );
   }
 };
 
 // Serviço para confirmar a nova senha no fluxo de "Esqueci a Senha"
-export const confirmForgotPassword = async (email, confirmationCode, newPassword) => {
+export const confirmForgotPassword = async (
+  email,
+  confirmationCode,
+  newPassword,
+) => {
   try {
     const secretHash = await calculateSecretHash(email);
 
@@ -587,9 +632,10 @@ export const confirmForgotPassword = async (email, confirmationCode, newPassword
       payload.SecretHash = secretHash;
     }
 
-    const response = await api.post('/', payload, {
+    const response = await api.post("/", payload, {
       headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ConfirmForgotPassword',
+        "X-Amz-Target":
+          "AWSCognitoIdentityProviderService.ConfirmForgotPassword",
       },
     });
     return response.data;
@@ -599,17 +645,25 @@ export const confirmForgotPassword = async (email, confirmationCode, newPassword
 };
 
 // Serviço para trocar senha com o usuário autenticado
-export const changePassword = async (accessToken, previousPassword, proposedPassword) => {
+export const changePassword = async (
+  accessToken,
+  previousPassword,
+  proposedPassword,
+) => {
   try {
-    const response = await api.post('/', {
-      PreviousPassword: previousPassword,
-      ProposedPassword: proposedPassword,
-    }, {
-      headers: {
-        'X-Amz-Target': 'AWSCognitoIdentityProviderService.ChangePassword',
-        Authorization: accessToken,
+    const response = await api.post(
+      "/",
+      {
+        PreviousPassword: previousPassword,
+        ProposedPassword: proposedPassword,
       },
-    });
+      {
+        headers: {
+          "X-Amz-Target": "AWSCognitoIdentityProviderService.ChangePassword",
+          Authorization: accessToken,
+        },
+      },
+    );
     return response.data;
   } catch (error) {
     throw new Error(`Erro ao trocar senha: ${error.message}`);

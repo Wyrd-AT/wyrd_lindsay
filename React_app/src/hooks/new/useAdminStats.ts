@@ -5,9 +5,9 @@
  * - Pivôs por status
  */
 
-import { useCallback, useState, useEffect } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import type { AdminStats } from '../../types/admin';
+import { useCallback, useState, useEffect } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import type { AdminStats } from "../../types/admin";
 
 interface UseAdminStatsReturn {
   stats: AdminStats | null;
@@ -16,7 +16,7 @@ interface UseAdminStatsReturn {
   fetchStats: () => Promise<void>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Estatísticas padrão
 const DEFAULT_STATS: AdminStats = {
@@ -46,14 +46,14 @@ export const useAdminStats = (): UseAdminStatsReturn => {
   const makeRequest = useCallback(
     async (endpoint: string) => {
       if (!token) {
-        throw new Error('Não autenticado');
+        throw new Error("Não autenticado");
       }
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -64,7 +64,7 @@ export const useAdminStats = (): UseAdminStatsReturn => {
 
       return response.json();
     },
-    [token]
+    [token],
   );
 
   /**
@@ -72,17 +72,17 @@ export const useAdminStats = (): UseAdminStatsReturn => {
    */
   const fetchRevendasStats = useCallback(async () => {
     try {
-      const data = await makeRequest('/api/revendas');
+      const data = await makeRequest("/api/revendas");
       const revendas = data.revendas || [];
 
       return {
         total: revendas.length,
-        active: revendas.filter((r: any) => r.status === 'active').length,
-        pending: revendas.filter((r: any) => r.status === 'pending').length,
-        rejected: revendas.filter((r: any) => r.status === 'rejected').length,
+        active: revendas.filter((r: any) => r.status === "active").length,
+        pending: revendas.filter((r: any) => r.status === "pending").length,
+        rejected: revendas.filter((r: any) => r.status === "rejected").length,
       };
     } catch (err) {
-      console.warn('⚠️ Erro ao buscar stats de revendas:', err);
+      console.warn("⚠️ Erro ao buscar stats de revendas:", err);
       return { total: 0, active: 0, pending: 0, rejected: 0 };
     }
   }, [makeRequest]);
@@ -92,17 +92,17 @@ export const useAdminStats = (): UseAdminStatsReturn => {
    */
   const fetchClientesStats = useCallback(async () => {
     try {
-      const data = await makeRequest('/api/clientes');
+      const data = await makeRequest("/api/clientes");
       const clientes = data.clientes || [];
 
       return {
         total: clientes.length,
-        active: clientes.filter((c: any) => c.status === 'active').length,
-        pending: clientes.filter((c: any) => c.status === 'pending').length,
-        rejected: clientes.filter((c: any) => c.status === 'rejected').length,
+        active: clientes.filter((c: any) => c.status === "active").length,
+        pending: clientes.filter((c: any) => c.status === "pending").length,
+        rejected: clientes.filter((c: any) => c.status === "rejected").length,
       };
     } catch (err) {
-      console.warn('⚠️ Erro ao buscar stats de clientes:', err);
+      console.warn("⚠️ Erro ao buscar stats de clientes:", err);
       return { total: 0, active: 0, pending: 0, rejected: 0 };
     }
   }, [makeRequest]);
@@ -112,17 +112,18 @@ export const useAdminStats = (): UseAdminStatsReturn => {
    */
   const fetchPivosStats = useCallback(async () => {
     try {
-      const data = await makeRequest('/api/pivos');
+      const data = await makeRequest("/api/pivos");
       const pivos = data.pivos || [];
 
       return {
         total: pivos.length,
-        active: pivos.filter((p: any) => p.status === 'active').length,
-        alarmed: pivos.filter((p: any) => p.status === 'alarmed').length,
-        maintenance: pivos.filter((p: any) => p.status === 'maintenance').length,
+        active: pivos.filter((p: any) => p.status === "active").length,
+        alarmed: pivos.filter((p: any) => p.status === "alarmed").length,
+        maintenance: pivos.filter((p: any) => p.status === "maintenance")
+          .length,
       };
     } catch (err) {
-      console.warn('⚠️ Erro ao buscar stats de pivôs:', err);
+      console.warn("⚠️ Erro ao buscar stats de pivôs:", err);
       return { total: 0, active: 0, alarmed: 0, maintenance: 0 };
     }
   }, [makeRequest]);
@@ -159,9 +160,10 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       setStats(newStats);
       //console.log('✅ Estatísticas carregadas:', newStats);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao buscar estatísticas';
+      const message =
+        err instanceof Error ? err.message : "Erro ao buscar estatísticas";
       setError(message);
-      console.error('❌ Erro ao buscar estatísticas:', err);
+      console.error("❌ Erro ao buscar estatísticas:", err);
     } finally {
       setLoading(false);
     }

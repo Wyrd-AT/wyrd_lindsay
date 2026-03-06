@@ -3,13 +3,12 @@ import { valueDescriptions } from "../../constants/alertDescriptions";
 
 // Mapeamento legado (exportado para compatibilidade)
 export const STATUS_MAP = {
-  '0': 'Normal',
-  '1': 'Alarmado',
-  '2': 'Reconhecido',
-  '3': 'Alarme OFF',
-  '9': 'Ausente',
+  0: "Normal",
+  1: "Alarmado",
+  2: "Reconhecido",
+  3: "Alarme OFF",
+  9: "Ausente",
 };
-
 
 export function StatusCard({ title, statuses, onClick, isInMaintenance }) {
   const allOK = statuses.some((s) => s.value === "0");
@@ -18,25 +17,30 @@ export function StatusCard({ title, statuses, onClick, isInMaintenance }) {
   const hasAlarmeOff = statuses.some((s) => s.value === "3");
   const hasAusente = statuses.some((s) => s.value === "9");
 
-
-
-  const statusLabel = isInMaintenance ? "Em manutenção" : hasAlarmado
-    ? "Alarmado"
-    : hasReconhecido
-      ? "Reconhecido"
-      : allOK
-        ? "Normal"
-        : hasAlarmeOff ? "Alarme OFF" : hasAusente ? "Ausente" : "Desconhecido";
+  const statusLabel = isInMaintenance
+    ? "Em manutenção"
+    : hasAlarmado
+      ? "Alarmado"
+      : hasReconhecido
+        ? "Reconhecido"
+        : allOK
+          ? "Normal"
+          : hasAlarmeOff
+            ? "Alarme OFF"
+            : hasAusente
+              ? "Ausente"
+              : "Desconhecido";
 
   const classes = clsx(
     "h-full flex flex-col items-center justify-center rounded border-2 p-2 transition-colors duration-200 cursor-pointer",
     {
       "animate-blink-bg border-red-500 text-white": hasAlarmado,
-      "bg-red-500 border-transparent text-white": !hasAlarmado && hasReconhecido,
+      "bg-red-500 border-transparent text-white":
+        !hasAlarmado && hasReconhecido,
       "bg-[#08cb7c] border-[#08cb7c] text-white": allOK && !hasAlarmado,
       "bg-[#444444] border-transparent text-white":
-        !allOK && !hasAlarmado && !hasReconhecido || isInMaintenance,
-    }
+        (!allOK && !hasAlarmado && !hasReconhecido) || isInMaintenance,
+    },
   );
 
   return (

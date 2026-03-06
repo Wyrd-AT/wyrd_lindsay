@@ -3,7 +3,7 @@
  * Elimina conversões string ↔ objeto desnecessárias
  */
 
-export type TensionSide = 'A' | 'B' | 'C' | 'D';
+export type TensionSide = "A" | "B" | "C" | "D";
 
 export interface MonitorReading {
   voltage: number;
@@ -30,4 +30,4 @@ export interface TensionDataset {
   maxVoltage: number;
 }
 
-export type Period = 'last24h' | 'last7d' | 'last30d' | 'all';
+export type Period = "last24h" | "last7d" | "last30d" | "all";

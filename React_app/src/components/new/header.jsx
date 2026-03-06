@@ -19,10 +19,7 @@ export default function Header({ page }) {
 
     if (page === "perfilClient") {
       return (
-        <div
-          className={commonClasses}
-          onClick={() => navigate("/home")}
-        >
+        <div className={commonClasses} onClick={() => navigate("/home")}>
           <GoChevronLeft size={20} />
           <h1 className="text-lg md:text-xl font-semibold pl-2">
             Perfil do Cliente
@@ -31,14 +28,9 @@ export default function Header({ page }) {
       );
     } else if (page === "maquina") {
       return (
-        <div
-          className={commonClasses}
-          onClick={() => navigate("/home")}
-        >
+        <div className={commonClasses} onClick={() => navigate("/home")}>
           <GoChevronLeft size={20} />
-          <h1 className="text-lg md:text-xl font-semibold pl-2">
-            Máquina
-          </h1>
+          <h1 className="text-lg md:text-xl font-semibold pl-2">Máquina</h1>
         </div>
       );
     } else {
@@ -46,7 +38,7 @@ export default function Header({ page }) {
         <div className="flex items-center justify-between w-full">
           <div className="flex flex-col">
             <h1 className="text-lg md:text-xl font-semibold">
-              Olá, {user?.name || 'Usuário'}!
+              Olá, {user?.name || "Usuário"}!
             </h1>
           </div>
           <div className="relative w-full max-w-[400px]">

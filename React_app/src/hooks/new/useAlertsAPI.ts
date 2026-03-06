@@ -9,8 +9,8 @@
  *   const { alerts, loading, error, refreshAlerts } = useAlertsAPI();
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { alerts as alertsAPI } from '@/api/new/fastapi-api';
+import { useState, useEffect, useCallback } from "react";
+import { alerts as alertsAPI } from "@/api/new/fastapi-api";
 
 export interface Alert {
   _id: string;
@@ -50,14 +50,15 @@ export const useAlertsAPI = (): UseAlertsAPIReturn => {
         setAlerts(response.alerts || []);
         setTotal(response.total || 0);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
+        const message =
+          err instanceof Error ? err.message : "Erro desconhecido";
         setError(message);
-        console.error('❌ Erro ao carregar alertas:', message);
+        console.error("❌ Erro ao carregar alertas:", message);
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   const clearError = useCallback(() => {

@@ -3,7 +3,7 @@
  * These functions require admin authentication (Bearer token)
  */
 
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 /**
  * Create a revenda via admin
@@ -12,12 +12,12 @@ import apiClient from './apiClient';
  */
 export const createRevenda = async (data) => {
   try {
-    const response = await apiClient.post('/revendas', {
+    const response = await apiClient.post("/revendas", {
       email: data.email,
       password: data.password,
       name: data.name,
-      cnpj_revenda: data.cnpj_revenda,  // ← CNPJ da revenda
-      cnpj_admin: data.cnpj_admin,      // ← CNPJ do admin para associação
+      cnpj_revenda: data.cnpj_revenda, // ← CNPJ da revenda
+      cnpj_admin: data.cnpj_admin, // ← CNPJ do admin para associação
     });
     return response.data;
   } catch (error) {
@@ -33,7 +33,7 @@ export const createRevenda = async (data) => {
  */
 export const createCliente = async (data) => {
   try {
-    const response = await apiClient.post('/clientes', {
+    const response = await apiClient.post("/clientes", {
       email: data.email,
       password: data.password,
       name: data.name,
@@ -52,11 +52,11 @@ export const createCliente = async (data) => {
  * @param {string} status - 'active', 'pending', or 'all'
  * @returns {Promise<Object>} Response with revendas list
  */
-export const fetchRevendas = async (status = 'active') => {
+export const fetchRevendas = async (status = "active") => {
   try {
-    let url = '/revendas';
-    if (status === 'pending') {
-      url = '/revendas/pending';
+    let url = "/revendas";
+    if (status === "pending") {
+      url = "/revendas/pending";
     }
     const response = await apiClient.get(url);
     return response.data;
@@ -71,11 +71,11 @@ export const fetchRevendas = async (status = 'active') => {
  * @param {string} status - 'active', 'pending', or 'all'
  * @returns {Promise<Object>} Response with clientes list
  */
-export const fetchClientes = async (status = 'active') => {
+export const fetchClientes = async (status = "active") => {
   try {
-    let url = '/clientes';
-    if (status === 'pending') {
-      url = '/clientes/pending';
+    let url = "/clientes";
+    if (status === "pending") {
+      url = "/clientes/pending";
     }
     const response = await apiClient.get(url);
     return response.data;
@@ -91,7 +91,7 @@ export const fetchClientes = async (status = 'active') => {
  */
 export const fetchAdmins = async () => {
   try {
-    const response = await apiClient.get('/admins');
+    const response = await apiClient.get("/admins");
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -106,7 +106,7 @@ export const fetchAdmins = async () => {
  */
 export const createAdmin = async (data) => {
   try {
-    const response = await apiClient.post('/admins', {
+    const response = await apiClient.post("/admins", {
       email: data.email,
       password: data.password,
       name: data.name,
@@ -125,7 +125,7 @@ export const createAdmin = async (data) => {
  */
 export const fetchCompanyUsers = async () => {
   try {
-    const response = await apiClient.get('/clientes/company-users');
+    const response = await apiClient.get("/clientes/company-users");
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -140,7 +140,7 @@ export const fetchCompanyUsers = async () => {
  */
 export const createCompanyUser = async (data) => {
   try {
-    const response = await apiClient.post('/clientes/company-users', {
+    const response = await apiClient.post("/clientes/company-users", {
       email: data.email,
       password: data.password,
       name: data.name,

@@ -1,33 +1,37 @@
 // src/stores/messageStore.couch.js
-import { create } from 'zustand';
+import { create } from "zustand";
 import {
-    couch,
-    find as couchFind,
-    getDocAll,
-    upsertDoc
-} from '../../api/new/couch.ts';
+  couch,
+  find as couchFind,
+  getDocAll,
+  upsertDoc,
+} from "../../api/new/couch.ts";
 
-const DB = 'lindsay-data'; // banco de dados principal
+const DB = "lindsay-data"; // banco de dados principal
 
 const TIME_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 dias
-const MAX_PARSED = Infinity;                     // limite máximo em memória
-const CHANGES_TIMEOUT = 30000;                   // long-poll timeout
+const MAX_PARSED = Infinity; // limite máximo em memória
+const CHANGES_TIMEOUT = 30000; // long-poll timeout
 const DEBOUNCE_MS = 100;
 
 // ====== formatação/parse de timestamp em America/Sao_Paulo ======
-const TZ = 'America/Sao_Paulo';
+const TZ = "America/Sao_Paulo";
 const BR_LEGACY_RE = /^(\d{2}):(\d{2}):(\d{2}) (\d{2})\/(\d{2})\/(\d{4})$/;
-const TZ_OFFSET = '-03:00'; // São Paulo
+const TZ_OFFSET = "-03:00"; // São Paulo
 
 function formatTimestampSP(date = new Date()) {
   // "sv-SE" => "YYYY-MM-DD HH:mm:ss" no fuso informado
-  const s = new Intl.DateTimeFormat('sv-SE', {
+  const s = new Intl.DateTimeFormat("sv-SE", {
     timeZone: TZ,
     hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   }).format(date);
-  return `${s.replace(' ', 'T')}${TZ_OFFSET}`; // "YYYY-MM-DDTHH:mm:ss-03:00"
+  return `${s.replace(" ", "T")}${TZ_OFFSET}`; // "YYYY-MM-DDTHH:mm:ss-03:00"
 }
 
 function parseBrLegacyTimestamp(ts) {
@@ -45,17 +49,17 @@ function parseTimestampAny(tsLike) {
   // formato BR legado (mqtt_messages)
   if (BR_LEGACY_RE.test(s)) return parseBrLegacyTimestamp(s);
   // ISO/“YYYY-MM-DD HH:mm:ss” etc. (normaliza espaço para 'T')
-  return Date.parse(s.includes('T') ? s : s.replace(' ', 'T'));
+  return Date.parse(s.includes("T") ? s : s.replace(" ", "T"));
 }
 
 /* ---------- Healthcheck simples ---------- */
 async function pingCouch() {
   try {
-    const up = await couch.get('/_up');
+    const up = await couch.get("/_up");
     return up.status === 200;
   } catch {
     try {
-      const dbs = await couch.get('/_all_dbs');
+      const dbs = await couch.get("/_all_dbs");
       return Array.isArray(dbs.data);
     } catch {
       return false;
@@ -65,10 +69,10 @@ async function pingCouch() {
 
 /* ---------- Helpers ---------- */
 export const parseMessage = (doc) => {
-  if (!doc || doc._id?.startsWith?.('_design/') || !doc.table) return null;
+  if (!doc || doc._id?.startsWith?.("_design/") || !doc.table) return null;
 
   // inclua aqui os tipos que você precisa acompanhar ao vivo
-  const tipos = ['mqtt_messages', 'command', 'sw_recente'];
+  const tipos = ["mqtt_messages", "command", "sw_recente"];
   if (!tipos.includes(doc.table)) return null;
 
   const base = {
@@ -91,13 +95,15 @@ function trimToMax(arr, max) {
 
 function isRecent(tsLike) {
   const t = parseTimestampAny(tsLike);
-  return Number.isFinite(t) && t >= (Date.now() - TIME_WINDOW_MS);
+  return Number.isFinite(t) && t >= Date.now() - TIME_WINDOW_MS;
 }
 
 const loadInitialMessages = async () => {
   // Filtramos a janela localmente por causa do legado BR
   try {
-    const selector = { table: { $in: ['mqtt_messages', 'command', 'sw_recente'] } };
+    const selector = {
+      table: { $in: ["mqtt_messages", "command", "sw_recente"] },
+    };
     const limit = 10000;
     let bookmark = null;
     const list = [];
@@ -108,8 +114,8 @@ const loadInitialMessages = async () => {
       const body = {
         selector,
         limit,
-        sort: [{ table: 'asc' }], // usa índice composto (table, timestamp)
-        use_index: ['idx_table_timestamp', 'by_table_timestamp'],
+        sort: [{ table: "asc" }], // usa índice composto (table, timestamp)
+        use_index: ["idx_table_timestamp", "by_table_timestamp"],
       };
       if (bookmark) body.bookmark = bookmark;
 
@@ -127,7 +133,9 @@ const loadInitialMessages = async () => {
     }
 
     // ordena corretamente pelos dois formatos
-    list.sort((a, b) => parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp));
+    list.sort(
+      (a, b) => parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp),
+    );
 
     const messagesMap = new Map();
     for (const m of list) messagesMap.set(m._id, m);
@@ -135,10 +143,13 @@ const loadInitialMessages = async () => {
     return {
       messagesMap,
       parsedMessages: list,
-      lastSeq: 'now',
+      lastSeq: "now",
     };
   } catch (e) {
-    console.warn('[messageStore] Mango _find indisponível, usando _all_docs fallback:', e?.message || e);
+    console.warn(
+      "[messageStore] Mango _find indisponível, usando _all_docs fallback:",
+      e?.message || e,
+    );
   }
 
   // Fallback (/_all_docs)
@@ -155,13 +166,19 @@ const loadInitialMessages = async () => {
     }
   }
 
-  list.sort((a, b) => parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp));
+  list.sort(
+    (a, b) => parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp),
+  );
 
-  let lastSeq = 'now';
+  let lastSeq = "now";
   try {
-    const ch = await couch.get(`/${DB}/_changes`, { params: { since: 'now', limit: 1 } });
-    lastSeq = ch?.data?.last_seq ?? 'now';
-  } catch { /* noop */ }
+    const ch = await couch.get(`/${DB}/_changes`, {
+      params: { since: "now", limit: 1 },
+    });
+    lastSeq = ch?.data?.last_seq ?? "now";
+  } catch {
+    /* noop */
+  }
 
   return {
     messagesMap: map,
@@ -175,7 +192,7 @@ async function startChangesLongPoll(get, set) {
   if (get()._changesActive) return; // evita múltiplos loops
   set({ _changesActive: true });
 
-  let since = get()._lastSeq || 'now';
+  let since = get()._lastSeq || "now";
 
   // buffers para reduzir sets
   let pendingAdds = [];
@@ -225,7 +242,10 @@ async function startChangesLongPoll(get, set) {
       }
 
       // ordena pelos dois formatos
-      parsed.sort((a, b) => parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp));
+      parsed.sort(
+        (a, b) =>
+          parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp),
+      );
 
       // aplica janela e limite
       const filtered = parsed.filter((m) => isRecent(m.timestamp));
@@ -248,7 +268,7 @@ async function startChangesLongPoll(get, set) {
     try {
       const res = await couch.get(`/${DB}/_changes`, {
         params: {
-          feed: 'longpoll',
+          feed: "longpoll",
           include_docs: true,
           timeout: CHANGES_TIMEOUT,
           since,
@@ -281,7 +301,10 @@ async function startChangesLongPoll(get, set) {
       since = last_seq;
       set({ _lastSeq: last_seq });
     } catch (err) {
-      console.error('[messageStore] _changes longpoll error:', err?.message || err);
+      console.error(
+        "[messageStore] _changes longpoll error:",
+        err?.message || err,
+      );
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
@@ -297,12 +320,15 @@ export const useMessageStore = create((set, get) => ({
 
   // controle interno do changes
   _changesActive: false,
-  _lastSeq: 'now',
+  _lastSeq: "now",
 
   // inicializa estado + changes feed
   initialize: async () => {
     // evita reentradas
-    if (get()._changesActive || (!get().isLoading && get().parsedMessages.length)) {
+    if (
+      get()._changesActive ||
+      (!get().isLoading && get().parsedMessages.length)
+    ) {
       return;
     }
 
@@ -310,28 +336,31 @@ export const useMessageStore = create((set, get) => ({
 
     try {
       const ok = await pingCouch();
-      if (!ok) throw new Error('CouchDB inacessível do dispositivo.');
+      if (!ok) throw new Error("CouchDB inacessível do dispositivo.");
 
-      const { messagesMap, parsedMessages, lastSeq } = await loadInitialMessages();
+      const { messagesMap, parsedMessages, lastSeq } =
+        await loadInitialMessages();
 
       // aplica limite e janela
-      const trimmed = trimToMax(parsedMessages.filter((m) => isRecent(m.timestamp)), MAX_PARSED);
+      const trimmed = trimToMax(
+        parsedMessages.filter((m) => isRecent(m.timestamp)),
+        MAX_PARSED,
+      );
 
       set({
         messagesMap,
         parsedMessages: trimmed,
         isLoading: false,
-        _lastSeq: lastSeq || 'now',
+        _lastSeq: lastSeq || "now",
       });
 
       startChangesLongPoll(get, set);
     } catch (err) {
-      const msg =
-        err?.message?.includes?.('Network Error')
-          ? 'Falha de rede: verifique VPN/Internet, certificado TLS e porta do Couch.'
-          : err?.message || String(err);
+      const msg = err?.message?.includes?.("Network Error")
+        ? "Falha de rede: verifique VPN/Internet, certificado TLS e porta do Couch."
+        : err?.message || String(err);
 
-      console.error('[messageStore] initialize error', err);
+      console.error("[messageStore] initialize error", err);
       set({ error: msg, isLoading: false });
     }
   },
@@ -344,7 +373,11 @@ export const useMessageStore = create((set, get) => ({
   // atualiza o cache local apenas
   upsertMessage: (id, msgObj) => {
     // garante timestamp SP ao inserir localmente quando ausente
-    const parsed = parseMessage({ ...msgObj, _id: id, timestamp: msgObj.timestamp || formatTimestampSP() });
+    const parsed = parseMessage({
+      ...msgObj,
+      _id: id,
+      timestamp: msgObj.timestamp || formatTimestampSP(),
+    });
     if (!parsed) return;
 
     set((state) => {
@@ -357,7 +390,10 @@ export const useMessageStore = create((set, get) => ({
       if (idx >= 0) parsedMessages[idx] = parsed;
       else if (isRecent(parsed.timestamp)) parsedMessages.push(parsed);
 
-      parsedMessages.sort((a, b) => parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp));
+      parsedMessages.sort(
+        (a, b) =>
+          parseTimestampAny(a.timestamp) - parseTimestampAny(b.timestamp),
+      );
 
       const filtered = parsedMessages.filter((m) => isRecent(m.timestamp));
       return {
@@ -370,9 +406,12 @@ export const useMessageStore = create((set, get) => ({
   // cria doc novo no Couch — usa POST /db (Couch gera _id)
   postMessage: async (doc) => {
     try {
-      const body = doc.timestamp ? doc : { ...doc, timestamp: formatTimestampSP() };
+      const body = doc.timestamp
+        ? doc
+        : { ...doc, timestamp: formatTimestampSP() };
       const res = await couch.post(`/${DB}`, body);
-      if (res.status >= 400) throw new Error(`Couch POST failed: ${res.status}`);
+      if (res.status >= 400)
+        throw new Error(`Couch POST failed: ${res.status}`);
       //console.log('[messageStore] Couch POST success:', res.data);
       const id = res.data?.id;
       const rev = res.data?.rev;
@@ -382,7 +421,7 @@ export const useMessageStore = create((set, get) => ({
 
       return res.data; // { ok, id, rev }
     } catch (err) {
-      console.error('[messageStore] ERRO Couch POST:', err);
+      console.error("[messageStore] ERRO Couch POST:", err);
       throw err;
     }
   },
@@ -393,7 +432,9 @@ export const useMessageStore = create((set, get) => ({
       if (!doc?._id) {
         return await get().postMessage(doc);
       }
-      const toSave = doc.timestamp ? doc : { ...doc, timestamp: formatTimestampSP() };
+      const toSave = doc.timestamp
+        ? doc
+        : { ...doc, timestamp: formatTimestampSP() };
 
       const res = await upsertDoc(DB, toSave); // GET+PUT ou cria se 404
       const id = res?.id || toSave._id;
@@ -405,7 +446,7 @@ export const useMessageStore = create((set, get) => ({
 
       return { id, rev };
     } catch (err) {
-      console.error('[messageStore] Erro no saveMessage (Couch):', err);
+      console.error("[messageStore] Erro no saveMessage (Couch):", err);
       throw err;
     }
   },
@@ -417,7 +458,7 @@ export const useMessageStore = create((set, get) => ({
       const rows = Array.isArray(data?.rows) ? data.rows : [];
       return rows.map((r) => r.doc);
     } catch (err) {
-      console.error('[messageStore] Erro no fetchMessages (Couch):', err);
+      console.error("[messageStore] Erro no fetchMessages (Couch):", err);
       throw err;
     }
   },
@@ -428,7 +469,7 @@ export const useMessageStore = create((set, get) => ({
       const data = await couchFind(DB, query);
       return data?.docs || [];
     } catch (err) {
-      console.error('[messageStore] Erro no readMessages (Couch):', err);
+      console.error("[messageStore] Erro no readMessages (Couch):", err);
       throw err;
     }
   },

@@ -1,5 +1,5 @@
 // useAgendamentos.js - Hook para gerenciar agendamentos (timers)
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { getDoc, upsertDoc, find } from "../../api/new/couch";
 
 // ==================== Utility Functions ====================
@@ -134,14 +134,14 @@ const CACHE_TTL = 5000; // 5 segundos
  * @param {string} db - Nome do banco de dados
  * @param {string} irrigadorId - ID do irrigador (opcional, para filtrar)
  */
-export function useAgendamentos(db = 'lindsay-data', irrigadorId = null) {
+export function useAgendamentos(db = "lindsay-data", irrigadorId = null) {
   const [agendamentos, setAgendamentos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Buscar todos os agendamentos
   const fetchAgendamentos = useCallback(async () => {
-    const cacheKey = `${db}:${irrigadorId || 'all'}`;
+    const cacheKey = `${db}:${irrigadorId || "all"}`;
     const cached = fetchCache.get(cacheKey);
 
     // Se tem cache válido, usar
@@ -154,7 +154,7 @@ export function useAgendamentos(db = 'lindsay-data', irrigadorId = null) {
     setError(null);
     try {
       const selector = {
-        _id: { $regex: '^timer:.*:current$' }
+        _id: { $regex: "^timer:.*:current$" },
       };
 
       if (irrigadorId) {
@@ -163,7 +163,7 @@ export function useAgendamentos(db = 'lindsay-data', irrigadorId = null) {
 
       const result = await find(db, {
         selector,
-        limit: 10000
+        limit: 10000,
       });
 
       const docs = result.docs || [];
@@ -172,63 +172,77 @@ export function useAgendamentos(db = 'lindsay-data', irrigadorId = null) {
       // Atualizar cache
       fetchCache.set(cacheKey, {
         data: docs,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     } catch (err) {
-      console.error('[useAgendamentos] Error fetching:', err);
-      setError(err?.message || 'Erro ao buscar agendamentos');
+      console.error("[useAgendamentos] Error fetching:", err);
+      setError(err?.message || "Erro ao buscar agendamentos");
     } finally {
       setLoading(false);
     }
   }, [db, irrigadorId]);
 
   // Buscar agendamento por id_origem
-  const findAgendamentoByIdOrigem = useCallback((id_origem) => {
-    return agendamentos.find(agendamento => agendamento.id_origem === id_origem);
-  }, [agendamentos]);
+  const findAgendamentoByIdOrigem = useCallback(
+    (id_origem) => {
+      return agendamentos.find(
+        (agendamento) => agendamento.id_origem === id_origem,
+      );
+    },
+    [agendamentos],
+  );
 
   // Adicionar/atualizar agendamento
-  const saveAgendamento = useCallback(async (idOrigem, data) => {
-    try {
-      const result = await setCurrent(db, idOrigem, data);
+  const saveAgendamento = useCallback(
+    async (idOrigem, data) => {
+      try {
+        const result = await setCurrent(db, idOrigem, data);
 
-      // Limpar cache para forçar atualização
-      const cacheKey = `${db}:${irrigadorId || 'all'}`;
-      fetchCache.delete(cacheKey);
+        // Limpar cache para forçar atualização
+        const cacheKey = `${db}:${irrigadorId || "all"}`;
+        fetchCache.delete(cacheKey);
 
-      await fetchAgendamentos(); // Atualizar lista
-      return result;
-    } catch (err) {
-      console.error('[useAgendamentos] Error saving:', err);
-      throw err;
-    }
-  }, [db, irrigadorId, fetchAgendamentos]);
+        await fetchAgendamentos(); // Atualizar lista
+        return result;
+      } catch (err) {
+        console.error("[useAgendamentos] Error saving:", err);
+        throw err;
+      }
+    },
+    [db, irrigadorId, fetchAgendamentos],
+  );
 
   // Adicionar evento ao histórico
-  const addHistoryEvent = useCallback(async (idOrigem, event) => {
-    try {
-      const result = await appendHistoryEvent(db, idOrigem, event);
-      return result;
-    } catch (err) {
-      console.error('[useAgendamentos] Error adding history event:', err);
-      throw err;
-    }
-  }, [db]);
+  const addHistoryEvent = useCallback(
+    async (idOrigem, event) => {
+      try {
+        const result = await appendHistoryEvent(db, idOrigem, event);
+        return result;
+      } catch (err) {
+        console.error("[useAgendamentos] Error adding history event:", err);
+        throw err;
+      }
+    },
+    [db],
+  );
 
   // Buscar agendamento específico por id_origem
-  const getAgendamento = useCallback(async (idOrigem) => {
-    try {
-      const id = currentId(idOrigem);
-      return await getById(db, id);
-    } catch (err) {
-      console.error('[useAgendamentos] Error getting:', err);
-      throw err;
-    }
-  }, [db]);
+  const getAgendamento = useCallback(
+    async (idOrigem) => {
+      try {
+        const id = currentId(idOrigem);
+        return await getById(db, id);
+      } catch (err) {
+        console.error("[useAgendamentos] Error getting:", err);
+        throw err;
+      }
+    },
+    [db],
+  );
 
   // Forçar atualização (ignorar cache)
   const refresh = useCallback(async () => {
-    const cacheKey = `${db}:${irrigadorId || 'all'}`;
+    const cacheKey = `${db}:${irrigadorId || "all"}`;
     fetchCache.delete(cacheKey);
     await fetchAgendamentos();
   }, [db, irrigadorId, fetchAgendamentos]);
@@ -238,27 +252,30 @@ export function useAgendamentos(db = 'lindsay-data', irrigadorId = null) {
     fetchAgendamentos();
   }, [fetchAgendamentos]);
 
-  return useMemo(() => ({
-    agendamentos,
-    loading,
-    error,
-    fetchAgendamentos,
-    findAgendamentoByIdOrigem,
-    saveAgendamento,
-    addHistoryEvent,
-    getAgendamento,
-    refresh
-  }), [
-    agendamentos,
-    loading,
-    error,
-    fetchAgendamentos,
-    findAgendamentoByIdOrigem,
-    saveAgendamento,
-    addHistoryEvent,
-    getAgendamento,
-    refresh
-  ]);
+  return useMemo(
+    () => ({
+      agendamentos,
+      loading,
+      error,
+      fetchAgendamentos,
+      findAgendamentoByIdOrigem,
+      saveAgendamento,
+      addHistoryEvent,
+      getAgendamento,
+      refresh,
+    }),
+    [
+      agendamentos,
+      loading,
+      error,
+      fetchAgendamentos,
+      findAgendamentoByIdOrigem,
+      saveAgendamento,
+      addHistoryEvent,
+      getAgendamento,
+      refresh,
+    ],
+  );
 }
 
 // ==================== Exemplo de Uso ====================

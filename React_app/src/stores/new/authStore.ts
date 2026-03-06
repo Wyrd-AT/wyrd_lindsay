@@ -1,10 +1,10 @@
 // stores/authStore.ts
-import { create } from 'zustand';
-import { persist,createJSONStorage } from 'zustand/middleware';
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
-export type UserRole = 'admin' | 'revenda' | 'cliente';
-export type UserStatus = 'active' | 'pending' | 'rejected';
-export type ClienteSubRole = 'superusuario' | 'gerente' | 'comum';
+export type UserRole = "admin" | "revenda" | "cliente";
+export type UserStatus = "active" | "pending" | "rejected";
+export type ClienteSubRole = "superusuario" | "gerente" | "comum";
 
 export interface User {
   email: string;
@@ -43,11 +43,11 @@ export const useAuthStore = create<AuthState>()(
 
       login: (user: User, token: string) => {
         // Log para debug
-        console.log('🔐 AuthStore.login chamado:', {
+        console.log("🔐 AuthStore.login chamado:", {
           email: user.email,
           type: user.type,
           status: user.status,
-          userObject: user
+          userObject: user,
         });
 
         // cnpjCliente = CNPJ do usuário (vem do custom:cnpj do Cognito)
@@ -56,26 +56,31 @@ export const useAuthStore = create<AuthState>()(
         // Garantir que o objeto user tenha todas as propriedades
         const completeUser: User = {
           ...user,
-          type: user.type || 'cliente',
-          status: user.status || 'active',
+          type: user.type || "cliente",
+          status: user.status || "active",
         };
 
         // Atualiza o estado com user, token e cnpjCliente
         set({ isAuthenticated: true, user: completeUser, token, cnpjCliente });
-        
+
         // Verificar se foi salvo
         const state = useAuthStore.getState();
-        console.log('✅ AuthStore.login - Estado após salvar:', {
+        console.log("✅ AuthStore.login - Estado após salvar:", {
           isAuthenticated: state.isAuthenticated,
           userType: state.user?.type,
           userStatus: state.user?.status,
-          userEmail: state.user?.email
+          userEmail: state.user?.email,
         });
       },
 
       logout: () => {
         // Limpa o estado e a persistência ao fazer logout
-        set({ isAuthenticated: false, user: null, token: null, cnpjCliente: null });
+        set({
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          cnpjCliente: null,
+        });
       },
 
       updateUser: (updatedFields: Partial<User>) => {
@@ -84,17 +89,17 @@ export const useAuthStore = create<AuthState>()(
         }));
       },
     }),
-     {
-      name: 'auth-storage',
+    {
+      name: "auth-storage",
       storage: createJSONStorage(() => sessionStorage), // Armazena na sessão
       partialize: (state) => {
         // Log para debug da serialização
-        console.log('💾 AuthStore - Serializando estado:', {
+        console.log("💾 AuthStore - Serializando estado:", {
           isAuthenticated: state.isAuthenticated,
           userType: state.user?.type,
           userStatus: state.user?.status,
           userEmail: state.user?.email,
-          fullUser: state.user
+          fullUser: state.user,
         });
         return {
           isAuthenticated: state.isAuthenticated,
@@ -105,26 +110,32 @@ export const useAuthStore = create<AuthState>()(
       },
       onRehydrateStorage: () => (state) => {
         // Log quando o estado é restaurado
-        console.log('🔄 AuthStore - Estado restaurado:', {
+        console.log("🔄 AuthStore - Estado restaurado:", {
           isAuthenticated: state?.isAuthenticated,
           userType: state?.user?.type,
           userStatus: state?.user?.status,
           userEmail: state?.user?.email,
-          fullUser: state?.user
+          fullUser: state?.user,
         });
-        
+
         // Se o estado foi restaurado mas não tem type/status, limpar (estado antigo)
-        if (state?.isAuthenticated && state?.user && (!state.user.type || !state.user.status)) {
-          console.warn('⚠️ Estado antigo detectado sem type/status, limpando estado...');
-          
+        if (
+          state?.isAuthenticated &&
+          state?.user &&
+          (!state.user.type || !state.user.status)
+        ) {
+          console.warn(
+            "⚠️ Estado antigo detectado sem type/status, limpando estado...",
+          );
+
           // Limpar também do sessionStorage
           try {
-            sessionStorage.removeItem('auth-storage');
-            console.log('✅ Estado antigo removido do sessionStorage');
+            sessionStorage.removeItem("auth-storage");
+            console.log("✅ Estado antigo removido do sessionStorage");
           } catch (e) {
-            console.error('❌ Erro ao limpar sessionStorage:', e);
+            console.error("❌ Erro ao limpar sessionStorage:", e);
           }
-          
+
           // Limpar o estado usando setState (executa após a restauração)
           setTimeout(() => {
             useAuthStore.setState({
@@ -133,16 +144,17 @@ export const useAuthStore = create<AuthState>()(
               token: null,
               cnpjCliente: null,
             });
-            console.log('✅ Estado limpo após detecção de estado inválido');
+            console.log("✅ Estado limpo após detecção de estado inválido");
           }, 0);
         }
       },
-    }
-  )
+    },
+  ),
 );
 
 // Selectors para facilitar o acesso
-export const selectIsAuthenticated = (state: AuthState) => state.isAuthenticated;
+export const selectIsAuthenticated = (state: AuthState) =>
+  state.isAuthenticated;
 export const selectUser = (state: AuthState) => state.user;
 export const selectToken = (state: AuthState) => state.token;
 export const selectCnpjCliente = (state: AuthState) => state.cnpjCliente;
@@ -153,25 +165,31 @@ export const selectCnpjCliente = (state: AuthState) => state.cnpjCliente;
 
 // Verificar role do usuário
 export const selectUserRole = (state: AuthState) => state.user?.type || null;
-export const selectUserStatus = (state: AuthState) => state.user?.status || null;
+export const selectUserStatus = (state: AuthState) =>
+  state.user?.status || null;
 
 // Verificar role específico
-export const selectIsAdmin = (state: AuthState) => state.user?.type === 'admin';
-export const selectIsRevenda = (state: AuthState) => state.user?.type === 'revenda';
-export const selectIsCliente = (state: AuthState) => state.user?.type === 'cliente';
+export const selectIsAdmin = (state: AuthState) => state.user?.type === "admin";
+export const selectIsRevenda = (state: AuthState) =>
+  state.user?.type === "revenda";
+export const selectIsCliente = (state: AuthState) =>
+  state.user?.type === "cliente";
 
 // Verificar status do usuário
-export const selectIsActive = (state: AuthState) => state.user?.status === 'active';
-export const selectIsPending = (state: AuthState) => state.user?.status === 'pending';
-export const selectIsRejected = (state: AuthState) => state.user?.status === 'rejected';
+export const selectIsActive = (state: AuthState) =>
+  state.user?.status === "active";
+export const selectIsPending = (state: AuthState) =>
+  state.user?.status === "pending";
+export const selectIsRejected = (state: AuthState) =>
+  state.user?.status === "rejected";
 
 // Verificar se usuário está ativo (necessário para maioria das operações)
 export const selectIsActiveUser = (state: AuthState) => {
   // Admin sempre é considerado ativo, mesmo se status não estiver definido
-  if (state.isAuthenticated && state.user?.type === 'admin') {
+  if (state.isAuthenticated && state.user?.type === "admin") {
     return true;
   }
-  return state.isAuthenticated && state.user?.status === 'active';
+  return state.isAuthenticated && state.user?.status === "active";
 };
 
 // Verificar permissões de visualização
@@ -187,7 +205,10 @@ export const selectCanManageClientes = (state: AuthState) => {
 
 export const selectCanViewPivos = (state: AuthState) => {
   // Clientes e Revendas podem ver pivôs
-  return selectIsActiveUser(state) && (selectIsCliente(state) || selectIsRevenda(state) || selectIsAdmin(state));
+  return (
+    selectIsActiveUser(state) &&
+    (selectIsCliente(state) || selectIsRevenda(state) || selectIsAdmin(state))
+  );
 };
 
 // Verificar permissões de aprovação
@@ -206,16 +227,19 @@ export const selectCanApproveClientes = (state: AuthState) => {
 // ============================================================================
 
 export const selectSubRole = (state: AuthState): ClienteSubRole | null =>
-  state.user?.type === 'cliente' ? (state.user?.sub_role as ClienteSubRole) || 'superusuario' : null;
+  state.user?.type === "cliente"
+    ? (state.user?.sub_role as ClienteSubRole) || "superusuario"
+    : null;
 
 export const selectIsSuperusuario = (state: AuthState) =>
-  state.user?.type === 'cliente' && (state.user?.sub_role === 'superusuario' || !state.user?.sub_role);
+  state.user?.type === "cliente" &&
+  (state.user?.sub_role === "superusuario" || !state.user?.sub_role);
 
 export const selectIsGerente = (state: AuthState) =>
-  state.user?.type === 'cliente' && state.user?.sub_role === 'gerente';
+  state.user?.type === "cliente" && state.user?.sub_role === "gerente";
 
 export const selectIsComum = (state: AuthState) =>
-  state.user?.type === 'cliente' && state.user?.sub_role === 'comum';
+  state.user?.type === "cliente" && state.user?.sub_role === "comum";
 
 // Pode resolver alertas: superusuario, gerente, admin, revenda
 export const selectCanResolveAlerts = (state: AuthState) => {
@@ -242,17 +266,22 @@ export const selectCanManageCompanyUsers = (state: AuthState) =>
   selectIsActiveUser(state) && selectIsSuperusuario(state);
 
 // Helper para verificar se o usuário pode ver um recurso específico
-export const selectCanViewResource = (state: AuthState, resourceOwnerId?: string) => {
+export const selectCanViewResource = (
+  state: AuthState,
+  resourceOwnerId?: string,
+) => {
   if (!selectIsActiveUser(state)) return false;
 
   // Admin vê tudo
   if (selectIsAdmin(state)) return true;
 
   // Revenda vê seus clientes
-  if (selectIsRevenda(state) && state.user?.doc_id === resourceOwnerId) return true;
+  if (selectIsRevenda(state) && state.user?.doc_id === resourceOwnerId)
+    return true;
 
   // Cliente vê apenas a si mesmo
-  if (selectIsCliente(state) && state.user?.email === resourceOwnerId) return true;
+  if (selectIsCliente(state) && state.user?.email === resourceOwnerId)
+    return true;
 
   return false;
 };

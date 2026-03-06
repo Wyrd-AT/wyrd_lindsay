@@ -7,14 +7,14 @@
  * - Filtros por status
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAuthStore, selectIsActiveUser } from '../../stores/new/authStore';
-import Sidebar from '../../components/new/sidebar';
-import BodyContent from '../../components/new/body';
-import Header from '../../components/new/header';
-import PermissionGuard from '../../components/new/PermissionGuard';
-import PivosSection from '../../components/new/PivosSection';
-import { useAdminStats } from '../../hooks/new/useAdminStats';
+import React, { useEffect, useState } from "react";
+import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
+import Sidebar from "../../components/new/sidebar";
+import BodyContent from "../../components/new/body";
+import Header from "../../components/new/header";
+import PermissionGuard from "../../components/new/PermissionGuard";
+import PivosSection from "../../components/new/PivosSection";
+import { useAdminStats } from "../../hooks/new/useAdminStats";
 
 interface StatCard {
   label: string;
@@ -45,7 +45,7 @@ export function GerenciarPivosPage() {
   }, [isActiveUser]);
 
   return (
-    <PermissionGuard allowedRoles={['admin']} requireActive>
+    <PermissionGuard allowedRoles={["admin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -76,12 +76,12 @@ export function GerenciarPivosPage() {
             <StatsSection
               cards={[
                 {
-                  label: 'Total de Pivôs',
+                  label: "Total de Pivôs",
                   value: stats?.totalPivos || 0,
                   subValue: `${stats?.activePivos || 0} ativos`,
                 },
                 {
-                  label: 'Pivôs Alarmados',
+                  label: "Pivôs Alarmados",
                   value: stats?.alarmadoPivos || 0,
                   subValue: `${stats?.maintenancePivos || 0} em manutenção`,
                 },
@@ -114,7 +114,10 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
       <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
+            <div
+              key={i}
+              className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"
+            ></div>
           ))}
         </div>
       </div>
@@ -128,9 +131,15 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
           key={card.label}
           className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors"
         >
-          <p className="text-sm text-dashboard-text-secondary font-medium">{card.label}</p>
-          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{card.value}</p>
-          <p className="text-xs text-dashboard-text-tertiary mt-1">{card.subValue}</p>
+          <p className="text-sm text-dashboard-text-secondary font-medium">
+            {card.label}
+          </p>
+          <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+            {card.value}
+          </p>
+          <p className="text-xs text-dashboard-text-tertiary mt-1">
+            {card.subValue}
+          </p>
         </div>
       ))}
     </div>

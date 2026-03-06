@@ -1,15 +1,20 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useAuthStore, selectIsAdmin, selectIsRevenda, selectIsActiveUser } from '../../stores/new/authStore';
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  useAuthStore,
+  selectIsAdmin,
+  selectIsRevenda,
+  selectIsActiveUser,
+} from "../../stores/new/authStore";
 
 export interface PendingItem {
   _id: string;
   _rev?: string;
-  type: 'revenda' | 'cliente';
+  type: "revenda" | "cliente";
   email: string;
   name: string;
   domain?: string; // para revendas
   created_at: string;
-  status: 'pending';
+  status: "pending";
 }
 
 export interface ApprovalQueueProps {
@@ -82,7 +87,14 @@ export function ApprovalQueue({
     } finally {
       setLoading(false);
     }
-  }, [isActiveUser, isAdmin, isRevenda, fetchPendingRevendas, fetchPendingClientes, onError]);
+  }, [
+    isActiveUser,
+    isAdmin,
+    isRevenda,
+    fetchPendingRevendas,
+    fetchPendingClientes,
+    onError,
+  ]);
 
   // Carregar itens ao montar e quando user muda
   useEffect(() => {
@@ -105,7 +117,7 @@ export function ApprovalQueue({
         }
       }
     },
-    [onApprove, onError]
+    [onApprove, onError],
   );
 
   const handleReject = useCallback(
@@ -124,14 +136,14 @@ export function ApprovalQueue({
         }
       }
     },
-    [onReject, onError]
+    [onReject, onError],
   );
 
   if (!isActiveUser) {
     return null;
   }
 
-  const itemType = isAdmin ? 'Revenda' : isRevenda ? 'Cliente' : null;
+  const itemType = isAdmin ? "Revenda" : isRevenda ? "Cliente" : null;
 
   if (!itemType) {
     return null;
@@ -219,15 +231,15 @@ function ApprovalItem({
   }, [item, onReject]);
 
   const createdAt = new Date(item.created_at);
-  const formattedDate = createdAt.toLocaleDateString('pt-BR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+  const formattedDate = createdAt.toLocaleDateString("pt-BR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
-  const formattedTime = createdAt.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+  const formattedTime = createdAt.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
 
   return (
@@ -251,8 +263,8 @@ function ApprovalItem({
               </p>
             )}
             <p>
-              <span className="font-medium">Solicitado em:</span> {formattedDate} às{' '}
-              {formattedTime}
+              <span className="font-medium">Solicitado em:</span>{" "}
+              {formattedDate} às {formattedTime}
             </p>
           </div>
         </div>
@@ -264,7 +276,7 @@ function ApprovalItem({
             className="bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
             title={`Aprovar ${itemType.toLowerCase()}`}
           >
-            {approving ? '...' : '✓ Aprovar'}
+            {approving ? "..." : "✓ Aprovar"}
           </button>
 
           <button
@@ -273,7 +285,7 @@ function ApprovalItem({
             className="bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
             title={`Rejeitar ${itemType.toLowerCase()}`}
           >
-            {rejecting ? '...' : '✕ Rejeitar'}
+            {rejecting ? "..." : "✕ Rejeitar"}
           </button>
         </div>
       </div>

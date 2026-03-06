@@ -6,9 +6,9 @@
  * - Rejeitar cliente
  */
 
-import { useCallback, useState } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import type { Cliente } from '../../types/admin';
+import { useCallback, useState } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import type { Cliente } from "../../types/admin";
 
 interface UseRevendaClientesReturn {
   clientes: Cliente[];
@@ -21,7 +21,7 @@ interface UseRevendaClientesReturn {
   rejectCliente: (email: string) => Promise<void>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const useRevendaClientes = (): UseRevendaClientesReturn => {
   const token = useAuthStore((state) => state.token);
@@ -31,14 +31,14 @@ export const useRevendaClientes = (): UseRevendaClientesReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const makeRequest = useCallback(
-    async (endpoint: string, method: string = 'GET', body?: any) => {
-      if (!token) throw new Error('Não autenticado');
+    async (endpoint: string, method: string = "GET", body?: any) => {
+      if (!token) throw new Error("Não autenticado");
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method,
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -50,17 +50,18 @@ export const useRevendaClientes = (): UseRevendaClientesReturn => {
 
       return response.json();
     },
-    [token]
+    [token],
   );
 
   const fetchClientes = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await makeRequest('/api/clientes');
+      const data = await makeRequest("/api/clientes");
       setClientes(data.clientes || []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao buscar clientes';
+      const message =
+        err instanceof Error ? err.message : "Erro ao buscar clientes";
       setError(message);
     } finally {
       setLoading(false);
@@ -71,10 +72,13 @@ export const useRevendaClientes = (): UseRevendaClientesReturn => {
     setLoading(true);
     setError(null);
     try {
-      const data = await makeRequest('/api/clientes/pending');
+      const data = await makeRequest("/api/clientes/pending");
       setPendingClientes(data.clientes || []);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao buscar clientes pendentes';
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Erro ao buscar clientes pendentes";
       setError(message);
     } finally {
       setLoading(false);
@@ -85,30 +89,32 @@ export const useRevendaClientes = (): UseRevendaClientesReturn => {
     async (email: string) => {
       setError(null);
       try {
-        await makeRequest(`/api/clientes/${email}/approve`, 'POST');
+        await makeRequest(`/api/clientes/${email}/approve`, "POST");
         setPendingClientes((prev) => prev.filter((c) => c.email !== email));
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro ao aprovar cliente';
+        const message =
+          err instanceof Error ? err.message : "Erro ao aprovar cliente";
         setError(message);
         throw err;
       }
     },
-    [makeRequest]
+    [makeRequest],
   );
 
   const rejectCliente = useCallback(
     async (email: string) => {
       setError(null);
       try {
-        await makeRequest(`/api/clientes/${email}/reject`, 'POST');
+        await makeRequest(`/api/clientes/${email}/reject`, "POST");
         setPendingClientes((prev) => prev.filter((c) => c.email !== email));
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro ao rejeitar cliente';
+        const message =
+          err instanceof Error ? err.message : "Erro ao rejeitar cliente";
         setError(message);
         throw err;
       }
     },
-    [makeRequest]
+    [makeRequest],
   );
 
   return {

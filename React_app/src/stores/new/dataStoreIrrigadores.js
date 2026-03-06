@@ -1,9 +1,15 @@
-import { useEffect, useMemo } from 'react';
-import { create } from 'zustand';
-import { couch, find as couchFind, createIndex, getDoc, upsertDoc } from '../../api/new/couch.ts';
+import { useEffect, useMemo } from "react";
+import { create } from "zustand";
+import {
+  couch,
+  find as couchFind,
+  createIndex,
+  getDoc,
+  upsertDoc,
+} from "../../api/new/couch.ts";
 
 // === Config do banco ===
-const DB = 'lindsay-data';
+const DB = "lindsay-data";
 
 // garante os índices Mango (cliente e revenda) apenas 1x
 let ensuredIndexCliente = false;
@@ -13,12 +19,13 @@ async function ensureIndexCliente() {
   if (ensuredIndexCliente) return;
   try {
     await createIndex(DB, {
-      fields: ['table', 'cnpj_cliente'],
-      name: 'idx_table_cnpj_cliente',
-      type: 'json'
+      fields: ["table", "cnpj_cliente"],
+      name: "idx_table_cnpj_cliente",
+      type: "json",
     });
   } catch (e) {
-    if (e?.response?.status !== 409) console.warn('[DataStore] Índice cnpj_cliente:', e?.message || e);
+    if (e?.response?.status !== 409)
+      console.warn("[DataStore] Índice cnpj_cliente:", e?.message || e);
   }
   ensuredIndexCliente = true;
 }
@@ -26,12 +33,13 @@ async function ensureIndexRevenda() {
   if (ensuredIndexRevenda) return;
   try {
     await createIndex(DB, {
-      fields: ['table', 'cnpj_revenda'],
-      name: 'idx_table_cnpj_revenda',
-      type: 'json'
+      fields: ["table", "cnpj_revenda"],
+      name: "idx_table_cnpj_revenda",
+      type: "json",
     });
   } catch (e) {
-    if (e?.response?.status !== 409) console.warn('[DataStore] Índice cnpj_revenda:', e?.message || e);
+    if (e?.response?.status !== 409)
+      console.warn("[DataStore] Índice cnpj_revenda:", e?.message || e);
   }
   ensuredIndexRevenda = true;
 }
@@ -39,12 +47,13 @@ async function ensureIndexAdmin() {
   if (ensuredIndexAdmin) return;
   try {
     await createIndex(DB, {
-      fields: ['table', 'cnpj_admin'],
-      name: 'idx_table_cnpj_admin',
-      type: 'json'
+      fields: ["table", "cnpj_admin"],
+      name: "idx_table_cnpj_admin",
+      type: "json",
     });
   } catch (e) {
-    if (e?.response?.status !== 409) console.warn('[DataStore] Índice cnpj_admin:', e?.message || e);
+    if (e?.response?.status !== 409)
+      console.warn("[DataStore] Índice cnpj_admin:", e?.message || e);
   }
   ensuredIndexAdmin = true;
 }
@@ -64,7 +73,7 @@ export const useDataStoreIrrigadores = create((set, get) => ({
    * @param cnpj - CNPJ do cliente (cnpj_cliente), da revenda (cnpj_revenda) ou do admin (cnpj_admin)
    * @param filterBy - 'cnpj_cliente' | 'cnpj_revenda' | 'cnpj_admin'
    */
-  fetchIrrigadores: async (cnpj, filterBy = 'cnpj_cliente') => {
+  fetchIrrigadores: async (cnpj, filterBy = "cnpj_cliente") => {
     //console.log(`[DataStore] fetchIrrigadores iniciado. CNPJ: ${cnpj}, filterBy: ${filterBy}`);
     if (!cnpj) {
       set({ irrigadores: [], isLoading: false });
@@ -72,30 +81,30 @@ export const useDataStoreIrrigadores = create((set, get) => ({
     }
     set({ isLoading: true, error: null });
     try {
-      if (filterBy === 'cnpj_revenda') {
+      if (filterBy === "cnpj_revenda") {
         await ensureIndexRevenda();
-      } else if (filterBy === 'cnpj_admin') {
+      } else if (filterBy === "cnpj_admin") {
         await ensureIndexAdmin();
       } else {
         await ensureIndexCliente();
       }
       const data = await couchFind(DB, {
         selector: {
-          table: 'irrigadores',
-          [filterBy]: cnpj
+          table: "irrigadores",
+          [filterBy]: cnpj,
         },
         limit: 500,
       });
-      set({ 
-        irrigadores: data.docs || [], 
+      set({
+        irrigadores: data.docs || [],
         syncTimestamp: Date.now(),
-        isLoading: false 
+        isLoading: false,
       });
     } catch (err) {
-      console.error('[DataStore] fetchIrrigadores error:', err);
-      set({ 
-        error: err?.message || 'Erro ao buscar irrigadores',
-        isLoading: false 
+      console.error("[DataStore] fetchIrrigadores error:", err);
+      set({
+        error: err?.message || "Erro ao buscar irrigadores",
+        isLoading: false,
       });
     }
   },
@@ -105,7 +114,7 @@ export const useDataStoreIrrigadores = create((set, get) => ({
     try {
       const doc = {
         ...payload,
-        table: 'irrigadores',
+        table: "irrigadores",
         cnpj_cliente: cnpjCliente,
       };
 
@@ -123,7 +132,7 @@ export const useDataStoreIrrigadores = create((set, get) => ({
 
       return { id: res.id, rev: res.rev };
     } catch (err) {
-      console.error('[DataStore] addIrrigador error:', err);
+      console.error("[DataStore] addIrrigador error:", err);
       throw err;
     }
   },
@@ -137,13 +146,13 @@ export const useDataStoreIrrigadores = create((set, get) => ({
       // salva com PUT direto
       const { data } = await couch.put(
         `/${DB}/${encodeURIComponent(_id)}`,
-        merged
+        merged,
       );
       const rev = data.rev || data._rev;
 
       set((state) => ({
         irrigadores: state.irrigadores.map((doc) =>
-          doc._id === _id ? { ...doc, ...updates, _rev: rev } : doc
+          doc._id === _id ? { ...doc, ...updates, _rev: rev } : doc,
         ),
         syncTimestamp: Date.now(),
       }));
@@ -152,24 +161,26 @@ export const useDataStoreIrrigadores = create((set, get) => ({
     } catch (err) {
       // conflito -> refaz com _rev mais recente
       if (err?.response?.status === 409) {
-        console.warn('[DataStore] updateIrrigador 409 — tentando novamente com _rev novo.');
+        console.warn(
+          "[DataStore] updateIrrigador 409 — tentando novamente com _rev novo.",
+        );
         const latest = await getDoc(DB, _id);
         const merged = { ...latest, ...updates, _rev: latest._rev };
         const { data } = await couch.put(
           `/${DB}/${encodeURIComponent(_id)}`,
-          merged
+          merged,
         );
         const rev = data.rev || data._rev;
 
         set((state) => ({
           irrigadores: state.irrigadores.map((doc) =>
-            doc._id === _id ? { ...doc, ...updates, _rev: rev } : doc
+            doc._id === _id ? { ...doc, ...updates, _rev: rev } : doc,
           ),
           syncTimestamp: Date.now(),
         }));
         return { id: _id, rev };
       }
-      console.error('[DataStore] updateIrrigador error:', err);
+      console.error("[DataStore] updateIrrigador error:", err);
       throw err;
     }
   },
@@ -178,10 +189,9 @@ export const useDataStoreIrrigadores = create((set, get) => ({
     try {
       // precisa do _rev pra deletar
       const cur = await getDoc(DB, _id);
-      const res = await couch.delete(
-        `/${DB}/${encodeURIComponent(_id)}`,
-        { params: { rev: cur._rev } }
-      );
+      const res = await couch.delete(`/${DB}/${encodeURIComponent(_id)}`, {
+        params: { rev: cur._rev },
+      });
       if (res.status >= 400) {
         throw new Error(`Couch DELETE failed: ${res.status}`);
       }
@@ -191,7 +201,7 @@ export const useDataStoreIrrigadores = create((set, get) => ({
         syncTimestamp: Date.now(),
       }));
     } catch (err) {
-      console.error('[DataStore] removeIrrigador error:', err);
+      console.error("[DataStore] removeIrrigador error:", err);
       throw err;
     }
   },
@@ -208,9 +218,14 @@ export const useDataStoreIrrigadores = create((set, get) => ({
 export function useIrrigadores(cnpj, userType) {
   const irrigadores = useDataStoreIrrigadores((s) => s.irrigadores);
   const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
-  const filterBy = userType === 'admin' ? 'cnpj_admin' : userType === 'revenda' ? 'cnpj_revenda' : 'cnpj_cliente';
+  const filterBy =
+    userType === "admin"
+      ? "cnpj_admin"
+      : userType === "revenda"
+        ? "cnpj_revenda"
+        : "cnpj_cliente";
   //console.log(`[useIrrigadores] userType: ${userType}, filterBy: ${filterBy}, cnpj: ${cnpj}`);
-  
+
   useEffect(() => {
     if (cnpj) fetchIrrigadores(cnpj, filterBy);
   }, [fetchIrrigadores, cnpj, filterBy]);

@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from "react";
+import { X } from "lucide-react";
 
 interface TermsOfUseModalProps {
   onAccept: () => void;
   onReject: () => void;
 }
 
-const TermsOfUseModal: React.FC<TermsOfUseModalProps> = ({ onAccept, onReject }) => {
+const TermsOfUseModal: React.FC<TermsOfUseModalProps> = ({
+  onAccept,
+  onReject,
+}) => {
   const [accepted, setAccepted] = useState(false);
 
   return (
@@ -24,42 +27,61 @@ const TermsOfUseModal: React.FC<TermsOfUseModalProps> = ({ onAccept, onReject })
 
         <div className="flex-grow overflow-y-auto mb-6 text-gray-300 text-sm space-y-4 pr-2">
           <section>
-            <h3 className="text-[#4ade80] font-semibold mb-2">1. Sobre a Aplicação</h3>
+            <h3 className="text-[#4ade80] font-semibold mb-2">
+              1. Sobre a Aplicação
+            </h3>
             <p>
-              O objetivo desta aplicação é exclusivamente emitir alertas sobre possíveis situações
-              de risco ou anomalias detectadas. A plataforma funciona como um sistema de monitoramento
-              e notificação para auxiliar na tomada de decisões.
+              O objetivo desta aplicação é exclusivamente emitir alertas sobre
+              possíveis situações de risco ou anomalias detectadas. A plataforma
+              funciona como um sistema de monitoramento e notificação para
+              auxiliar na tomada de decisões.
             </p>
           </section>
 
           <section>
-            <h3 className="text-[#4ade80] font-semibold mb-2">2. Limitação de Responsabilidade</h3>
+            <h3 className="text-[#4ade80] font-semibold mb-2">
+              2. Limitação de Responsabilidade
+            </h3>
             <p>
-              <strong>A aplicação NÃO se responsabiliza por furtos, roubos ou qualquer outro tipo
-              de prejuízo material ou pessoal.</strong> Os alertas emitidos são baseados em dados
-              e padrões detectados e devem ser interpretados como avisos informativos, não como
+              <strong>
+                A aplicação NÃO se responsabiliza por furtos, roubos ou qualquer
+                outro tipo de prejuízo material ou pessoal.
+              </strong>{" "}
+              Os alertas emitidos são baseados em dados e padrões detectados e
+              devem ser interpretados como avisos informativos, não como
               garantias de segurança.
             </p>
           </section>
 
           <section>
-            <h3 className="text-[#4ade80] font-semibold mb-2">3. Uso da Plataforma</h3>
-            <p>
-              O usuário reconhece que:
-            </p>
+            <h3 className="text-[#4ade80] font-semibold mb-2">
+              3. Uso da Plataforma
+            </h3>
+            <p>O usuário reconhece que:</p>
             <ul className="list-disc list-inside space-y-1 ml-2">
-              <li>Os alertas são notificações informativas e não devem ser considerados como diagnósticos definitivos</li>
-              <li>A responsabilidade por ações tomadas com base nos alertas é exclusivamente do usuário</li>
+              <li>
+                Os alertas são notificações informativas e não devem ser
+                considerados como diagnósticos definitivos
+              </li>
+              <li>
+                A responsabilidade por ações tomadas com base nos alertas é
+                exclusivamente do usuário
+              </li>
               <li>A aplicação não garante a precisão 100% dos alertas</li>
-              <li>Deve-se sempre exercer bom senso e julgamento próprio ao interpretar os alertas</li>
+              <li>
+                Deve-se sempre exercer bom senso e julgamento próprio ao
+                interpretar os alertas
+              </li>
             </ul>
           </section>
 
           <section>
-            <h3 className="text-[#4ade80] font-semibold mb-2">4. Consentimento</h3>
+            <h3 className="text-[#4ade80] font-semibold mb-2">
+              4. Consentimento
+            </h3>
             <p>
-              Ao criar uma conta e usar esta aplicação, você concorda com todos os termos
-              acima descritos.
+              Ao criar uma conta e usar esta aplicação, você concorda com todos
+              os termos acima descritos.
             </p>
           </section>
         </div>

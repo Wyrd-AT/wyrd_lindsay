@@ -1,9 +1,9 @@
 // src/hooks/useParsedMessages.js
-import { useEffect } from 'react';
-import { useMessageStore } from '../../stores/new/messageStore';
+import { useEffect } from "react";
+import { useMessageStore } from "../../stores/new/messageStore";
 
 export function useParsedMessages() {
-  const parsedMessages = useMessageStore(state => state.parsedMessages);
+  const parsedMessages = useMessageStore((state) => state.parsedMessages);
 
   // useEffect(() => {
   //   let cancelled = false;

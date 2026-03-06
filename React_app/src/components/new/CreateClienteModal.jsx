@@ -1,6 +1,11 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from "react";
 
-export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showRevendaField = true }) => {
+export const CreateClienteModal = ({
+  closeModal,
+  onSuccess,
+  revendas = [],
+  showRevendaField = true,
+}) => {
   const nameRef = useRef();
   const emailRef = useRef();
   const revendaSelectRef = useRef();
@@ -8,30 +13,30 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loadingRevendas, setLoadingRevendas] = useState(false);
   const [revendasList, setRevendasList] = useState(revendas);
-  const [documento, setDocumento] = useState('');
+  const [documento, setDocumento] = useState("");
 
   // Formata CPF (XXX.XXX.XXX-XX) ou CNPJ (XX.XXX.XXX/XXXX-XX) conforme a digitação
   const formatDocumento = (value) => {
-    const digits = value.replace(/\D/g, '').slice(0, 14);
+    const digits = value.replace(/\D/g, "").slice(0, 14);
     if (digits.length <= 11) {
       return digits
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
     }
     return digits
-      .replace(/(\d{2})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1/$2')
-      .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+      .replace(/(\d{2})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1/$2")
+      .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
   };
 
   const isDocumentoValid = (() => {
-    const digits = documento.replace(/\D/g, '');
+    const digits = documento.replace(/\D/g, "");
     return digits.length === 11 || digits.length === 14;
   })();
 
@@ -52,13 +57,13 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
       if (revendasList.length === 0) {
         setLoadingRevendas(true);
         try {
-          const { fetchRevendas } = await import('../../api/new/fastapi-admin');
-          const response = await fetchRevendas('active');
+          const { fetchRevendas } = await import("../../api/new/fastapi-admin");
+          const response = await fetchRevendas("active");
           if (response && response.revendas) {
             setRevendasList(response.revendas);
           }
         } catch (err) {
-          console.error('Erro ao carregar revendas:', err);
+          console.error("Erro ao carregar revendas:", err);
         } finally {
           setLoadingRevendas(false);
         }
@@ -81,17 +86,19 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
     });
   };
 
-  const isPasswordValid = Object.values(passwordCriteria).every(v => v === true);
+  const isPasswordValid = Object.values(passwordCriteria).every(
+    (v) => v === true,
+  );
 
   // Close on ESC
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         closeModal();
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [closeModal]);
 
   // Close on backdrop click
@@ -106,25 +113,28 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
 
     const name = nameRef.current.value.trim();
     const email = emailRef.current.value.trim();
-    const revendaId = showRevendaField && revendaSelectRef.current ? revendaSelectRef.current.value || null : null;
+    const revendaId =
+      showRevendaField && revendaSelectRef.current
+        ? revendaSelectRef.current.value || null
+        : null;
 
     if (!name) {
-      setError('Por favor, informe um nome.');
+      setError("Por favor, informe um nome.");
       return;
     }
 
     if (!email) {
-      setError('Por favor, informe um email.');
+      setError("Por favor, informe um email.");
       return;
     }
 
     if (!isDocumentoValid) {
-      setError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.');
+      setError("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.");
       return;
     }
 
     if (!isPasswordValid) {
-      setError('Senha não atende aos critérios de segurança.');
+      setError("Senha não atende aos critérios de segurança.");
       return;
     }
 
@@ -132,13 +142,13 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
     setError(null);
 
     try {
-      const { createCliente } = await import('../../api/new/fastapi-admin');
+      const { createCliente } = await import("../../api/new/fastapi-admin");
 
       const response = await createCliente({
         email,
         password,
         name,
-        cnpj_cliente: documento.replace(/\D/g, ''),  // só dígitos para o backend
+        cnpj_cliente: documento.replace(/\D/g, ""), // só dígitos para o backend
         revenda_id: revendaId,
       });
 
@@ -148,11 +158,13 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
         }
         closeModal();
       } else {
-        setError('Erro ao criar cliente.');
+        setError("Erro ao criar cliente.");
       }
     } catch (err) {
-      console.error('Erro ao criar cliente:', err);
-      setError(err.message || 'Não foi possível criar o cliente. Tente novamente.');
+      console.error("Erro ao criar cliente:", err);
+      setError(
+        err.message || "Não foi possível criar o cliente. Tente novamente.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -160,8 +172,8 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
 
   const CriteriaCheck = ({ label, isValid }) => (
     <div className="flex items-center text-sm mb-1">
-      <span className={isValid ? 'text-green-400' : 'text-red-400'}>
-        {isValid ? '✓' : '✗'}
+      <span className={isValid ? "text-green-400" : "text-red-400"}>
+        {isValid ? "✓" : "✗"}
       </span>
       <span className="ml-2 text-gray-300">{label}</span>
     </div>
@@ -229,7 +241,7 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
             onChange={(e) => setDocumento(formatDocumento(e.target.value))}
             placeholder="XX.XXX.XXX/0001-XX ou XXX.XXX.XXX-XX"
             className={`w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none ${
-              documento && !isDocumentoValid ? 'border-red-500' : ''
+              documento && !isDocumentoValid ? "border-red-500" : ""
             }`}
             disabled={isSaving}
             required
@@ -239,7 +251,8 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
           </span>
           {documento && !isDocumentoValid && (
             <span className="text-xs text-red-400 block mt-1">
-              Documento incompleto ({documento.replace(/\D/g, '').length} dígitos informados)
+              Documento incompleto ({documento.replace(/\D/g, "").length}{" "}
+              dígitos informados)
             </span>
           )}
         </label>
@@ -263,7 +276,9 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
                 ))
               )}
             </select>
-            <span className="text-xs text-gray-400">Opcional - Atribua a uma revenda ou deixe em branco</span>
+            <span className="text-xs text-gray-400">
+              Opcional - Atribua a uma revenda ou deixe em branco
+            </span>
           </label>
         )}
 
@@ -272,12 +287,12 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
           <div className="relative mt-1">
             <input
               ref={passwordRef}
-              type={showPassword ? 'text' : 'password'}
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={handlePasswordChange}
               placeholder="Senha segura"
               className={`w-full text-black px-3 py-2 border rounded-md focus:outline-none pr-10 ${
-                password && !isPasswordValid ? 'border-red-500' : ''
+                password && !isPasswordValid ? "border-red-500" : ""
               }`}
               disabled={isSaving}
               required
@@ -287,9 +302,9 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-2.5 text-gray-600 hover:text-gray-800 focus:outline-none"
               disabled={isSaving}
-              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
             >
-              {showPassword ? '👁️' : '👁️‍🗨️'}
+              {showPassword ? "👁️" : "👁️‍🗨️"}
             </button>
           </div>
         </label>
@@ -297,11 +312,26 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
         {password && (
           <div className="mb-4 p-3 bg-[#333333] rounded text-sm">
             <p className="text-white mb-2">Critérios de senha:</p>
-            <CriteriaCheck label="Mínimo 8 caracteres" isValid={passwordCriteria.minLength} />
-            <CriteriaCheck label="Letra maiúscula (A-Z)" isValid={passwordCriteria.hasUppercase} />
-            <CriteriaCheck label="Letra minúscula (a-z)" isValid={passwordCriteria.hasLowercase} />
-            <CriteriaCheck label="Número (0-9)" isValid={passwordCriteria.hasNumber} />
-            <CriteriaCheck label="Caractere especial (!@#$...)" isValid={passwordCriteria.hasSpecialChar} />
+            <CriteriaCheck
+              label="Mínimo 8 caracteres"
+              isValid={passwordCriteria.minLength}
+            />
+            <CriteriaCheck
+              label="Letra maiúscula (A-Z)"
+              isValid={passwordCriteria.hasUppercase}
+            />
+            <CriteriaCheck
+              label="Letra minúscula (a-z)"
+              isValid={passwordCriteria.hasLowercase}
+            />
+            <CriteriaCheck
+              label="Número (0-9)"
+              isValid={passwordCriteria.hasNumber}
+            />
+            <CriteriaCheck
+              label="Caractere especial (!@#$...)"
+              isValid={passwordCriteria.hasSpecialChar}
+            />
           </div>
         )}
 
@@ -319,12 +349,14 @@ export const CreateClienteModal = ({ closeModal, onSuccess, revendas = [], showR
             disabled={isSaving || !isPasswordValid || !isDocumentoValid}
             className={`
               px-4 py-2 rounded-md text-black font-medium
-              ${isSaving || !isPasswordValid || !isDocumentoValid
-                ? 'bg-gray-500 cursor-not-allowed'
-                : 'bg-[#08cb7c] hover:bg-green-600'}
+              ${
+                isSaving || !isPasswordValid || !isDocumentoValid
+                  ? "bg-gray-500 cursor-not-allowed"
+                  : "bg-[#08cb7c] hover:bg-green-600"
+              }
             `}
           >
-            {isSaving ? 'Criando...' : 'Criar Cliente'}
+            {isSaving ? "Criando..." : "Criar Cliente"}
           </button>
         </div>
       </form>

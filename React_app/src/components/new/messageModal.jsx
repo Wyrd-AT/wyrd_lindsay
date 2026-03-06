@@ -12,7 +12,7 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
   const loadingRef = useRef(false);
 
   // Obter função postMessage do store
-  const postMessage = useMessageStore(state => state.postMessage);
+  const postMessage = useMessageStore((state) => state.postMessage);
 
   // Fecha com Esc
   useEffect(() => {
@@ -27,7 +27,7 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
   // const history = parsed
   //   .filter((m) => m.type === "command" && m.irrigadorId === machineId)
   //   .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  
+
   const handleEnviar = async (e) => {
     e.preventDefault();
 

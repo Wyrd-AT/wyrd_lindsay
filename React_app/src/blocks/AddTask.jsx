@@ -1,11 +1,11 @@
-import * as React from "react"
+import * as React from "react";
 import { useState, useEffect } from "react";
 import { Button } from "@/assets/ui/button";
 import { Input } from "@/assets/ui/input";
 import { Label } from "@/assets/ui/label";
 import { Textarea } from "@/assets/ui/textarea";
 import { createTask } from "../api/api";
-import { useTaskStore } from '../stores/taskStore';
+import { useTaskStore } from "../stores/taskStore";
 
 function AddTask({ onClose, project }) {
   const updateStore = useTaskStore((state) => state.updateStore);
@@ -34,12 +34,12 @@ function AddTask({ onClose, project }) {
         title,
         project: currentProject,
         description,
-        status: 'TO_DO',
+        status: "TO_DO",
         deadline: deadline ? new Date(deadline).toISOString() : undefined,
       };
 
       await createTask(newTask);
-      await updateStore(); 
+      await updateStore();
       onClose();
     } catch (err) {
       if (err instanceof Error) {
@@ -70,7 +70,7 @@ function AddTask({ onClose, project }) {
       value: currentProject,
       onChange: setCurrentProject,
       required: true,
-      disabled: !!project
+      disabled: !!project,
     },
     {
       id: "title",
@@ -79,7 +79,7 @@ function AddTask({ onClose, project }) {
       value: title,
       onChange: setTitle,
       required: true,
-      minLength: 3
+      minLength: 3,
     },
     {
       id: "description",
@@ -87,15 +87,15 @@ function AddTask({ onClose, project }) {
       type: "textarea",
       value: description,
       onChange: setDescription,
-      rows: 3
+      rows: 3,
     },
     {
       id: "deadline",
       label: "Deadline",
       type: "datetime-local",
       value: deadline,
-      onChange: setDeadline
-    }
+      onChange: setDeadline,
+    },
   ];
 
   return (

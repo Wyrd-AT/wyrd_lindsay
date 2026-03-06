@@ -1,11 +1,11 @@
 // src/components/ModalIrrigador.jsx
 // Apenas admin pode criar pivô; associação feita via seleção do cliente (API POST /pivos).
-import React, { useRef, useState, useEffect } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import { useNavigate } from 'react-router-dom';
-import useEquipamentos from '../../hooks/new/useEquipaments';
-import { usePivos } from '../../hooks/new/usePivos';
-import apiClient from '../../api/new/apiClient';
+import React, { useRef, useState, useEffect } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import { useNavigate } from "react-router-dom";
+import useEquipamentos from "../../hooks/new/useEquipaments";
+import { usePivos } from "../../hooks/new/usePivos";
+import apiClient from "../../api/new/apiClient";
 
 export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const nameRef = useRef();
@@ -18,16 +18,16 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const { createPivo } = usePivos();
 
   const [clientes, setClientes] = useState([]);
-  const [clienteId, setClienteId] = useState('');
+  const [clienteId, setClienteId] = useState("");
   const [loadingClientes, setLoadingClientes] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const isAdmin = user?.type === 'admin';
+  const isAdmin = user?.type === "admin";
 
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate("/login");
     }
   }, [isAuthenticated, navigate]);
 
@@ -38,31 +38,34 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     (async () => {
       setLoadingClientes(true);
       try {
-        const res = await apiClient.get('/clientes');
+        const res = await apiClient.get("/clientes");
         const all = res.data?.clientes || [];
-        const list = all.filter((c) => c.sub_role === 'superusuario');
+        const list = all.filter((c) => c.sub_role === "superusuario");
         if (!cancelled) {
           setClientes(list);
-          const firstCnpj = list[0]?.cnpj_cliente ?? '';
+          const firstCnpj = list[0]?.cnpj_cliente ?? "";
           if (list.length > 0 && !clienteId) setClienteId(firstCnpj);
         }
       } catch (err) {
-        if (!cancelled) setError('Não foi possível carregar a lista de clientes.');
+        if (!cancelled)
+          setError("Não foi possível carregar a lista de clientes.");
       } finally {
         if (!cancelled) setLoadingClientes(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [isAdmin]);
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(16);
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') closeModal();
+      if (e.key === "Escape") closeModal();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [closeModal]);
 
   const handleSubmit = async (e) => {
@@ -70,15 +73,15 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     const codigo = nameRef.current?.value?.trim();
     const nome = apelidoRef.current?.value?.trim();
     if (!codigo) {
-      setError('Por favor, informe o código do irrigador.');
+      setError("Por favor, informe o código do irrigador.");
       return;
     }
     if (!nome) {
-      setError('Por favor, informe o nome do irrigador.');
+      setError("Por favor, informe o nome do irrigador.");
       return;
     }
     if (isAdmin && !clienteId) {
-      setError('Selecione o cliente ao qual o pivô será associado.');
+      setError("Selecione o cliente ao qual o pivô será associado.");
       return;
     }
 
@@ -95,8 +98,10 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       onSuccess?.();
       closeModal();
     } catch (err) {
-      console.error('Falha ao criar pivô:', err);
-      setError(err?.message || 'Não foi possível criar o pivô. Tente novamente.');
+      console.error("Falha ao criar pivô:", err);
+      setError(
+        err?.message || "Não foi possível criar o pivô. Tente novamente.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -129,9 +134,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
           </button>
         </header>
 
-        {error && (
-          <div className="mb-4 text-red-400 text-sm">{error}</div>
-        )}
+        {error && <div className="mb-4 text-red-400 text-sm">{error}</div>}
 
         {isAdmin && (
           <label className="block text-white mb-4">
@@ -145,14 +148,24 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
             >
               <option value="">Selecione o cliente</option>
               {clientes.map((c) => (
-                <option key={c._id ?? c.cnpj_cliente} value={c.cnpj_cliente ?? ''}>
-                  {[c.cnpj_cliente || '—', c.name || '—'].join(' - ')}
+                <option
+                  key={c._id ?? c.cnpj_cliente}
+                  value={c.cnpj_cliente ?? ""}
+                >
+                  {[c.cnpj_cliente || "—", c.name || "—"].join(" - ")}
                 </option>
               ))}
             </select>
-            {loadingClientes && <span className="text-gray-400 text-sm">Carregando clientes...</span>}
+            {loadingClientes && (
+              <span className="text-gray-400 text-sm">
+                Carregando clientes...
+              </span>
+            )}
             {!loadingClientes && clientes.length === 0 && (
-              <span className="text-amber-400 text-sm">Nenhum cliente superusuário encontrado. Apenas clientes com perfil superusuário podem receber pivôs.</span>
+              <span className="text-amber-400 text-sm">
+                Nenhum cliente superusuário encontrado. Apenas clientes com
+                perfil superusuário podem receber pivôs.
+              </span>
             )}
           </label>
         )}
@@ -181,7 +194,9 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         </label>
 
         <fieldset className="mb-4 p-4 border border-gray-600 rounded-md">
-          <legend className="text-white mb-2 px-2">Contatos para Notificação (opcional)</legend>
+          <legend className="text-white mb-2 px-2">
+            Contatos para Notificação (opcional)
+          </legend>
           <label className="block text-white mb-3">
             <span className="text-sm text-gray-300">WhatsApp:</span>
             <input
@@ -263,10 +278,13 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
           </button>
           <button
             type="submit"
-            disabled={isSaving || (isAdmin && (loadingClientes || clientes.length === 0))}
-            className={`px-4 py-2 rounded-md text-white ${isSaving ? 'bg-gray-500 cursor-not-allowed' : 'bg-[#08cb7c] hover:bg-green-600'}`}
+            disabled={
+              isSaving ||
+              (isAdmin && (loadingClientes || clientes.length === 0))
+            }
+            className={`px-4 py-2 rounded-md text-white ${isSaving ? "bg-gray-500 cursor-not-allowed" : "bg-[#08cb7c] hover:bg-green-600"}`}
           >
-            {isSaving ? 'Salvando...' : 'Salvar'}
+            {isSaving ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </form>

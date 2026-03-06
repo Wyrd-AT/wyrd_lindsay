@@ -1,7 +1,7 @@
-import React from 'react';
-import { tasks } from '../api/api';
-import { useTaskStore } from '../stores/taskStore';
-import { getPriorityColor } from '../utils/taskUtils';
+import React from "react";
+import { tasks } from "../api/api";
+import { useTaskStore } from "../stores/taskStore";
+import { getPriorityColor } from "../utils/taskUtils";
 
 interface PrioritySelectionModalProps {
   taskId: number;
@@ -9,7 +9,11 @@ interface PrioritySelectionModalProps {
   onClose: () => void;
 }
 
-const PrioritySelectionModal: React.FC<PrioritySelectionModalProps> = ({ taskId, currentPriority, onClose }) => {
+const PrioritySelectionModal: React.FC<PrioritySelectionModalProps> = ({
+  taskId,
+  currentPriority,
+  onClose,
+}) => {
   const { fetchProjects } = useTaskStore();
 
   const handlePriorityChange = async (newPriority: number) => {
@@ -18,11 +22,12 @@ const PrioritySelectionModal: React.FC<PrioritySelectionModalProps> = ({ taskId,
       await fetchProjects(); // Refresh the tasks after update
       onClose();
     } catch (error) {
-      console.error('Failed to update task priority:', error);
+      console.error("Failed to update task priority:", error);
     }
   };
 
-  const effectiveCurrentPriority = currentPriority === null ? 0 : currentPriority;
+  const effectiveCurrentPriority =
+    currentPriority === null ? 0 : currentPriority;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
@@ -33,7 +38,9 @@ const PrioritySelectionModal: React.FC<PrioritySelectionModalProps> = ({ taskId,
             <button
               key={priority}
               className={`w-12 h-12 rounded-full ${getPriorityColor(priority)} border border-gray-300 flex items-center justify-center ${
-                effectiveCurrentPriority === priority ? 'ring-2 ring-blue-500' : ''
+                effectiveCurrentPriority === priority
+                  ? "ring-2 ring-blue-500"
+                  : ""
               }`}
               onClick={() => handlePriorityChange(priority)}
             >

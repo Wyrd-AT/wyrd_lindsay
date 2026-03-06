@@ -1,4 +1,4 @@
-import type { FC } from 'react';
+import type { FC } from "react";
 
 export interface ModalIrrigadorProps {
   closeModal: () => void;

@@ -54,7 +54,10 @@ export interface RecentAll {
 }
 
 /** Busca todos os snapshots recentes (A/B/C/D + SW) de um irrigador. */
-export async function getRecentAll(db: string, irrigadorId: string): Promise<RecentAll> {
+export async function getRecentAll(
+  db: string,
+  irrigadorId: string,
+): Promise<RecentAll> {
   const keys = [
     `recente_tensao::${irrigadorId}::A`,
     `recente_tensao::${irrigadorId}::B`,
@@ -82,7 +85,7 @@ export async function getRecentAll(db: string, irrigadorId: string): Promise<Rec
 export async function getRecentTensao(
   db: string,
   irrigadorId: string,
-  tipo: "A" | "B" | "C" | "D"
+  tipo: "A" | "B" | "C" | "D",
 ): Promise<RecentTensaoDoc | null> {
   try {
     const id = `recente_tensao::${irrigadorId}::${tipo}`;
@@ -97,7 +100,7 @@ export async function getRecentTensao(
 /** Busca o snapshot recente de SW. */
 export async function getRecentSW(
   db: string,
-  irrigadorId: string
+  irrigadorId: string,
 ): Promise<RecentSWDoc | null> {
   try {
     const id = `recente_sw::${irrigadorId}`;

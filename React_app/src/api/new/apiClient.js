@@ -6,17 +6,18 @@
  * Autenticação via Bearer token (Base64(email:type))
  */
 
-import axios from 'axios';
-import { useAuthStore } from '../../stores/new/authStore';
+import axios from "axios";
+import { useAuthStore } from "../../stores/new/authStore";
 
 // URL base da API (variavelmente via env)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
 
 // Criar instância do axios com config base
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -30,14 +31,14 @@ apiClient.interceptors.request.use(
     const token = useAuthStore.getState().token;
 
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers["Authorization"] = `Bearer ${token}`;
     }
 
     return config;
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 /**
@@ -51,12 +52,12 @@ apiClient.interceptors.response.use(
     // Se 401 (não autorizado), limpar token e redirecionar para login
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
-      window.location.href = '/login';
+      window.location.href = "/login";
     }
 
     // Log de erro estruturado
     if (error.response?.status === 500) {
-      console.error('❌ Erro servidor 500:', {
+      console.error("❌ Erro servidor 500:", {
         url: error.config?.url,
         status: error.response?.status,
         data: error.response?.data,
@@ -64,7 +65,7 @@ apiClient.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default apiClient;

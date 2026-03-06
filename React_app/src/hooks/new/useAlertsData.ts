@@ -169,13 +169,10 @@ export function useAlertsData({
 
         if (cancelled) return;
 
-        
-
         // Converter para AlertItem
         const converted = docs
           .map(convertEventToAlert)
           .filter((alert): alert is AlertItem => alert !== null);
-
 
         if (!cancelled) {
           // Adicionar ao cache
@@ -206,12 +203,12 @@ export function useAlertsData({
   // FASE 1 - Performance: Memoize cache lookup and pagination calculations
   const alerts = useMemo(
     () => pageCache.get(currentPage) || [],
-    [pageCache, currentPage]
+    [pageCache, currentPage],
   );
 
   const totalPages = useMemo(
     () => Math.ceil(totalAlerts / pageSize),
-    [totalAlerts, pageSize]
+    [totalAlerts, pageSize],
   );
 
   const goToPage = useCallback(

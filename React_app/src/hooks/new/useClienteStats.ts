@@ -4,11 +4,11 @@
  * - Pivôs por status
  */
 
-import { useCallback, useState } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import type { ClienteStats } from '../../types/admin';
+import { useCallback, useState } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import type { ClienteStats } from "../../types/admin";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const DEFAULT_STATS: ClienteStats = {
   totalPivos: 0,
@@ -25,13 +25,13 @@ export const useClienteStats = () => {
 
   const makeRequest = useCallback(
     async (endpoint: string) => {
-      if (!token) throw new Error('Não autenticado');
+      if (!token) throw new Error("Não autenticado");
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -42,7 +42,7 @@ export const useClienteStats = () => {
 
       return response.json();
     },
-    [token]
+    [token],
   );
 
   const fetchStats = useCallback(async () => {
@@ -50,19 +50,21 @@ export const useClienteStats = () => {
     setError(null);
 
     try {
-      const data = await makeRequest('/api/pivos');
+      const data = await makeRequest("/api/pivos");
       const pivos = data.pivos || [];
 
       const newStats: ClienteStats = {
         totalPivos: pivos.length,
-        activePivos: pivos.filter((p: any) => p.status === 'active').length,
-        alarmadoPivos: pivos.filter((p: any) => p.status === 'alarmed').length,
-        maintenancePivos: pivos.filter((p: any) => p.status === 'maintenance').length,
+        activePivos: pivos.filter((p: any) => p.status === "active").length,
+        alarmadoPivos: pivos.filter((p: any) => p.status === "alarmed").length,
+        maintenancePivos: pivos.filter((p: any) => p.status === "maintenance")
+          .length,
       };
 
       setStats(newStats);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao buscar estatísticas';
+      const message =
+        err instanceof Error ? err.message : "Erro ao buscar estatísticas";
       setError(message);
     } finally {
       setLoading(false);

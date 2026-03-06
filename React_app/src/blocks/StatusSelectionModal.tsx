@@ -1,7 +1,7 @@
-import React from 'react';
-import { StatusText } from '../utils/taskUtils';
-import { tasks, TaskStatus } from '../api/api';
-import { useTaskStore } from '../stores/taskStore';
+import React from "react";
+import { StatusText } from "../utils/taskUtils";
+import { tasks, TaskStatus } from "../api/api";
+import { useTaskStore } from "../stores/taskStore";
 
 interface StatusSelectionModalProps {
   taskId: number;
@@ -9,7 +9,11 @@ interface StatusSelectionModalProps {
   onClose: () => void;
 }
 
-const StatusSelectionModal: React.FC<StatusSelectionModalProps> = ({ taskId, currentStatus, onClose }) => {
+const StatusSelectionModal: React.FC<StatusSelectionModalProps> = ({
+  taskId,
+  currentStatus,
+  onClose,
+}) => {
   const { fetchProjects } = useTaskStore();
 
   const handleStatusChange = async (newStatus: TaskStatus) => {
@@ -18,7 +22,7 @@ const StatusSelectionModal: React.FC<StatusSelectionModalProps> = ({ taskId, cur
       await fetchProjects(); // Refresh the tasks after update
       onClose();
     } catch (error) {
-      console.error('Failed to update task status:', error);
+      console.error("Failed to update task status:", error);
     }
   };
 
@@ -31,7 +35,9 @@ const StatusSelectionModal: React.FC<StatusSelectionModalProps> = ({ taskId, cur
             <button
               key={status}
               className={`w-full text-left p-2 rounded ${
-                currentStatus === status ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100'
+                currentStatus === status
+                  ? "bg-blue-100 text-blue-800"
+                  : "hover:bg-gray-100"
               }`}
               onClick={() => handleStatusChange(status)}
             >

@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { health } from '../api/api';
+import React, { useEffect, useState } from "react";
+import { health } from "../api/api";
 
 const ApiHealthCheck: React.FC = () => {
-  const [apiStatus, setApiStatus] = useState<string>('Checking...');
+  const [apiStatus, setApiStatus] = useState<string>("Checking...");
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -10,9 +10,9 @@ const ApiHealthCheck: React.FC = () => {
       try {
         const response = await health.check();
         setApiStatus(`API status: ${response.data}`);
-        setIsHealthy(response.data === 'OK');
+        setIsHealthy(response.data === "OK");
       } catch (error) {
-        setApiStatus('API is unreachable');
+        setApiStatus("API is unreachable");
         setIsHealthy(false);
       }
     };
@@ -20,11 +20,7 @@ const ApiHealthCheck: React.FC = () => {
     checkHealth();
   }, []);
 
-  return (
-    <div className="flex items-center text-sm">
-   
-    </div>
-  );
+  return <div className="flex items-center text-sm"></div>;
 };
 
 export default ApiHealthCheck;

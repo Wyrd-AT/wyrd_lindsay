@@ -8,11 +8,11 @@ import { sendCommand } from "../../helpers/helperOverview";
 
 // Mapeamento dos códigos para a descrição
 const valueDescriptions = {
-  "0": "Normal",
-  "1": "Alarmado",
-  "2": "Reconhecido",
-  "3": "Alarme OFF",
-  "9": "Ausente"
+  0: "Normal",
+  1: "Alarmado",
+  2: "Reconhecido",
+  3: "Alarme OFF",
+  9: "Ausente",
 };
 const alarmTypeDescriptions = {
   A: "Tensão abaixo de 50V e PN1 (Lindsay) e PN2 (SFR)",
@@ -26,11 +26,9 @@ export default function StatusAlarmModal({
   isOpen,
   onClose,
   selectedMachine,
-  card // { title, statuses }
+  card, // { title, statuses }
 }) {
   const postMessage = useMessageStore((s) => s.postMessage);
-
-
 
   const [loading, setLoading] = useState(false);
   const [responseMsg, setResponseMsg] = useState("");
@@ -51,7 +49,7 @@ export default function StatusAlarmModal({
   const irrigadores = useIrrigadores() || [];
   const irrigador_analisado = useMemo(
     () => irrigadores.find((i) => i.codigo === machineId),
-    [irrigadores, machineId]
+    [irrigadores, machineId],
   );
   const equipamento_by_code = useMemo(() => {
     if (!irrigador_analisado) return {};
@@ -60,18 +58,17 @@ export default function StatusAlarmModal({
         const code = String(i + 1).padStart(2, "0"); // "01".."13"
         const idx = i + 2; // posições 2..14 em equipamentos[]
         return [code, irrigador_analisado.equipamentos[idx]];
-      })
+      }),
     );
   }, [irrigador_analisado]);
 
   // Descobre qual o código de monitor deste equipamento
   const monitorCode = useMemo(() => {
     const found = Object.entries(equipamento_by_code).find(
-      ([code, nome]) => nome === equipment
+      ([code, nome]) => nome === equipment,
     );
     return found ? found[0] : "";
   }, [equipamento_by_code, equipment]);
-
 
   if (!isOpen || !card) return null;
 
@@ -128,7 +125,9 @@ export default function StatusAlarmModal({
             onClick={() =>
               sendCommand(
                 `AlarmeON${monitorCode}`,
-                "Alarme ligado com sucesso!","Falha ao ligar alarme.", machineId,
+                "Alarme ligado com sucesso!",
+                "Falha ao ligar alarme.",
+                machineId,
                 setResponseMsg,
                 setLoading,
               )
@@ -143,7 +142,12 @@ export default function StatusAlarmModal({
             onClick={() =>
               sendCommand(
                 `AlarmeOFF${monitorCode}`,
-                "Alarme desligado com sucesso!","falha ao desligar alarme.",machineId,setResponseMsg,setLoading,loading
+                "Alarme desligado com sucesso!",
+                "falha ao desligar alarme.",
+                machineId,
+                setResponseMsg,
+                setLoading,
+                loading,
               )
             }
             disabled={loading || !monitorCode}
@@ -164,8 +168,7 @@ export default function StatusAlarmModal({
         )}
 
         {/* Histórico de alertas por equipamento */}
-
       </div>
     </div>
-  ); 
+  );
 }

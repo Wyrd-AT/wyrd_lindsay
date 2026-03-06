@@ -6,8 +6,8 @@
  * Autenticação simples: Base64(email:type)
  */
 
-import apiClient from './apiClient';
-import { useAuthStore } from '../../stores/new/authStore';
+import apiClient from "./apiClient";
+import { useAuthStore } from "../../stores/new/authStore";
 
 /**
  * Criar token em formato Base64(email:type)
@@ -24,11 +24,11 @@ const createToken = (email, type) => {
 const decodeToken = (token) => {
   try {
     const decoded = atob(token);
-    const [email, type] = decoded.split(':');
+    const [email, type] = decoded.split(":");
     return { email, type };
   } catch (error) {
-    console.error('Erro ao decodificar token:', error);
-    return { email: '', type: '' };
+    console.error("Erro ao decodificar token:", error);
+    return { email: "", type: "" };
   }
 };
 
@@ -41,21 +41,20 @@ const decodeToken = (token) => {
  * @param {string} type - Tipo (admin, revenda, cliente)
  * @returns {Promise}
  */
-export const register = async (email, password, name, type = 'cliente') => {
+export const register = async (email, password, name, type = "cliente") => {
   try {
-    const response = await apiClient.post('/auth/register', {
+    const response = await apiClient.post("/auth/register", {
       email,
       password,
       name,
       type,
-      domain: type === 'revenda' ? email.split('@')[1] : undefined, // Para revendas
+      domain: type === "revenda" ? email.split("@")[1] : undefined, // Para revendas
     });
 
     return response.data;
   } catch (error) {
     throw new Error(
-      error.response?.data?.detail ||
-      `Erro ao registrar: ${error.message}`
+      error.response?.data?.detail || `Erro ao registrar: ${error.message}`,
     );
   }
 };
@@ -69,7 +68,7 @@ export const register = async (email, password, name, type = 'cliente') => {
  */
 export const login = async (email, password) => {
   try {
-    const response = await apiClient.post('/auth/login', {
+    const response = await apiClient.post("/auth/login", {
       email,
       password,
     });
@@ -84,7 +83,8 @@ export const login = async (email, password) => {
       user,
     };
   } catch (error) {
-    const errorMsg = error.response?.data?.detail ||
+    const errorMsg =
+      error.response?.data?.detail ||
       error.response?.data?.message ||
       error.message;
 
@@ -99,7 +99,7 @@ export const login = async (email, password) => {
  */
 export const getCurrentUser = async () => {
   try {
-    const response = await apiClient.get('/auth/me');
+    const response = await apiClient.get("/auth/me");
     return response.data;
   } catch (error) {
     throw new Error(`Erro ao obter usuário atual: ${error.message}`);

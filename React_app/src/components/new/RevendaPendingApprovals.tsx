@@ -4,19 +4,25 @@
  * Para uso exclusivo de Admins
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAdminRevendas } from '../../hooks/new/useAdminRevendas';
-import type { Revenda } from '../../types/admin';
+import React, { useEffect, useState } from "react";
+import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
+import type { Revenda } from "../../types/admin";
 
 interface RevendaPendingApprovalsProps {
   onApprovalChange?: () => void; // Callback para refresh de outras seções
 }
 
-export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = ({
-  onApprovalChange,
-}) => {
-  const { pendingRevendas, loading, error, fetchPendingRevendas, approveRevenda, rejectRevenda } =
-    useAdminRevendas();
+export const RevendaPendingApprovals: React.FC<
+  RevendaPendingApprovalsProps
+> = ({ onApprovalChange }) => {
+  const {
+    pendingRevendas,
+    loading,
+    error,
+    fetchPendingRevendas,
+    approveRevenda,
+    rejectRevenda,
+  } = useAdminRevendas();
   const [selectedRevenda, setSelectedRevenda] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -75,7 +81,9 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-xl font-bold text-dashboard-text-primary">Revendas Pendentes</h2>
+          <h2 className="text-xl font-bold text-dashboard-text-primary">
+            Revendas Pendentes
+          </h2>
           <p className="text-sm text-dashboard-text-secondary mt-1">
             {pendingRevendas.length} revenda(s) aguardando aprovação
           </p>
@@ -99,8 +107,12 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
       {/* Empty State */}
       {pendingRevendas.length === 0 && !loading && (
         <div className="text-center py-12">
-          <p className="text-dashboard-text-secondary text-lg">Nenhuma revenda pendente</p>
-          <p className="text-dashboard-text-tertiary text-sm mt-2">Todas as revendas já foram aprovadas ou rejeitadas.</p>
+          <p className="text-dashboard-text-secondary text-lg">
+            Nenhuma revenda pendente
+          </p>
+          <p className="text-dashboard-text-tertiary text-sm mt-2">
+            Todas as revendas já foram aprovadas ou rejeitadas.
+          </p>
         </div>
       )}
 
@@ -109,7 +121,11 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
         {pendingRevendas.map((revenda) => (
           <div
             key={revenda._id}
-            onClick={() => setSelectedRevenda(selectedRevenda === revenda._id ? null : revenda._id)}
+            onClick={() =>
+              setSelectedRevenda(
+                selectedRevenda === revenda._id ? null : revenda._id,
+              )
+            }
             className="bg-dashboard-bg-tertiary border border-dashboard-border rounded p-4 cursor-pointer hover:bg-dashboard-border transition"
           >
             {/* Card Header */}
@@ -130,13 +146,13 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
                   </p>
                 )}
                 <p className="text-xs text-dashboard-text-tertiary mt-2">
-                  {new Date(revenda.created_at).toLocaleString('pt-BR')}
+                  {new Date(revenda.created_at).toLocaleString("pt-BR")}
                 </p>
               </div>
 
               {/* Indicator */}
               <span className="text-dashboard-text-secondary">
-                {selectedRevenda === revenda._id ? '▼' : '▶'}
+                {selectedRevenda === revenda._id ? "▼" : "▶"}
               </span>
             </div>
 
@@ -148,11 +164,13 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
                   <div>
                     <p className="text-dashboard-text-tertiary text-xs">ID</p>
                     <p className="text-dashboard-text-secondary font-mono text-xs break-all">
-                      {revenda._id.replace('revenda:', '')}
+                      {revenda._id.replace("revenda:", "")}
                     </p>
                   </div>
                   <div>
-                    <p className="text-dashboard-text-tertiary text-xs">Status</p>
+                    <p className="text-dashboard-text-tertiary text-xs">
+                      Status
+                    </p>
                     <p className="text-yellow-400 font-semibold">Pendente</p>
                   </div>
                 </div>
@@ -167,7 +185,7 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
                     disabled={approving || rejecting}
                     className="flex-1 px-4 py-2 bg-green-900 hover:bg-green-800 text-green-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition font-bold"
                   >
-                    {approving ? 'Aprovando...' : 'Aprovar'}
+                    {approving ? "Aprovando..." : "Aprovar"}
                   </button>
 
                   <button
@@ -178,7 +196,7 @@ export const RevendaPendingApprovals: React.FC<RevendaPendingApprovalsProps> = (
                     disabled={approving || rejecting}
                     className="flex-1 px-4 py-2 bg-red-900 hover:bg-red-800 text-red-100 rounded disabled:opacity-50 disabled:cursor-not-allowed transition font-bold"
                   >
-                    {rejecting ? 'Rejeitando...' : 'Rejeitar'}
+                    {rejecting ? "Rejeitando..." : "Rejeitar"}
                   </button>
                 </div>
               </div>

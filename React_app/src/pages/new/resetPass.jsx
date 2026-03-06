@@ -42,7 +42,8 @@ export default function ResetPass() {
 
         {/* Informação adicional */}
         <div className="flex justify-between mt-4 text-white text-sm">
-          If you are unable to remember your username or email address, please email FieldNET support.
+          If you are unable to remember your username or email address, please
+          email FieldNET support.
         </div>
       </div>
     </div>

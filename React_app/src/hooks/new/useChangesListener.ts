@@ -1,8 +1,8 @@
 // useChangesListener.ts
 // Hook para monitorar mudanças do CouchDB em tempo real usando _changes feed
 
-import { useEffect, useRef, useCallback } from 'react';
-import { getChanges, ChangesOptions } from '../../api/new/couch';
+import { useEffect, useRef, useCallback } from "react";
+import { getChanges, ChangesOptions } from "../../api/new/couch";
 
 export interface ChangeEvent<T = any> {
   seq: string | number;
@@ -56,10 +56,10 @@ export function useChangesListener(options: UseChangesListenerOptions) {
     includeDocs = true,
     pause = false,
     onError,
-    useLongpoll = true // Usar longpoll por padrão (mais eficiente)
+    useLongpoll = true, // Usar longpoll por padrão (mais eficiente)
   } = options;
 
-  const lastSeqRef = useRef<string | number>('now');
+  const lastSeqRef = useRef<string | number>("now");
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
 
@@ -73,10 +73,10 @@ export function useChangesListener(options: UseChangesListenerOptions) {
       // Reduz requisições desnecessárias quando não há mudanças
       const params: ChangesOptions = {
         since: lastSeqRef.current,
-        feed: useLongpoll ? 'longpoll' : 'normal',
+        feed: useLongpoll ? "longpoll" : "normal",
         include_docs: includeDocs,
         limit: 1000, // Limita a 1000 mudanças por vez
-        timeout: useLongpoll ? Math.min(pollInterval, 30000) : undefined // Max 30s para longpoll
+        timeout: useLongpoll ? Math.min(pollInterval, 30000) : undefined, // Max 30s para longpoll
       };
 
       if (filter) {
@@ -84,7 +84,9 @@ export function useChangesListener(options: UseChangesListenerOptions) {
       }
 
       // Timeout maior para longpoll (ele espera por mudanças)
-      const clientTimeout = useLongpoll ? Math.min(pollInterval + 5000, 35000) : 10000;
+      const clientTimeout = useLongpoll
+        ? Math.min(pollInterval + 5000, 35000)
+        : 10000;
       const response = await getChanges(db, params, { clientTimeout });
 
       if (response.results && response.results.length > 0) {
@@ -99,15 +101,15 @@ export function useChangesListener(options: UseChangesListenerOptions) {
           lastSeqRef.current = response.last_seq;
         }
       }
-
     } catch (error: any) {
       // Ignora erros de timeout se não houver mudanças (comum em longpoll)
-      const isTimeout = error?.code === 'ECONNABORTED' || 
-                       error?.message?.includes('timeout') ||
-                       error?.code === 'ETIMEDOUT';
+      const isTimeout =
+        error?.code === "ECONNABORTED" ||
+        error?.message?.includes("timeout") ||
+        error?.code === "ETIMEDOUT";
 
       if (!isTimeout) {
-        console.error('[useChangesListener] Erro ao buscar mudanças:', error);
+        console.error("[useChangesListener] Erro ao buscar mudanças:", error);
         if (onError) {
           onError(error);
         }
@@ -119,7 +121,16 @@ export function useChangesListener(options: UseChangesListenerOptions) {
         poll();
       }, pollInterval);
     }
-  }, [db, filter, includeDocs, pause, pollInterval, onChange, onError, useLongpoll]);
+  }, [
+    db,
+    filter,
+    includeDocs,
+    pause,
+    pollInterval,
+    onChange,
+    onError,
+    useLongpoll,
+  ]);
 
   useEffect(() => {
     if (!pause) {
@@ -139,7 +150,7 @@ export function useChangesListener(options: UseChangesListenerOptions) {
 
   // Retorna função para resetar o seq (útil para forçar re-sync)
   const reset = useCallback(() => {
-    lastSeqRef.current = 'now';
+    lastSeqRef.current = "now";
   }, []);
 
   return { reset };

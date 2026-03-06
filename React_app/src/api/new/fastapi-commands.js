@@ -5,7 +5,7 @@
  * Funções para enviar e gerenciar comandos para irrigadores/pivôs
  */
 
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 /**
  * ENVIAR COMANDO
@@ -21,17 +21,17 @@ export const sendCommand = async (
   irrigadorId,
   command,
   params = {},
-  pivoId = '',
-  timerMinutes = 0
+  pivoId = "",
+  timerMinutes = 0,
 ) => {
   try {
     // Validar comando
-    const validCommands = ['start', 'stop', 'pause', 'emergency_stop', 'reset'];
+    const validCommands = ["start", "stop", "pause", "emergency_stop", "reset"];
     if (!validCommands.includes(command)) {
-      throw new Error(`Comando inválido. Use: ${validCommands.join(', ')}`);
+      throw new Error(`Comando inválido. Use: ${validCommands.join(", ")}`);
     }
 
-    const response = await apiClient.post('/commands', {
+    const response = await apiClient.post("/commands", {
       irrigadorId,
       pivoId,
       command,
@@ -69,12 +69,16 @@ export const getCommand = async (commandId) => {
  * @param {number} limit - Máximo de resultados
  * @returns {Promise}
  */
-export const listCommands = async (irrigadorId = null, status = null, limit = 50) => {
+export const listCommands = async (
+  irrigadorId = null,
+  status = null,
+  limit = 50,
+) => {
   try {
     const params = new URLSearchParams();
-    if (irrigadorId) params.append('irrigador_id', irrigadorId);
-    if (status) params.append('status', status);
-    params.append('limit', limit);
+    if (irrigadorId) params.append("irrigador_id", irrigadorId);
+    if (status) params.append("status", status);
+    params.append("limit", limit);
 
     const response = await apiClient.get(`/commands?${params.toString()}`);
     return response.data;
@@ -103,23 +107,39 @@ export const cancelCommand = async (commandId) => {
  * COMANDOS RÁPIDOS (helpers)
  */
 
-export const startPivo = async (irrigadorId, pivoId, duration = 60, flowRate = 80) => {
-  return sendCommand(irrigadorId, 'start', { duration, flow_rate: flowRate }, pivoId);
+export const startPivo = async (
+  irrigadorId,
+  pivoId,
+  duration = 60,
+  flowRate = 80,
+) => {
+  return sendCommand(
+    irrigadorId,
+    "start",
+    { duration, flow_rate: flowRate },
+    pivoId,
+  );
 };
 
 export const stopPivo = async (irrigadorId, pivoId) => {
-  return sendCommand(irrigadorId, 'stop', {}, pivoId);
+  return sendCommand(irrigadorId, "stop", {}, pivoId);
 };
 
 export const pausePivo = async (irrigadorId, pivoId) => {
-  return sendCommand(irrigadorId, 'pause', {}, pivoId);
+  return sendCommand(irrigadorId, "pause", {}, pivoId);
 };
 
 export const emergencyStop = async (irrigadorId, pivoId) => {
-  return sendCommand(irrigadorId, 'emergency_stop', {}, pivoId);
+  return sendCommand(irrigadorId, "emergency_stop", {}, pivoId);
 };
 
-export const scheduleCommand = async (irrigadorId, command, delayMinutes, params = {}, pivoId = '') => {
+export const scheduleCommand = async (
+  irrigadorId,
+  command,
+  delayMinutes,
+  params = {},
+  pivoId = "",
+) => {
   return sendCommand(irrigadorId, command, params, pivoId, delayMinutes);
 };
 

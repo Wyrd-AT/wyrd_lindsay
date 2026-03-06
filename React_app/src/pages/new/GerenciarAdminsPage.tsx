@@ -6,14 +6,14 @@
  * - Criar novo admin
  */
 
-import React, { useEffect, useState } from 'react';
-import { useAuthStore, selectIsActiveUser } from '../../stores/new/authStore';
-import Sidebar from '../../components/new/sidebar';
-import BodyContent from '../../components/new/body';
-import Header from '../../components/new/header';
-import PermissionGuard from '../../components/new/PermissionGuard';
-import { CreateAdminModal } from '../../components/new/CreateAdminModal';
-import { fetchAdmins } from '../../api/new/fastapi-admin';
+import React, { useEffect, useState } from "react";
+import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
+import Sidebar from "../../components/new/sidebar";
+import BodyContent from "../../components/new/body";
+import Header from "../../components/new/header";
+import PermissionGuard from "../../components/new/PermissionGuard";
+import { CreateAdminModal } from "../../components/new/CreateAdminModal";
+import { fetchAdmins } from "../../api/new/fastapi-admin";
 
 export function GerenciarAdminsPage() {
   const authState = useAuthStore();
@@ -31,7 +31,7 @@ export function GerenciarAdminsPage() {
       const data: any = await fetchAdmins();
       setAdmins(data.admins || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar admins');
+      setError(err instanceof Error ? err.message : "Erro ao carregar admins");
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export function GerenciarAdminsPage() {
   }, [isActiveUser]);
 
   return (
-    <PermissionGuard allowedRoles={['admin']} requireActive>
+    <PermissionGuard allowedRoles={["admin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -71,10 +71,14 @@ export function GerenciarAdminsPage() {
           <div className="px-4 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors">
-                <p className="text-sm text-dashboard-text-secondary font-medium">Total de Admins</p>
-                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">{admins.length}</p>
+                <p className="text-sm text-dashboard-text-secondary font-medium">
+                  Total de Admins
+                </p>
+                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+                  {admins.length}
+                </p>
                 <p className="text-xs text-dashboard-text-tertiary mt-1">
-                  {admins.filter(a => a.status === 'active').length} ativos
+                  {admins.filter((a) => a.status === "active").length} ativos
                 </p>
               </div>
             </div>
@@ -84,7 +88,9 @@ export function GerenciarAdminsPage() {
           <div className="px-4 mb-8">
             <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-dashboard-text-primary">Admins</h2>
+                <h2 className="text-xl font-semibold text-dashboard-text-primary">
+                  Admins
+                </h2>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setShowCreateAdmin(true)}
@@ -97,7 +103,7 @@ export function GerenciarAdminsPage() {
                     disabled={loading}
                     className="px-3 py-1 text-sm bg-dashboard-bg-tertiary hover:bg-dashboard-border disabled:opacity-50 rounded transition text-white"
                   >
-                    {loading ? 'Carregando...' : 'Atualizar'}
+                    {loading ? "Carregando..." : "Atualizar"}
                   </button>
                 </div>
               </div>
@@ -119,10 +125,16 @@ export function GerenciarAdminsPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-dashboard-text-primary">{admin.name}</h3>
-                          <p className="text-sm text-dashboard-text-secondary mt-1">{admin.email}</p>
+                          <h3 className="font-semibold text-dashboard-text-primary">
+                            {admin.name}
+                          </h3>
+                          <p className="text-sm text-dashboard-text-secondary mt-1">
+                            {admin.email}
+                          </p>
                           {admin.cnpj_admin && (
-                            <p className="text-xs text-dashboard-text-tertiary mt-1">CNPJ: {admin.cnpj_admin}</p>
+                            <p className="text-xs text-dashboard-text-tertiary mt-1">
+                              CNPJ: {admin.cnpj_admin}
+                            </p>
                           )}
                         </div>
                         <span className="text-xs px-2 py-1 rounded font-bold bg-purple-900 text-purple-100">

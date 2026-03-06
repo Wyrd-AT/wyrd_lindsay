@@ -3,8 +3,8 @@
  * Modal para admin criar outro admin
  */
 
-import React, { useState } from 'react';
-import { createAdmin } from '../../api/new/fastapi-admin';
+import React, { useState } from "react";
+import { createAdmin } from "../../api/new/fastapi-admin";
 
 interface CreateAdminModalProps {
   closeModal: () => void;
@@ -15,7 +15,12 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
   closeModal,
   onSuccess,
 }) => {
-  const [form, setForm] = useState({ name: '', email: '', password: '', cnpj_admin: '' });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    cnpj_admin: "",
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +38,7 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
       });
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar admin');
+      setError(err instanceof Error ? err.message : "Erro ao criar admin");
     } finally {
       setLoading(false);
     }
@@ -43,7 +48,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
       <div className="bg-dashboard-bg-secondary rounded-lg p-6 w-full max-w-md border border-dashboard-border shadow-xl">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-dashboard-text-primary">Criar Admin</h2>
+          <h2 className="text-xl font-bold text-dashboard-text-primary">
+            Criar Admin
+          </h2>
           <button
             onClick={closeModal}
             className="text-dashboard-text-secondary hover:text-white text-2xl leading-none"
@@ -60,7 +67,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">Nome</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Nome
+            </label>
             <input
               type="text"
               required
@@ -72,7 +81,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">Email</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Email
+            </label>
             <input
               type="email"
               required
@@ -84,7 +95,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">Senha</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Senha
+            </label>
             <input
               type="password"
               required
@@ -97,7 +110,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">CNPJ do Admin</label>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              CNPJ do Admin
+            </label>
             <input
               type="text"
               required
@@ -121,7 +136,7 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
               disabled={loading}
               className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 text-black font-bold rounded transition"
             >
-              {loading ? 'Criando...' : 'Criar Admin'}
+              {loading ? "Criando..." : "Criar Admin"}
             </button>
           </div>
         </form>

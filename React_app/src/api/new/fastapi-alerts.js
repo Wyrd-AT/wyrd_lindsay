@@ -5,7 +5,7 @@
  * Funções para gerenciar alertas, notificações push e envio de mensagens
  */
 
-import apiClient from './apiClient';
+import apiClient from "./apiClient";
 
 /**
  * LISTAR ALERTAS
@@ -17,8 +17,8 @@ import apiClient from './apiClient';
 export const listAlerts = async (irrigadorId = null, limit = 50) => {
   try {
     const params = new URLSearchParams();
-    if (irrigadorId) params.append('irrigador_id', irrigadorId);
-    params.append('limit', limit);
+    if (irrigadorId) params.append("irrigador_id", irrigadorId);
+    params.append("limit", limit);
 
     const response = await apiClient.get(`/alerts?${params.toString()}`);
     return response.data;
@@ -56,12 +56,12 @@ export const sendNotification = async (
   message,
   phones = [],
   emails = [],
-  channels = ['sms', 'whatsapp', 'email']
+  channels = ["sms", "whatsapp", "email"],
 ) => {
   try {
-    const response = await apiClient.post('/alerts/notifications/send', {
+    const response = await apiClient.post("/alerts/notifications/send", {
       message,
-      subject: 'Notificação do Sistema Lindsay',
+      subject: "Notificação do Sistema Lindsay",
       phones,
       emails,
       channels,
@@ -83,7 +83,7 @@ export const sendNotification = async (
  */
 export const registerDeviceToken = async (deviceToken, deviceInfo = {}) => {
   try {
-    const response = await apiClient.post('/alerts/push/register-device', {
+    const response = await apiClient.post("/alerts/push/register-device", {
       device_token: deviceToken,
       device_info: deviceInfo,
     });
@@ -102,7 +102,7 @@ export const registerDeviceToken = async (deviceToken, deviceInfo = {}) => {
  */
 export const unregisterDeviceToken = async (deviceToken) => {
   try {
-    const response = await apiClient.post('/alerts/push/unregister-device', {
+    const response = await apiClient.post("/alerts/push/unregister-device", {
       device_token: deviceToken,
     });
 
@@ -119,14 +119,17 @@ export const unregisterDeviceToken = async (deviceToken) => {
  * @param {number} limit - Máximo de resultados
  * @returns {Promise}
  */
-export const getNotificationHistory = async (irrigadorId = null, limit = 50) => {
+export const getNotificationHistory = async (
+  irrigadorId = null,
+  limit = 50,
+) => {
   try {
     const params = new URLSearchParams();
-    if (irrigadorId) params.append('irrigador_id', irrigadorId);
-    params.append('limit', limit);
+    if (irrigadorId) params.append("irrigador_id", irrigadorId);
+    params.append("limit", limit);
 
     const response = await apiClient.get(
-      `/alerts/push/notifications-history?${params.toString()}`
+      `/alerts/push/notifications-history?${params.toString()}`,
     );
 
     return response.data;

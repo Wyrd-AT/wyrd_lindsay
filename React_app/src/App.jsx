@@ -31,56 +31,68 @@ import ProtectedRoute from "./components/new/ProtectedRoute";
 export default function App() {
   // Validar e limpar estado de autenticação inválido (estado antigo sem type/status)
   useAuthStateValidator();
-  
+
   const { isAuthenticated } = useAuthStore();
 
   return (
     // 1) Starta a replicação e contador de sync
-        <Router>
-          {/* 2) Modal global de progresso de sync */}
+    <Router>
+      {/* 2) Modal global de progresso de sync */}
 
-          <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
-            {/* FASE 1 - Hierarchical dashboards (Admin/Revenda/Cliente) */}
-            <Route element={<ProtectedRoute />}>
-              {/* Admin Routes */}
-              <Route path="/admin" element={<HomePageRevenda />} />
-              <Route path="/admin/home" element={<HomePageRevenda />} />
+        {/* FASE 1 - Hierarchical dashboards (Admin/Revenda/Cliente) */}
+        <Route element={<ProtectedRoute />}>
+          {/* Admin Routes */}
+          <Route path="/admin" element={<HomePageRevenda />} />
+          <Route path="/admin/home" element={<HomePageRevenda />} />
 
-              {/* Gerenciar Admins Page */}
-              <Route path="/gerenciar-admins" element={<GerenciarAdminsPage />} />
+          {/* Gerenciar Admins Page */}
+          <Route path="/gerenciar-admins" element={<GerenciarAdminsPage />} />
 
-              {/* Gerenciar Revendas Page */}
-              <Route path="/gerenciar-revendas" element={<GerenciarRevendasPage />} />
+          {/* Gerenciar Revendas Page */}
+          <Route
+            path="/gerenciar-revendas"
+            element={<GerenciarRevendasPage />}
+          />
 
-              {/* Gerenciar Clientes Page */}
-              <Route path="/gerenciar-clientes" element={<GerenciarClientesPage />} />
+          {/* Gerenciar Clientes Page */}
+          <Route
+            path="/gerenciar-clientes"
+            element={<GerenciarClientesPage />}
+          />
 
-              {/* Gerenciar Clientes - Revenda */}
-              <Route path="/gerenciar-clientes-revenda" element={<GerenciarClientesRevendaPage />} />
+          {/* Gerenciar Clientes - Revenda */}
+          <Route
+            path="/gerenciar-clientes-revenda"
+            element={<GerenciarClientesRevendaPage />}
+          />
 
-              {/* Gerenciar Usuários Empresa (Superusuário) */}
-              <Route path="/gerenciar-usuarios-empresa" element={<GerenciarUsuariosEmpresaPage />} />
+          {/* Gerenciar Usuários Empresa (Superusuário) */}
+          <Route
+            path="/gerenciar-usuarios-empresa"
+            element={<GerenciarUsuariosEmpresaPage />}
+          />
 
-              {/* Gerenciar Pivôs Page */}
-              <Route path="/gerenciar-pivos" element={<GerenciarPivosPage />} />
+          {/* Gerenciar Pivôs Page */}
+          <Route path="/gerenciar-pivos" element={<GerenciarPivosPage />} />
 
-              {/* Revenda Dashboard */}
-              <Route path="/revenda" element={<RevendaDashboard />} />
+          {/* Revenda Dashboard */}
+          <Route path="/revenda" element={<RevendaDashboard />} />
 
-              {/* Cliente Dashboard */}
-              <Route path="/cliente" element={<ClienteDashboard />} />
+          {/* Cliente Dashboard */}
+          <Route path="/cliente" element={<ClienteDashboard />} />
 
-              {/* Legacy routes */}
-              <Route path="/home" element={<HomePageRevenda />} />
-              <Route path="/maquina/:machineId" element={<MaquinaRevenda />} />
-            </Route>
+          {/* Legacy routes */}
+          <Route path="/home" element={<HomePageRevenda />} />
+          <Route path="/maquina/:machineId" element={<MaquinaRevenda />} />
+        </Route>
 
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </Router>
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Router>
   );
 }

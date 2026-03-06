@@ -9,14 +9,14 @@
  *   await sendCommand(irrigadorId, 'start', { duration: 60 });
  */
 
-import { useState, useCallback } from 'react';
-import { commands as commandsAPI } from '@/api/new/fastapi-api';
+import { useState, useCallback } from "react";
+import { commands as commandsAPI } from "@/api/new/fastapi-api";
 
 export interface Command {
   _id: string;
   irrigadorId: string;
   command: string;
-  status: 'pending' | 'scheduled' | 'published' | 'cancelled';
+  status: "pending" | "scheduled" | "published" | "cancelled";
   created_at: string;
   published?: boolean;
   timer_minutes?: number;
@@ -30,15 +30,25 @@ interface UseCommandsAPIReturn {
     command: string,
     params?: Record<string, any>,
     pivoId?: string,
-    timerMinutes?: number
+    timerMinutes?: number,
   ) => Promise<any>;
 
   // Quick commands
-  startPivo: (irrigadorId: string, pivoId: string, duration?: number, flowRate?: number) => Promise<any>;
+  startPivo: (
+    irrigadorId: string,
+    pivoId: string,
+    duration?: number,
+    flowRate?: number,
+  ) => Promise<any>;
   stopPivo: (irrigadorId: string, pivoId: string) => Promise<any>;
   pausePivo: (irrigadorId: string, pivoId: string) => Promise<any>;
   emergencyStop: (irrigadorId: string, pivoId: string) => Promise<any>;
-  scheduleCommand: (irrigadorId: string, command: string, delayMinutes: number, params?: Record<string, any>) => Promise<any>;
+  scheduleCommand: (
+    irrigadorId: string,
+    command: string,
+    delayMinutes: number,
+    params?: Record<string, any>,
+  ) => Promise<any>;
 
   // Listar e gerenciar
   listCommands: (irrigadorId?: string, status?: string) => Promise<void>;
@@ -67,8 +77,8 @@ export const useCommandsAPI = (): UseCommandsAPIReturn => {
       irrigadorId: string,
       command: string,
       params: Record<string, any> = {},
-      pivoId: string = '',
-      timerMinutes: number = 0
+      pivoId: string = "",
+      timerMinutes: number = 0,
     ) => {
       try {
         setLoading(true);
@@ -79,56 +89,67 @@ export const useCommandsAPI = (): UseCommandsAPIReturn => {
           command,
           params,
           pivoId,
-          timerMinutes
+          timerMinutes,
         );
 
         setLastCommand(result);
         return result;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
+        const message =
+          err instanceof Error ? err.message : "Erro desconhecido";
         setError(message);
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   // Quick commands
   const startPivo = useCallback(
     (irrigadorId: string, pivoId: string, duration = 60, flowRate = 80) => {
-      return sendCommand(irrigadorId, 'start', { duration, flow_rate: flowRate }, pivoId);
+      return sendCommand(
+        irrigadorId,
+        "start",
+        { duration, flow_rate: flowRate },
+        pivoId,
+      );
     },
-    [sendCommand]
+    [sendCommand],
   );
 
   const stopPivo = useCallback(
     (irrigadorId: string, pivoId: string) => {
-      return sendCommand(irrigadorId, 'stop', {}, pivoId);
+      return sendCommand(irrigadorId, "stop", {}, pivoId);
     },
-    [sendCommand]
+    [sendCommand],
   );
 
   const pausePivo = useCallback(
     (irrigadorId: string, pivoId: string) => {
-      return sendCommand(irrigadorId, 'pause', {}, pivoId);
+      return sendCommand(irrigadorId, "pause", {}, pivoId);
     },
-    [sendCommand]
+    [sendCommand],
   );
 
   const emergencyStop = useCallback(
     (irrigadorId: string, pivoId: string) => {
-      return sendCommand(irrigadorId, 'emergency_stop', {}, pivoId);
+      return sendCommand(irrigadorId, "emergency_stop", {}, pivoId);
     },
-    [sendCommand]
+    [sendCommand],
   );
 
   const scheduleCommand = useCallback(
-    (irrigadorId: string, command: string, delayMinutes: number, params: Record<string, any> = {}) => {
-      return sendCommand(irrigadorId, command, params, '', delayMinutes);
+    (
+      irrigadorId: string,
+      command: string,
+      delayMinutes: number,
+      params: Record<string, any> = {},
+    ) => {
+      return sendCommand(irrigadorId, command, params, "", delayMinutes);
     },
-    [sendCommand]
+    [sendCommand],
   );
 
   // Listar comandos
@@ -142,14 +163,15 @@ export const useCommandsAPI = (): UseCommandsAPIReturn => {
 
         setCommands(response.commands || []);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
+        const message =
+          err instanceof Error ? err.message : "Erro desconhecido";
         setError(message);
-        console.error('❌ Erro ao carregar comandos:', message);
+        console.error("❌ Erro ao carregar comandos:", message);
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   // Obter comando específico
@@ -162,41 +184,41 @@ export const useCommandsAPI = (): UseCommandsAPIReturn => {
         const response = await commandsAPI.getCommand(commandId);
         return response.command || null;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
+        const message =
+          err instanceof Error ? err.message : "Erro desconhecido";
         setError(message);
         return null;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   // Cancelar comando
-  const cancelCommand = useCallback(
-    async (commandId: string) => {
-      try {
-        setLoading(true);
-        setError(null);
+  const cancelCommand = useCallback(async (commandId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const result = await commandsAPI.cancelCommand(commandId);
+      const result = await commandsAPI.cancelCommand(commandId);
 
-        // Atualizar lista local
-        setCommands((prev) =>
-          prev.map((c) => (c._id === commandId ? { ...c, status: 'cancelled' } : c))
-        );
+      // Atualizar lista local
+      setCommands((prev) =>
+        prev.map((c) =>
+          c._id === commandId ? { ...c, status: "cancelled" } : c,
+        ),
+      );
 
-        return result;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro desconhecido';
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const clearError = useCallback(() => {
     setError(null);

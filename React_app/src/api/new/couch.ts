@@ -443,7 +443,6 @@ export async function createIndex(
     const data = response.data;
 
     // Log diferenciado baseado no resultado
-   
 
     return data;
   } catch (err: any) {

@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { getTensaoHistory, TensaoRawDoc } from './getHistory';
-import type { Period } from '../../types/tension';
+import { useState, useEffect, useCallback } from "react";
+import { getTensaoHistory, TensaoRawDoc } from "./getHistory";
+import type { Period } from "../../types/tension";
 
 interface UseTensionDataOptions {
   irrigadorId: string;
@@ -30,7 +30,7 @@ interface UseTensionDataResult {
  */
 function aggregateMergedPoints(
   points: TensionMergedPoint[],
-  targetPoints: number
+  targetPoints: number,
 ): TensionMergedPoint[] {
   if (points.length <= targetPoints) {
     return points; // Não precisa agregar
@@ -52,15 +52,15 @@ function aggregateMergedPoints(
 
     // Identificar todos os equipamentos presentes
     const equipmentKeys = new Set<string>();
-    group.forEach(point => {
-      Object.keys(point.values).forEach(key => equipmentKeys.add(key));
+    group.forEach((point) => {
+      Object.keys(point.values).forEach((key) => equipmentKeys.add(key));
     });
 
     // Calcular média para cada equipamento
-    equipmentKeys.forEach(equipmentKey => {
+    equipmentKeys.forEach((equipmentKey) => {
       const voltages: number[] = [];
 
-      group.forEach(point => {
+      group.forEach((point) => {
         const voltage = point.values[equipmentKey];
         if (voltage !== undefined && voltage > 0) {
           voltages.push(voltage);
@@ -68,7 +68,8 @@ function aggregateMergedPoints(
       });
 
       if (voltages.length > 0) {
-        avgValues[equipmentKey] = voltages.reduce((sum, v) => sum + v, 0) / voltages.length;
+        avgValues[equipmentKey] =
+          voltages.reduce((sum, v) => sum + v, 0) / voltages.length;
       }
     });
 
@@ -76,7 +77,7 @@ function aggregateMergedPoints(
     aggregated.push({
       timestamp: basePoint.timestamp,
       timestampMs: basePoint.timestampMs,
-      values: avgValues
+      values: avgValues,
     });
   }
 
@@ -86,7 +87,7 @@ function aggregateMergedPoints(
 
 // formata no padrão: 2025-10-31T15:47:23-03:00
 function formatWithOffset(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, "0");
 
   const year = date.getFullYear();
   const month = pad(date.getMonth() + 1);
@@ -96,7 +97,7 @@ function formatWithOffset(date: Date): string {
   const seconds = pad(date.getSeconds());
 
   const offsetMinutes = -date.getTimezoneOffset(); // minutos a leste do UTC
-  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const sign = offsetMinutes >= 0 ? "+" : "-";
   const abs = Math.abs(offsetMinutes);
   const offHours = pad(Math.floor(abs / 60));
   const offMins = pad(abs % 60);
@@ -105,20 +106,20 @@ function formatWithOffset(date: Date): string {
 }
 
 function getPeriodRange(period: Period) {
-  if (period === 'all') return {};
+  if (period === "all") return {};
 
   const now = new Date();
   const to = new Date(now);
   const from = new Date(now);
 
   switch (period) {
-    case 'last24h':
+    case "last24h":
       from.setDate(from.getDate() - 1);
       break;
-    case 'last7d':
+    case "last7d":
       from.setDate(from.getDate() - 7);
       break;
-    case 'last30d':
+    case "last30d":
       from.setDate(from.getDate() - 30);
       break;
   }
@@ -131,7 +132,7 @@ function getPeriodRange(period: Period) {
 
 function convertDoc(
   doc: TensaoRawDoc,
-  equipmentNames: string[]
+  equipmentNames: string[],
 ): TensionMergedPoint | null {
   try {
     const timestamp = new Date(doc.timestamp);
@@ -144,7 +145,7 @@ function convertDoc(
     let end = 7;
 
     if (doc.monitor_range) {
-      const [a, b] = doc.monitor_range.split('-').map(Number);
+      const [a, b] = doc.monitor_range.split("-").map(Number);
       if (a && b) {
         start = a;
         end = b;
@@ -153,16 +154,16 @@ function convertDoc(
 
     let hasAnyValue = false;
     for (let i = start; i <= end; i++) {
-      const key = `monitor_${String(i).padStart(2, '0')}`;
+      const key = `monitor_${String(i).padStart(2, "0")}`;
       const entry = monitores[key];
 
       const voltage =
-        entry && typeof entry.voltage === 'number' ? entry.voltage : 0;
+        entry && typeof entry.voltage === "number" ? entry.voltage : 0;
 
       const eqIndex = i - 1;
       const eqName = equipmentNames[eqIndex + 2];
 
-      if (eqName && eqName.trim() !== '' && voltage > 0) {
+      if (eqName && eqName.trim() !== "" && voltage > 0) {
         values[eqName.trim()] = voltage;
         hasAnyValue = true;
       }
@@ -211,18 +212,18 @@ export function useTensionData({
         const { fromISO, toISO } = getPeriodRange(period);
 
         const [docsA, docsB] = await Promise.all([
-          getTensaoHistory('lindsay-data', irrigadorId, {
-            tipo: 'A',
+          getTensaoHistory("lindsay-data", irrigadorId, {
+            tipo: "A",
             fromISO,
             toISO,
-            sort: 'asc',
+            sort: "asc",
             limit,
           }),
-          getTensaoHistory('lindsay-data', irrigadorId, {
-            tipo: 'B',
+          getTensaoHistory("lindsay-data", irrigadorId, {
+            tipo: "B",
             fromISO,
             toISO,
-            sort: 'asc',
+            sort: "asc",
             limit,
           }),
         ]);
@@ -253,7 +254,7 @@ export function useTensionData({
         });
 
         const merged = [...map.values()].sort(
-          (a, b) => a.timestampMs - b.timestampMs
+          (a, b) => a.timestampMs - b.timestampMs,
         );
 
         ////console.log(`Final merged points (before aggregation): ${merged.length}`);
@@ -266,7 +267,7 @@ export function useTensionData({
         if (!cancelled) setPoints(aggregated);
       } catch (err: any) {
         if (!cancelled) {
-          setError(err?.message ?? 'Erro ao carregar dados');
+          setError(err?.message ?? "Erro ao carregar dados");
         }
       } finally {
         if (!cancelled) setLoading(false);

@@ -6,11 +6,11 @@
  * - Pivôs por status
  */
 
-import { useCallback, useState } from 'react';
-import { useAuthStore } from '../../stores/new/authStore';
-import type { RevendaStats } from '../../types/admin';
+import { useCallback, useState } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import type { RevendaStats } from "../../types/admin";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const DEFAULT_STATS: RevendaStats = {
   totalClientes: 0,
@@ -29,13 +29,13 @@ export const useRevendaStats = () => {
 
   const makeRequest = useCallback(
     async (endpoint: string) => {
-      if (!token) throw new Error('Não autenticado');
+      if (!token) throw new Error("Não autenticado");
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -46,7 +46,7 @@ export const useRevendaStats = () => {
 
       return response.json();
     },
-    [token]
+    [token],
   );
 
   const fetchStats = useCallback(async () => {
@@ -55,8 +55,8 @@ export const useRevendaStats = () => {
 
     try {
       const [clientesData, pivosData] = await Promise.all([
-        makeRequest('/api/clientes'),
-        makeRequest('/api/pivos'),
+        makeRequest("/api/clientes"),
+        makeRequest("/api/pivos"),
       ]);
 
       const clientes = clientesData.clientes || [];
@@ -64,16 +64,19 @@ export const useRevendaStats = () => {
 
       const newStats: RevendaStats = {
         totalClientes: clientes.length,
-        activeClientes: clientes.filter((c: any) => c.status === 'active').length,
-        pendingClientes: clientes.filter((c: any) => c.status === 'pending').length,
+        activeClientes: clientes.filter((c: any) => c.status === "active")
+          .length,
+        pendingClientes: clientes.filter((c: any) => c.status === "pending")
+          .length,
         totalPivos: pivos.length,
-        activePivos: pivos.filter((p: any) => p.status === 'active').length,
-        alarmadoPivos: pivos.filter((p: any) => p.status === 'alarmed').length,
+        activePivos: pivos.filter((p: any) => p.status === "active").length,
+        alarmadoPivos: pivos.filter((p: any) => p.status === "alarmed").length,
       };
 
       setStats(newStats);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao buscar estatísticas';
+      const message =
+        err instanceof Error ? err.message : "Erro ao buscar estatísticas";
       setError(message);
     } finally {
       setLoading(false);

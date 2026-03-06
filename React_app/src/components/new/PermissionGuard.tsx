@@ -1,6 +1,16 @@
-import React from 'react';
-import { useAuthStore, selectIsActiveUser, selectUserRole, selectUserStatus, selectSubRole } from '../../stores/new/authStore';
-import type { UserRole, UserStatus, ClienteSubRole } from '../../stores/new/authStore';
+import React from "react";
+import {
+  useAuthStore,
+  selectIsActiveUser,
+  selectUserRole,
+  selectUserStatus,
+  selectSubRole,
+} from "../../stores/new/authStore";
+import type {
+  UserRole,
+  UserStatus,
+  ClienteSubRole,
+} from "../../stores/new/authStore";
 
 export interface PermissionGuardProps {
   /** Roles permitidos */
@@ -61,7 +71,6 @@ export function PermissionGuard({
   const userStatus = selectUserStatus(authState);
   const subRole = selectSubRole(authState);
 
-
   // Verificar se usuário está autenticado
   if (!authState.isAuthenticated || !authState.user) {
     if (onDenied) onDenied();
@@ -70,11 +79,11 @@ export function PermissionGuard({
 
   // Verificar se requer estar ativo
   if (requireActive && !isActiveUser) {
-    console.warn('⚠️ PermissionGuard - Acesso negado:', {
-      reason: 'requireActive=true mas isActiveUser=false',
+    console.warn("⚠️ PermissionGuard - Acesso negado:", {
+      reason: "requireActive=true mas isActiveUser=false",
       userStatus: userStatus,
       userType: userRole,
-      userEmail: authState.user?.email
+      userEmail: authState.user?.email,
     });
     if (onDenied) onDenied();
     return (
@@ -87,12 +96,18 @@ export function PermissionGuard({
   }
 
   // Verificar roles permitidos
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(userRole as UserRole)) {
+  if (
+    allowedRoles &&
+    allowedRoles.length > 0 &&
+    !allowedRoles.includes(userRole as UserRole)
+  ) {
     if (onDenied) onDenied();
     return (
       <>
         {fallback || (
-          <UnauthorizedMessage reason={`você não possui permissão (role: ${userRole})`} />
+          <UnauthorizedMessage
+            reason={`você não possui permissão (role: ${userRole})`}
+          />
         )}
       </>
     );
@@ -118,8 +133,8 @@ export function PermissionGuard({
   if (
     allowedSubRoles &&
     allowedSubRoles.length > 0 &&
-    userRole === 'cliente' &&
-    !allowedSubRoles.includes((subRole || 'superusuario') as ClienteSubRole)
+    userRole === "cliente" &&
+    !allowedSubRoles.includes((subRole || "superusuario") as ClienteSubRole)
   ) {
     if (onDenied) onDenied();
     return (
@@ -156,9 +171,7 @@ function UnauthorizedMessage({ reason }: { reason: string }) {
             />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">
-          Acesso Negado
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">Acesso Negado</h1>
         <p className="text-gray-600 mb-6">
           Desculpe, você não tem permissão para acessar este conteúdo.
         </p>
@@ -181,7 +194,7 @@ function UnauthorizedMessage({ reason }: { reason: string }) {
  */
 export function withPermissionGuard<P extends object>(
   Component: React.ComponentType<P>,
-  options: Omit<PermissionGuardProps, 'children'>
+  options: Omit<PermissionGuardProps, "children">,
 ) {
   return function ProtectedComponent(props: P) {
     return (
@@ -199,7 +212,7 @@ export function usePermissionCheck(
   allowedRoles?: UserRole[],
   allowedStatuses?: UserStatus[],
   requireActive?: boolean,
-  allowedSubRoles?: ClienteSubRole[]
+  allowedSubRoles?: ClienteSubRole[],
 ): boolean {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
@@ -222,8 +235,8 @@ export function usePermissionCheck(
   if (
     allowedSubRoles &&
     allowedSubRoles.length > 0 &&
-    userRole === 'cliente' &&
-    !allowedSubRoles.includes((subRole || 'superusuario') as ClienteSubRole)
+    userRole === "cliente" &&
+    !allowedSubRoles.includes((subRole || "superusuario") as ClienteSubRole)
   ) {
     return false;
   }
