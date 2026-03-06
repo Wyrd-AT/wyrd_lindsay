@@ -24,6 +24,10 @@ import {
 import Docxtemplater from "docxtemplater";
 import { saveAs } from "file-saver";
 
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import logoImg from "../../assets/fieldnet.webp";
+
 function xmlSafe(s) {
   const str = String(s ?? "—");
   return str.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
@@ -512,7 +516,7 @@ export default function AlertEdit({
     return `ag_${ts}_${rnd}`;
   };
 
-  async function handleExportHistoryDocx_Template() {
+  async function handleExportHistoryPdf() {
     try {
       if (!alertData?._id) {
         setErrorMsg("Sem id de origem para gerar histórico.");
@@ -520,21 +524,21 @@ export default function AlertEdit({
       }
       setErrorMsg("");
 
-      // 1) dados
+      // 1) Fetch data
       let currentDoc = null;
       try {
         currentDoc = await getDoc(DB_NAME, currentId(alertData._id));
       } catch (_) {}
       const { events } = await fetchTimerHistory(DB_NAME, alertData._id);
 
-      // normaliza eventos para o template
-      const rows = (events || []).map((ev) => ({
-        at: fmtBR(ev.at),
-        tipo: ev.type === "solve" ? "solucionado" : "agendado",
-        timer: String(ev.timer_value ?? "—"),
-        scheduled: fmtBR(ev.scheduled_for),
-        by: xmlSafe(ev.by || "—"),
-      }));
+      // 2) Normalize events for the PDF table layout
+      const rows = (events || []).map((ev) => [
+        fmtBR(ev.at),
+        ev.type === "solve" ? "solucionado" : "agendado",
+        String(ev.timer_value ?? "—"),
+        fmtBR(ev.scheduled_for) || "—",
+        xmlSafe(ev.by || "—"),
+      ]);
 
       const estadoAtual = currentDoc
         ? `${xmlSafe(currentDoc.status ?? "—")} | agendado p/ ${fmtBR(
@@ -542,38 +546,46 @@ export default function AlertEdit({
           )} | intervalo ${xmlSafe(currentDoc.timer_value ?? "—")} min`
         : "—";
 
-      const data = {
-        monitor: xmlSafe(monitorResolved || ""),
-        id_origem: xmlSafe(alertData._id),
-        gerado_em: fmtBR(new Date().toISOString()),
-        estado_atual: estadoAtual,
-        events: rows,
-      };
+      // 3) Generate PDF Document
+      const doc = new jsPDF();
 
-      const res = await fetch("/Template.docx");
-      if (!res.ok)
-        throw new Error("Falha ao carregar o template do relatório.");
-      const arrayBuffer = await res.arrayBuffer();
-      const zip = new PizZip(arrayBuffer);
+      // Add Logo
+      try {
+        doc.addImage(logoImg, "WEBP", 5, 0, 80, 40);
+      } catch (e) {
+        console.warn("Erro ao carregar logo", e);
+      }
 
-      const doc = new Docxtemplater(zip, {
-        paragraphLoop: true,
-        linebreaks: true,
+      // Add Metadata Header
+      doc.setFontSize(10);
+      doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 40);
+      doc.text(`Monitor: ${xmlSafe(monitorResolved || "")}`, 14, 46);
+      doc.text(`ID de Origem: ${xmlSafe(alertData._id)}`, 14, 52);
+      doc.text(`Estado atual: ${estadoAtual}`, 14, 58);
+
+      // Add Styled Table
+      autoTable(doc, {
+        startY: 65,
+        head: [
+          ["Data/Hora", "Tipo", "Timer (min)", "Agendado para", "Responsável"],
+        ],
+        body: rows,
+        theme: "striped",
+        headStyles: { fillColor: [50, 50, 50] }, // Dark gray header to match alertHistory
+        styles: { fontSize: 8 },
       });
-      doc.setData(data);
-      doc.render(); // se faltar algum campo, lança erro aqui
 
-      // 4) gera blob e baixa
-      const out = doc.getZip().generate({ type: "blob" });
+      // 4) Download the file
       const filenameSafe = `historico_timer_${String(
         monitorResolved || alertData._id,
       )
         .replace(/[\\/:*?"<>|]+/g, "_")
-        .replace(/\s+/g, "_")}.docx`;
-      saveAs(out, filenameSafe);
+        .replace(/\s+/g, "_")}.pdf`;
+
+      doc.save(filenameSafe);
     } catch (e) {
       console.error(e);
-      setErrorMsg("Falha ao gerar o DOCX a partir do template.");
+      setErrorMsg("Falha ao gerar o arquivo PDF.");
     }
   }
 
@@ -779,7 +791,7 @@ export default function AlertEdit({
                 type="button"
                 className="p-1 rounded hover:bg-[#3a3a3a] focus:outline-none focus:ring-2 focus:ring-blue-500"
                 aria-label="Compartilhar"
-                onClick={handleExportHistoryDocx_Template}
+                onClick={handleExportHistoryPdf}
               >
                 <FiShare2 size={20} />
               </button>
