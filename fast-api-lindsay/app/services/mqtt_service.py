@@ -86,7 +86,7 @@ class MQTTService:
         logger.warning(f"⚠️ Desconectado do MQTT: {reason_code}")
         self.is_connected = False
 
-    def _on_publish(self, client, userdata, mid):
+    def _on_publish(self, client, userdata, mid, reason_code=None, properties=None):
         """Callback de publicação"""
         logger.debug(f"📤 Mensagem publicada (mid={mid})")
 
