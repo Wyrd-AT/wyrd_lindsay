@@ -16,6 +16,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -60,7 +61,7 @@ class MQTTService:
 
     def _setup_client(self) -> None:
         """Configurar cliente MQTT com callbacks"""
-        self.client = mqtt.Client(client_id=self.client_id)
+        self.client = mqtt.Client(CallbackAPIVersion.VERSION2, client_id=self.client_id)
 
         # Callbacks
         self.client.on_connect = self._on_connect

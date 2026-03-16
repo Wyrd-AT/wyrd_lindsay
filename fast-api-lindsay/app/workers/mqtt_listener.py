@@ -27,6 +27,7 @@ from typing import Optional
 
 import couchdb
 import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion  # <<< ADICIONE ESTA LINHA
 from dotenv import load_dotenv
 
 # Importar serviços
@@ -163,7 +164,10 @@ def process_payload(topic: str, payload_str: str) -> None:
         if (
             parsed["type"] == "event"
             and parsed.get("estado") == "1"
-            and alert_service.should_notify(doc_id or "")
+            # and alert_service.should_notify(doc_id or "")
+            and alert_service.should_notify(
+                alert_id=(doc_id or ""), irrigador_id=irrigador_id
+            )
         ):
             logger.info(f"🚨 ALERTA CRÍTICO: {irrigador_id}")
 
@@ -204,7 +208,9 @@ def process_payload(topic: str, payload_str: str) -> None:
                         subject=f"Alerta - {irrigador_id}",
                         phones=phones,
                         emails=emails,
-                        channels=["whatsapp", "sms", "email"],
+                        # channels=["whatsapp", "sms", "email"],
+                        # channels=["whatsapp_zapi"],
+                        channels=["whatsapp_zapi", "voice_zapi"],
                     )
 
                     total_sent = sum(
@@ -299,7 +305,9 @@ def setup_mqtt_listener() -> bool:
     global mqtt_listener_client
 
     try:
-        mqtt_listener_client = mqtt.Client(client_id=MQTT_CLIENT_ID)
+        mqtt_listener_client = mqtt.Client(
+            CallbackAPIVersion.VERSION2, client_id=MQTT_CLIENT_ID
+        )
         mqtt_listener_client.on_connect = on_connect
         mqtt_listener_client.on_disconnect = on_disconnect
         mqtt_listener_client.on_subscribe = on_subscribe

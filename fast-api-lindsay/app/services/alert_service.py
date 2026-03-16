@@ -5,11 +5,8 @@ Serviço de Processamento de Alertas
 ====================================
 
 Parse, validação e armazenamento de payloads MQTT de irrigadores.
-
-Suporta:
-- Vetor de Tensão (MT01-MT14, Painel 1-2)
-- Vetor de Switches (Fim de curso)
-- Eventos de Alerta
+Adaptado para suportar tanto o formato legado (;) quanto o novo (:).
+Busca inteligente no CouchDB pelo 'codigo' e leitura aninhada de 'contacts'.
 """
 
 import logging
@@ -80,27 +77,92 @@ class AlertService:
 
     def identify_and_parse(self, payload: str) -> Dict[str, Any]:
         """
-        Identificar tipo de payload e fazer parse
-
-        Args:
-            payload: String do payload MQTT
-
-        Returns:
-            Dict com dados parseados
+        Identificar tipo de payload e fazer parse suportando ambos os formatos
         """
-        # Remover whitespace
         payload = payload.strip()
 
-        # Tentar identificar tipo
-        if "MT" in payload[:10] or "PAN" in payload[:10]:
-            return self._parse_vetor_tensao(payload)
-        elif "SW" in payload[:10]:
-            return self._parse_vetor_sw(payload)
-        elif any(marker in payload for marker in ["EVENT", "ALM"]):
-            return self._parse_event(payload)
-        else:
-            logger.warning(f"⚠️ Payload desconhecido: {payload[:50]}")
-            return {"type": "unknown", "payload": payload}
+        # 1. Tenta parse no formato LEGADO (separado por ponto-e-vírgula)
+        if ";" in payload:
+            parts = [p.strip() for p in payload.split(";")]
+            # Evento legado (ex: EMBTST;2025-02-02T10:30:00;E171)
+            if len(parts) >= 3 and re.fullmatch(r"[A-Z]\d+", parts[2]):
+                return self._parse_event_legacy(parts, payload)
+
+        # 2. Tenta parse no formato NOVO (separado por dois-pontos)
+        if ":" in payload:
+            if "MT" in payload[:10] or "PAN" in payload[:10]:
+                return self._parse_vetor_tensao(payload)
+            elif "SW" in payload[:10]:
+                return self._parse_vetor_sw(payload)
+            elif any(marker in payload for marker in ["EVENT", "ALM"]):
+                return self._parse_event_new(payload)
+
+        logger.warning(f"⚠️ Payload desconhecido/incompatível: {payload[:50]}")
+        return {"type": "unknown", "payload": payload}
+
+    def _parse_event_legacy(self, parts: List[str], payload: str) -> Dict[str, Any]:
+        """Parse de evento do formato antigo (ex: EMBTST;2025-02-02T10:30:00;E171)"""
+        try:
+            irrigador_id = parts[0]
+            timestamp_str = parts[1]
+            evento = parts[2]
+
+            event_type = evento[0]
+            monitor = evento[1:3]
+            estado = evento[3] if len(evento) > 3 else "1"  # Força alarme se omitido
+
+            try:
+                dt = datetime.fromisoformat(timestamp_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=BR_TZ)
+            except ValueError:
+                dt = datetime.now(BR_TZ)
+
+            return {
+                "type": EventType.EVENT,
+                "irrigadorId": irrigador_id,
+                "eventType": event_type,
+                "monitor": self._normalize_monitor(monitor),
+                "estado": estado,
+                "status": self.STATUS_MAP.get(estado, "Desconhecido"),
+                "description": f"Evento {event_type}{monitor}",
+                "responsible": "A definir",
+                "timestamp": dt,
+                "timestamp_formatted": dt.strftime("%H:%M:%S %d/%m/%Y"),
+            }
+        except Exception as e:
+            logger.error(f"❌ Erro ao parse evento legado: {e}")
+            return {"type": "error", "error": str(e), "payload": payload}
+
+    def _parse_event_new(self, payload: str) -> Dict[str, Any]:
+        """Parse de evento do formato novo (ex: EVENT:TESTV2:A:MT01:1)"""
+        try:
+            parts = payload.split(":")
+            if len(parts) < 4:
+                raise ValueError("Payload de evento inválido")
+
+            irrigador_id = parts[1].strip()
+            event_type = parts[2].strip()[0:1]
+            monitor = parts[3].strip() if len(parts) > 3 else "00"
+            estado = parts[4].strip() if len(parts) > 4 else "0"
+
+            return {
+                "type": EventType.EVENT,
+                "irrigadorId": irrigador_id,
+                "eventType": event_type,
+                "monitor": self._normalize_monitor(monitor),
+                "estado": estado,
+                "status": self.STATUS_MAP.get(estado, "Desconhecido"),
+                "description": f"Evento {event_type}{monitor}",
+                "responsible": "A definir",
+                "timestamp": datetime.now(BR_TZ),
+                "timestamp_formatted": datetime.now(BR_TZ).strftime(
+                    "%H:%M:%S %d/%m/%Y"
+                ),
+            }
+        except Exception as e:
+            logger.error(f"❌ Erro ao parse evento novo: {e}")
+            return {"type": "error", "error": str(e), "payload": payload}
 
     def _parse_vetor_tensao(self, payload: str) -> Dict[str, Any]:
         """Parse de vetor de tensão (MT01-MT14, Painel 1-2)"""
@@ -112,12 +174,9 @@ class AlertService:
             header = parts[0].strip()
             irrigador_id = parts[1].strip()
 
-            # Extrair tipo de monitor (MT ou PAN)
             monitor_match = re.search(r"(MT\d{2}|PAN\d)", header)
             monitor = monitor_match.group(1) if monitor_match else "00"
 
-            # Extrair dados de tensão
-            # Formato esperado: "MT01:1234:230.5:50:OK"
             tension_values = []
             status = "0"
 
@@ -144,14 +203,9 @@ class AlertService:
                     "%H:%M:%S %d/%m/%Y"
                 ),
             }
-
         except Exception as e:
             logger.error(f"❌ Erro ao parse vetor tensão: {e}")
-            return {
-                "type": "error",
-                "error": str(e),
-                "payload": payload,
-            }
+            return {"type": "error", "error": str(e), "payload": payload}
 
     def _parse_vetor_sw(self, payload: str) -> Dict[str, Any]:
         """Parse de vetor de switches (fim de curso)"""
@@ -160,10 +214,8 @@ class AlertService:
             if len(parts) < 3:
                 raise ValueError("Payload inválido")
 
-            header = parts[0].strip()
             irrigador_id = parts[1].strip()
 
-            # Extrair switches (SW1, SW2, etc)
             sw_values = []
             status = "0"
 
@@ -188,50 +240,9 @@ class AlertService:
                     "%H:%M:%S %d/%m/%Y"
                 ),
             }
-
         except Exception as e:
             logger.error(f"❌ Erro ao parse vetor SW: {e}")
-            return {
-                "type": "error",
-                "error": str(e),
-                "payload": payload,
-            }
-
-    def _parse_event(self, payload: str) -> Dict[str, Any]:
-        """Parse de evento de alerta"""
-        try:
-            parts = payload.split(":")
-            if len(parts) < 4:
-                raise ValueError("Payload de evento inválido")
-
-            header = parts[0].strip()
-            irrigador_id = parts[1].strip()
-            event_type = parts[2].strip()[0:1]  # Letra (A, B, C, D, E)
-            monitor = parts[3].strip() if len(parts) > 3 else "00"
-            estado = parts[4].strip() if len(parts) > 4 else "0"
-
-            return {
-                "type": EventType.EVENT,
-                "irrigadorId": irrigador_id,
-                "eventType": event_type,
-                "monitor": self._normalize_monitor(monitor),
-                "estado": estado,
-                "status": self.STATUS_MAP.get(estado, "Desconhecido"),
-                "description": f"Evento {event_type}{monitor}",
-                "responsible": "A definir",
-                "timestamp": datetime.now(BR_TZ),
-                "timestamp_formatted": datetime.now(BR_TZ).strftime(
-                    "%H:%M:%S %d/%m/%Y"
-                ),
-            }
-
-        except Exception as e:
-            logger.error(f"❌ Erro ao parse evento: {e}")
-            return {
-                "type": "error",
-                "error": str(e),
-                "payload": payload,
-            }
+            return {"type": "error", "error": str(e), "payload": payload}
 
     # =========================================================================
     # Processamento
@@ -253,7 +264,6 @@ class AlertService:
             "timestamp": parsed["timestamp"].isoformat(),
             "timestamp_formatted": parsed.get("timestamp_formatted"),
         }
-
         return [doc]
 
     def process_vetor_sw(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -270,7 +280,6 @@ class AlertService:
             "timestamp": parsed["timestamp"].isoformat(),
             "timestamp_formatted": parsed.get("timestamp_formatted"),
         }
-
         return [doc]
 
     def process_event(self, parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -292,7 +301,6 @@ class AlertService:
             "timestamp": parsed["timestamp"].isoformat(),
             "timestamp_formatted": parsed.get("timestamp_formatted"),
         }
-
         return [doc]
 
     # =========================================================================
@@ -300,38 +308,19 @@ class AlertService:
     # =========================================================================
 
     def insert_alert(self, doc_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Inserir alerta no CouchDB
-
-        Args:
-            doc_data: Documento a inserir
-
-        Returns:
-            ID do documento ou None se falhar
-        """
+        """Inserir alerta no CouchDB"""
         try:
             self.db.save(doc_data)
             logger.info(f"✅ Alerta inserido: {doc_data.get('_id')}")
             return doc_data.get("_id")
-
         except Exception as e:
             logger.error(f"❌ Erro ao inserir alerta: {e}")
             return None
 
     def update_monthly_history(
-        self,
-        irrigador_id: str,
-        data_type: str,
-        alert_id: str,
+        self, irrigador_id: str, data_type: str, alert_id: str
     ) -> None:
-        """
-        Atualizar histórico mensal de alertas
-
-        Args:
-            irrigador_id: ID do irrigador
-            data_type: Tipo de dado (tensao, sw, event)
-            alert_id: ID do alerta a registrar
-        """
+        """Atualizar histórico mensal de alertas"""
         try:
             month_key = datetime.now(BR_TZ).strftime("%Y-%m")
             history_id = f"monthly_history:{irrigador_id}:{month_key}"
@@ -348,28 +337,124 @@ class AlertService:
                     "last_updated": datetime.now(BR_TZ).isoformat(),
                 }
 
-            # Incrementar contador
             if data_type not in doc["counts"]:
                 doc["counts"][data_type] = []
 
             doc["counts"][data_type].append(
-                {
-                    "alert_id": alert_id,
-                    "timestamp": datetime.now(BR_TZ).isoformat(),
-                }
+                {"alert_id": alert_id, "timestamp": datetime.now(BR_TZ).isoformat()}
             )
 
             doc["last_updated"] = datetime.now(BR_TZ).isoformat()
             self.db.save(doc)
 
             logger.info(f"✅ Histórico atualizado: {history_id}")
-
         except Exception as e:
             logger.error(f"❌ Erro ao atualizar histórico: {e}")
 
     # =========================================================================
-    # Utilitários
+    # Utilitários (Busca inteligente e Rate Limit corrigido)
     # =========================================================================
+
+    def get_irrigador_info(self, codigo_irrigador: str) -> Dict[str, Any]:
+        """Obter informações buscando pelo 'codigo' e lendo os contatos internos"""
+        try:
+            # 1. Busca inteligente usando Selector pelo "codigo" (do hardware)
+            query = {
+                "selector": {"table": "irrigadores", "codigo": codigo_irrigador},
+                "limit": 1,
+            }
+            results = self.db.find(query)
+            doc = next(results, None)
+
+            # Fallback caso receba o ID direto (hash)
+            if not doc:
+                try:
+                    doc = self.db.get(codigo_irrigador) or self.db.get(
+                        f"irrigador:{codigo_irrigador}"
+                    )
+                except couchdb.http.ResourceNotFound:
+                    doc = None
+
+            if not doc:
+                logger.warning(
+                    f"⚠️ Equipamento não encontrado no DB: {codigo_irrigador}"
+                )
+                return {
+                    "id": codigo_irrigador,
+                    "nome": codigo_irrigador,
+                    "phones": [],
+                    "emails": [],
+                    "equipamentos": [],
+                    "whatsapp_enabled": False,
+                }
+
+            # 2. Extração resiliente de contatos (Pega da raiz ou do objeto contacts aninhado)
+            phones = set(doc.get("phones", []))
+            emails = set(doc.get("emails", []))
+
+            contacts_obj = doc.get("contacts", {})
+            if contacts_obj.get("whatsapp"):
+                phones.add(contacts_obj.get("whatsapp"))
+            if contacts_obj.get("sms"):
+                phones.add(contacts_obj.get("sms"))
+            if contacts_obj.get("email"):
+                emails.add(contacts_obj.get("email"))
+
+            # Limpa itens vazios
+            phones = [p for p in phones if p]
+            emails = [e for e in emails if e]
+
+            return {
+                "id": codigo_irrigador,
+                "nome": doc.get("nome", doc.get("name", codigo_irrigador)),
+                "phones": phones,
+                "emails": emails,
+                "equipamentos": doc.get("equipamentos", []),
+                "whatsapp_enabled": doc.get(
+                    "whatsapp_enabled", True
+                ),  # Se omitido, assume True
+            }
+
+        except Exception as e:
+            logger.warning(
+                f"⚠️ Erro ao buscar info do equipamento {codigo_irrigador}: {e}"
+            )
+            return {
+                "id": codigo_irrigador,
+                "nome": codigo_irrigador,
+                "phones": [],
+                "emails": [],
+                "equipamentos": [],
+                "whatsapp_enabled": False,
+            }
+
+    def should_notify(
+        self, alert_id: str, irrigador_id: str = None, hourly_limit: int = 5
+    ) -> bool:
+        """Rate limit aplicado POR EQUIPAMENTO usando query com selector"""
+        try:
+            now = datetime.now(BR_TZ)
+            hour_key = now.strftime("%Y-%m-%d %H:00:00")
+
+            selector_query = {
+                "table": "notification_log",
+                "sent_at": {"$gte": hour_key},
+            }
+
+            # Filtra pelo equipamento específico
+            if irrigador_id:
+                selector_query["irrigadorId"] = irrigador_id
+
+            query = {"selector": selector_query}
+
+            results = self.db.find(query)
+            count = len(list(results))
+
+            return count < hourly_limit
+
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao verificar rate limit: {e}")
+            return True
 
     def _normalize_monitor(self, monitor: str) -> str:
         """Normalizar código de monitor"""
@@ -381,59 +466,3 @@ class AlertService:
         if monitor.startswith("PAN"):
             return monitor[:4].upper()
         return "00"
-
-    def get_irrigador_info(self, irrigador_id: str) -> Dict[str, Any]:
-        """Obter informações de um irrigador (nome, contatos, etc)"""
-        try:
-            doc_id = f"irrigador:{irrigador_id}"
-            doc = self.db.get(doc_id)
-
-            return {
-                "id": irrigador_id,
-                "nome": doc.get("nome", irrigador_id),
-                "phones": doc.get("phones", []),
-                "emails": doc.get("emails", []),
-                "equipamentos": doc.get("equipamentos", []),
-                "whatsapp_enabled": doc.get("whatsapp_enabled", False),
-            }
-
-        except Exception as e:
-            logger.warning(f"⚠️ Irrigador não encontrado: {irrigador_id}")
-            return {
-                "id": irrigador_id,
-                "nome": irrigador_id,
-                "phones": [],
-                "emails": [],
-                "equipamentos": [],
-                "whatsapp_enabled": False,
-            }
-
-    def should_notify(self, alert_id: str, hourly_limit: int = 5) -> bool:
-        """
-        Verificar se deve enviar notificação (com rate limiting)
-
-        Args:
-            alert_id: ID do alerta
-            hourly_limit: Máximo de notificações por hora
-
-        Returns:
-            True se deve notificar, False caso contrário
-        """
-        try:
-            # Buscar notificações desta hora
-            now = datetime.now(BR_TZ)
-            hour_key = now.strftime("%Y-%m-%d %H:00:00")
-
-            selector = {
-                "table": "notification_log",
-                "sent_at": {"$gte": hour_key},
-            }
-
-            results = self.db.find(selector)
-            count = len(results) if results else 0
-
-            return count < hourly_limit
-
-        except Exception as e:
-            logger.warning(f"⚠️ Erro ao verificar rate limit: {e}")
-            return True  # Notificar por padrão se erro
