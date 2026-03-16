@@ -196,12 +196,20 @@ def process_payload(topic: str, payload_str: str) -> None:
 
             # 4c. SMS/WhatsApp/Email
             irrigador_info = alert_service.get_irrigador_info(irrigador_id)
-            if irrigador_info.get("whatsapp_enabled"):
+            if irrigador_info.get("whatsapp_enabled") or irrigador_info.get(
+                "whatsapp_call_enabled"
+            ):
                 phones = irrigador_info.get("phones", [])
                 emails = irrigador_info.get("emails", [])
 
                 if phones or emails:
                     message = f"🚨 Alerta: {irrigador_id}\nMonitor: {parsed.get('monitor')}\n{parsed.get('timestamp_formatted')}"
+
+                    channels = []
+                    if irrigador_info.get("whatsapp_enabled"):
+                        channels.append("whatsapp_zapi")
+                    if irrigador_info.get("whatsapp_call_enabled"):
+                        channels.append("voice_zapi")
 
                     result = notification_service.send_multi(
                         message=message,
@@ -210,7 +218,8 @@ def process_payload(topic: str, payload_str: str) -> None:
                         emails=emails,
                         # channels=["whatsapp", "sms", "email"],
                         # channels=["whatsapp_zapi"],
-                        channels=["whatsapp_zapi", "voice_zapi"],
+                        # channels=["whatsapp_zapi", "voice_zapi"],
+                        channels=channels,
                     )
 
                     total_sent = sum(

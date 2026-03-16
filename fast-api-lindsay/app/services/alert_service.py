@@ -386,11 +386,43 @@ class AlertService:
                     "emails": [],
                     "equipamentos": [],
                     "whatsapp_enabled": False,
+                    "whatsapp_call_enabled": False,
                 }
 
             # 2. Extração resiliente de contatos (Pega da raiz ou do objeto contacts aninhado)
             phones = set(doc.get("phones", []))
             emails = set(doc.get("emails", []))
+
+            whatsapp_enabled = True
+            whatsapp_call_enabled = True
+
+            try:
+                config_query = {
+                    "selector": {
+                        "table": "whatsapp_config",
+                        "irrigador_id": codigo_irrigador,
+                    },
+                    "limit": 1,
+                }
+                config_results = self.db.find(config_query)
+                config_doc = next(config_results, None)
+
+                # Fallback legado
+                if not config_doc:
+                    try:
+                        config_doc = self.db.get(f"whatsapp_config:{codigo_irrigador}")
+                    except couchdb.http.ResourceNotFound:
+                        config_doc = None
+
+                if config_doc:
+                    whatsapp_enabled = config_doc.get("whatsapp_enabled", True)
+                    whatsapp_call_enabled = config_doc.get(
+                        "whatsapp_call_enabled", False
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Erro ao buscar whatsapp_config para {codigo_irrigador}: {e}"
+                )
 
             contacts_obj = doc.get("contacts", {})
             if contacts_obj.get("whatsapp"):
@@ -410,9 +442,8 @@ class AlertService:
                 "phones": phones,
                 "emails": emails,
                 "equipamentos": doc.get("equipamentos", []),
-                "whatsapp_enabled": doc.get(
-                    "whatsapp_enabled", True
-                ),  # Se omitido, assume True
+                "whatsapp_enabled": whatsapp_enabled,
+                "whatsapp_call_enabled": whatsapp_call_enabled,
             }
 
         except Exception as e:
