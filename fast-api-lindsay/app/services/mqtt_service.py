@@ -81,7 +81,9 @@ class MQTTService:
         else:
             logger.error(f"❌ Erro ao conectar MQTT: {reason_code}")
 
-    def _on_disconnect(self, client, userdata, reason_code, properties=None):
+    def _on_disconnect(
+        self, client, userdata, disconnect_flags, reason_code, properties=None
+    ):
         """Callback de desconexão"""
         logger.warning(f"⚠️ Desconectado do MQTT: {reason_code}")
         self.is_connected = False

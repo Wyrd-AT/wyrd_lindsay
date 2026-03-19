@@ -19,6 +19,7 @@ Docs:
 """
 
 from contextlib import asynccontextmanager
+from app.workers.mqtt_listener import start_mqtt_background, stop_mqtt_background
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -62,7 +63,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Erro ao conectar CouchDB: {e}")
 
+    print("🚀 Iniciando background MQTT Listener...")
+    start_mqtt_background()
+
     yield
+
+    print("🛑 Desligando serviços...")
+
+    stop_mqtt_background()
 
     # Shutdown
     close_db()

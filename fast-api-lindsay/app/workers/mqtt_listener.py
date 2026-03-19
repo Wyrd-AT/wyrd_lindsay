@@ -275,9 +275,9 @@ def on_connect(client, userdata, flags, reason_code, properties=None):
         logger.error(f"❌ Falha ao conectar: {reason_code}")
 
 
-def on_disconnect(client, userdata, reason_code, properties=None):
+def on_disconnect(client, userdata, disconnect_flags, reason_code, properties=None):
     """MQTT disconnect callback"""
-    logger.warning(f"⚠️ Desconectado do MQTT: {reason_code}")
+    logger.warning(f"⚠️ Desconectado do MQTT: {reason_code} (Flags: {disconnect_flags})")
 
 
 def on_subscribe(client, userdata, mid, granted_qos, properties=None):
@@ -355,6 +355,48 @@ def shutdown_handler(signum, frame):
     """Handler para sinais de shutdown"""
     logger.info(f"🛑 Recebido sinal {signum}, encerrando...")
     stop_event.set()
+
+
+# ============================================================================
+# Integração FastAPI (Background)
+# ============================================================================
+_active_workers = []
+
+
+def start_mqtt_background() -> bool:
+    """Inicia o listener em background para rodar junto com o FastAPI"""
+    global _active_workers
+    logger.info("Iniciando MQTT Listener via FastAPI...")
+
+    if not init_services():
+        logger.error("❌ Falha ao inicializar serviços do MQTT Listener")
+        return False
+
+    if not setup_mqtt_listener():
+        logger.error("❌ Falha ao setup MQTT")
+        return False
+
+    _active_workers = start_workers()
+    logger.info("✅ MQTT Listener rodando em background")
+    return True
+
+
+def stop_mqtt_background():
+    """Para o listener e limpa as threads quando o FastAPI desligar"""
+    logger.info("🛑 Recebido comando para parar MQTT Listener...")
+    stop_event.set()
+
+    if mqtt_listener_client:
+        mqtt_listener_client.loop_stop()
+        mqtt_listener_client.disconnect()
+
+    if mqtt_publisher:
+        mqtt_publisher.disconnect()
+
+    for worker in _active_workers:
+        worker.join(timeout=5)
+
+    logger.info("✅ MQTT Listener encerrado com sucesso")
 
 
 # ============================================================================
