@@ -43,7 +43,8 @@ export default function MaquinaRevenda() {
   const { machineId } = useParams();
 
   const cnpjCliente = user?.cnpj ?? "";
-  const irrigadores = useIrrigadores(cnpjCliente);
+  const userType = user?.type ?? "cliente";
+  const irrigadores = useIrrigadores(cnpjCliente, userType);
 
   const [flash, setFlash] = useState(false);
   const [isMensagemOpen, setIsMensagemOpen] = useState(false);
