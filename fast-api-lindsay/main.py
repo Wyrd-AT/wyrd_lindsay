@@ -19,6 +19,7 @@ Docs:
 """
 
 from contextlib import asynccontextmanager
+import sys
 from app.workers.mqtt_listener import start_mqtt_background, stop_mqtt_background
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,7 +65,11 @@ async def lifespan(app: FastAPI):
         print(f"❌ Erro ao conectar CouchDB: {e}")
 
     print("🚀 Iniciando background MQTT Listener...")
-    start_mqtt_background()
+    if not start_mqtt_background():
+        print("❌ ERRO FATAL: O listener MQTT retornou False na inicialização.")
+        raise RuntimeError("ERRO FATAL: O listener MQTT não pôde ser iniciado.")
+
+    print("✅ Background MQTT Listener iniciado com sucesso!")
 
     yield
 
