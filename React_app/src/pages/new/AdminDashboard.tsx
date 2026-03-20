@@ -552,9 +552,9 @@ function RevendasSection({
         </div>
       )}
 
-      <button className="w-full mt-4 bg-dashboard-accent hover:bg-dashboard-accent-hover text-black px-4 py-2 rounded-lg font-bold transition-colors">
-        Ver Relatório Completo
-      </button>
+      {/* <button className="w-full mt-4 bg-dashboard-accent hover:bg-dashboard-accent-hover text-black px-4 py-2 rounded-lg font-bold transition-colors"> */}
+      {/*   Ver Relatório Completo */}
+      {/* </button> */}
     </div>
   );
 }
@@ -688,9 +688,9 @@ function ClientesSection({
         </div>
       )}
 
-      <button className="w-full mt-4 bg-dashboard-accent hover:bg-dashboard-accent-hover text-black px-4 py-2 rounded-lg font-bold transition-colors">
-        Ver Relatório Completo
-      </button>
+      {/* <button className="w-full mt-4 bg-dashboard-accent hover:bg-dashboard-accent-hover text-black px-4 py-2 rounded-lg font-bold transition-colors"> */}
+      {/*   Ver Relatório Completo */}
+      {/* </button> */}
     </div>
   );
 }
