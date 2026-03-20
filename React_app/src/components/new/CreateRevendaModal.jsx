@@ -6,13 +6,37 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
 
   const nameRef = useRef();
   const emailRef = useRef();
-  const cnpjRef = useRef();
   const passwordRef = useRef();
 
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Novo estado para controlar o valor do documento e aplicar a máscara em tempo real
+  const [documento, setDocumento] = useState("");
+
+  // Formata CPF ou CNPJ conforme a digitação
+  const formatDocumento = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 14);
+    if (digits.length <= 11) {
+      return digits
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d)/, "$1.$2")
+        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+    }
+    return digits
+      .replace(/(\d{2})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1/$2")
+      .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+  };
+
+  // Valida se tem 11, 14 ou 0 dígitos
+  const isDocumentoValid = (() => {
+    const digits = documento.replace(/\D/g, "");
+    return digits.length === 11 || digits.length === 14 || digits.length === 0;
+  })();
 
   // Password criteria states
   const [passwordCriteria, setPasswordCriteria] = useState({
@@ -74,7 +98,6 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
 
     const name = nameRef.current.value.trim();
     const email = emailRef.current.value.trim();
-    const cnpj = cnpjRef.current.value.trim();
 
     if (!name) {
       setError("Por favor, informe um nome.");
@@ -86,13 +109,13 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
       return;
     }
 
-    if (!cnpj) {
-      setError("Por favor, informe um CNPJ.");
+    if (!documento) {
+      setError("Por favor, informe um CNPJ ou CPF.");
       return;
     }
 
-    // Validar CNPJ/CPF (remove caracteres especiais)
-    const cnpjDigits = cnpj.replace(/\D/g, "");
+    // Validar CNPJ/CPF (remove caracteres especiais para contar os números)
+    const cnpjDigits = documento.replace(/\D/g, "");
     // Aceitar CNPJ (14 dígitos) ou CPF (11 dígitos)
     if (cnpjDigits.length !== 14 && cnpjDigits.length !== 11) {
       setError("CNPJ deve conter 14 dígitos ou CPF deve conter 11 dígitos.");
@@ -115,8 +138,8 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
         email,
         password,
         name,
-        cnpj_revenda: cnpj, // ← CNPJ da revenda
-        cnpj_admin: adminUser?.cnpj, // ← CNPJ do admin para fazer a associação
+        cnpj_revenda: documento, // ← Envia com a formatação da máscara
+        cnpj_admin: adminUser?.cnpj,
       });
 
       if (response && response.revenda_id) {
@@ -255,16 +278,25 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
         <label className="block text-white mb-4">
           CNPJ ou CPF da Revenda *
           <input
-            ref={cnpjRef}
             type="text"
+            value={documento}
+            onChange={(e) => setDocumento(formatDocumento(e.target.value))}
             placeholder="XX.XXX.XXX/0001-XX ou XXX.XXX.XXX-XX"
-            className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+            className={`w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none ${
+              documento && !isDocumentoValid ? "border-red-500" : ""
+            }`}
             disabled={isSaving}
             required
           />
           <span className="text-xs text-gray-400">
             CNPJ (14 dígitos) ou CPF (11 dígitos) - com ou sem formatação
           </span>
+          {documento && !isDocumentoValid && (
+            <span className="text-xs text-red-400 block mt-1">
+              Documento incompleto ({documento.replace(/\D/g, "").length}{" "}
+              dígitos informados)
+            </span>
+          )}
         </label>
 
         <label className="block text-white mb-4">
@@ -331,11 +363,13 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
           </button>
           <button
             type="submit"
-            disabled={isSaving || !isPasswordValid}
+            disabled={
+              isSaving || !isPasswordValid || !isDocumentoValid || !documento
+            }
             className={`
               px-4 py-2 rounded-md text-black font-medium
               ${
-                isSaving || !isPasswordValid
+                isSaving || !isPasswordValid || !isDocumentoValid || !documento
                   ? "bg-gray-500 cursor-not-allowed"
                   : "bg-[#08cb7c] hover:bg-green-600"
               }
