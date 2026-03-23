@@ -81,6 +81,18 @@ class Settings(BaseSettings):
     TIMEZONE: str = "America/Sao_Paulo"
     TZ: ZoneInfo = ZoneInfo("America/Sao_Paulo")
 
+    # Verification & Terms
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    CURRENT_TERMS_VERSION: str = os.getenv("CURRENT_TERMS_VERSION", "1.0")
+    VERIFICATION_CODE_EXPIRY_MINUTES: int = int(
+        os.getenv("VERIFICATION_CODE_EXPIRY_MINUTES", "15")
+    )
+    INVITATION_TOKEN_EXPIRY_HOURS: int = int(
+        os.getenv("INVITATION_TOKEN_EXPIRY_HOURS", "72")
+    )
+    MAX_VERIFICATION_ATTEMPTS: int = int(os.getenv("MAX_VERIFICATION_ATTEMPTS", "5"))
+    MAX_RESEND_PER_HOUR: int = int(os.getenv("MAX_RESEND_PER_HOUR", "3"))
+
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 

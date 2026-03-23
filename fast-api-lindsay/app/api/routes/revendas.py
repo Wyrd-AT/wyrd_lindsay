@@ -29,15 +29,8 @@ async def list_revendas(user: dict = Depends(get_current_user)):
 
     db = get_users_db()
     try:
-        # Filtrar revendas por cnpj_admin do usuário admin
-        admin_cnpj = user.get("cnpj")
-
-        if admin_cnpj:
-            # Buscar revendas criadas por este admin (cnpj_admin == admin.cnpj)
-            selector = {"type": "revenda", "cnpj_admin": admin_cnpj}
-        else:
-            # Fallback: se admin não tem CNPJ (admin root), retorna todas
-            selector = {"type": "revenda"}
+        # Admin vê todas as revendas
+        selector = {"type": "revenda"}
 
         result = db.find({"selector": selector, "limit": 500})
 

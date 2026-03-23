@@ -13,6 +13,8 @@ from app.models.schemas import (
 )
 from app.services.auth import AuthService
 from app.services.permissions import PermissionChecker
+from app.services.verification_service import VerificationService
+from app.services.email_service import EmailService
 from app.utils.validators import validate_password, validate_email, validate_name
 from app.utils.cognito_utils import get_secret_hash
 from app.api.routes.auth import get_current_user
@@ -197,17 +199,40 @@ async def create_cliente_admin(
                 "status": "active",  # Admin/revenda cria direto como ativo
                 "created_at": now,
                 "approved_at": now,  # Criado por admin/revenda = aprovado imediatamente
+                "created_by": user.get("email"),
                 "cognito_sub": cognito_sub,
                 "cognito_synced": True,
                 "revenda_id": body.revenda_id or None,
-                "cnpj_cliente": body.cnpj_cliente,  # CNPJ do cliente
-                "cnpj_admin": cnpj_admin,  # Herdado do admin
-                "cnpj_revenda": cnpj_revenda,  # Herdado da revenda associada
-                "sub_role": body.sub_role or "superusuario",  # Sub-role do cliente
-                "irrigadores": [],  # Inicializa vazio, será preenchido depois
+                "cnpj_cliente": body.cnpj_cliente,
+                "cnpj_admin": cnpj_admin,
+                "cnpj_revenda": cnpj_revenda,
+                "sub_role": body.sub_role or "superusuario",
+                "irrigadores": [],
+                # Verificação & Termos — cliente deve ativar via convite
+                "email_verified": False,
+                "email_verified_at": None,
+                "terms_accepted": False,
+                "terms_version": None,
+                "terms_accepted_at": None,
+                "terms_accepted_ip": None,
+                "first_login_at": None,
+                "last_login_at": None,
             }
 
             db.save(cliente_doc)
+
+            # Gerar token de convite e enviar email
+            verification_service = VerificationService(db)
+            token_success, invitation_token, _ = (
+                verification_service.generate_invitation_token(body.email)
+            )
+            if token_success:
+                EmailService.send_invitation(
+                    email=body.email,
+                    invitation_token=invitation_token,
+                    name=body.name,
+                    invited_by=user.get("email", ""),
+                )
 
             # ✅ Atualizar revenda.clientes[] com o cnpj_cliente
             if body.revenda_id and body.cnpj_cliente:
@@ -435,13 +460,35 @@ async def create_company_user(
             "cnpj_admin": cnpj_admin,
             "cnpj_revenda": cnpj_revenda,
             "irrigadores": [],
+            # Verificação & Termos — usuário deve ativar via convite
+            "email_verified": False,
+            "email_verified_at": None,
+            "terms_accepted": False,
+            "terms_version": None,
+            "terms_accepted_at": None,
+            "terms_accepted_ip": None,
+            "first_login_at": None,
+            "last_login_at": None,
         }
 
         db.save(cliente_doc)
 
+        # Gerar token de convite e enviar email
+        verification_service = VerificationService(db)
+        token_success, invitation_token, _ = (
+            verification_service.generate_invitation_token(body.email)
+        )
+        if token_success:
+            EmailService.send_invitation(
+                email=body.email,
+                invitation_token=invitation_token,
+                name=body.name,
+                invited_by=user.get("email", ""),
+            )
+
         return {
             "status": "success",
-            "message": f"Usuário {body.sub_role} criado com sucesso!",
+            "message": f"Usuário {body.sub_role} criado com sucesso! Email de ativação enviado.",
             "cliente_id": doc_id,
             "email": body.email,
             "name": body.name,

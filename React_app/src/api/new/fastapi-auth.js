@@ -73,14 +73,31 @@ export const login = async (email, password) => {
       password,
     });
 
-    const { access_token, user } = response.data;
+    const {
+      access_token,
+      user,
+      email_verified,
+      terms_accepted,
+      terms_version,
+      requires_action,
+    } = response.data;
 
-    // O token já vem do backend, vamos armazenar
-    useAuthStore.getState().login(user, access_token);
+    // Adicionar status de verificação/termos ao user object
+    const enrichedUser = {
+      ...user,
+      email_verified,
+      terms_accepted,
+      terms_version,
+      requires_action,
+    };
+
+    // Armazenar no store (mesmo que precise de verificação/termos)
+    useAuthStore.getState().login(enrichedUser, access_token);
 
     return {
       token: access_token,
-      user,
+      user: enrichedUser,
+      requires_action,
     };
   } catch (error) {
     const errorMsg =
@@ -142,6 +159,94 @@ export const getUserEmail = () => {
   return email;
 };
 
+/**
+ * VERIFY EMAIL - Verificar email com código de 6 dígitos
+ */
+export const verifyEmail = async (email, code) => {
+  try {
+    const response = await apiClient.post("/auth/verify-email", { email, code });
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail || `Erro ao verificar email: ${error.message}`,
+    );
+  }
+};
+
+/**
+ * RESEND CODE - Reenviar código de verificação
+ */
+export const resendVerificationCode = async (email) => {
+  try {
+    const response = await apiClient.post("/auth/resend-code", { email });
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail ||
+        `Erro ao reenviar código: ${error.message}`,
+    );
+  }
+};
+
+/**
+ * ACCEPT TERMS - Aceitar termos de uso
+ */
+export const acceptTerms = async (termsVersion) => {
+  try {
+    const response = await apiClient.post("/auth/accept-terms", {
+      terms_version: termsVersion,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail ||
+        `Erro ao aceitar termos: ${error.message}`,
+    );
+  }
+};
+
+/**
+ * GET CURRENT TERMS - Obter termos de uso atuais
+ */
+export const getCurrentTerms = async () => {
+  try {
+    const response = await apiClient.get("/auth/terms/current");
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail ||
+        `Erro ao obter termos: ${error.message}`,
+    );
+  }
+};
+
+/**
+ * ACTIVATE INVITATION - Ativar conta via convite
+ */
+export const activateInvitation = async (token, password, termsAccepted) => {
+  try {
+    const response = await apiClient.post("/auth/activate-invitation", {
+      token,
+      password,
+      terms_accepted: termsAccepted,
+    });
+
+    const { access_token, user } = response.data;
+
+    // Auto-login após ativação
+    if (access_token && user) {
+      useAuthStore.getState().login(user, access_token);
+    }
+
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail ||
+        `Erro ao ativar conta: ${error.message}`,
+    );
+  }
+};
+
 export default {
   register,
   login,
@@ -152,4 +257,9 @@ export default {
   getUserEmail,
   decodeToken,
   createToken,
+  verifyEmail,
+  resendVerificationCode,
+  acceptTerms,
+  getCurrentTerms,
+  activateInvitation,
 };

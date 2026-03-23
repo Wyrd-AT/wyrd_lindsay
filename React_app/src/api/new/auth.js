@@ -476,6 +476,34 @@ export const signIn = async (email, password) => {
       //console.log('ℹ️ Status não encontrado, usando padrão: active');
     }
 
+    // Verificação & Termos: buscar do CouchDB
+    let emailVerified = true; // default para backward compat
+    let termsAccepted = false;
+    let termsVersion = null;
+
+    if (docId) {
+      try {
+        const verifyDoc = await getDoc(COUCH_USERS_DB, docId);
+        if (verifyDoc) {
+          emailVerified = verifyDoc.email_verified !== undefined
+            ? verifyDoc.email_verified
+            : true; // backward compat
+          termsAccepted = verifyDoc.terms_accepted || false;
+          termsVersion = verifyDoc.terms_version || null;
+        }
+      } catch (err) {
+        // Ignora erro, usa defaults
+      }
+    }
+
+    // Determinar ação necessária
+    let requiresAction = null;
+    if (!emailVerified) {
+      requiresAction = "verify_email";
+    } else if (!termsAccepted) {
+      requiresAction = "accept_terms";
+    }
+
     // Extrair atributos relevantes
     // IMPORTANTE: Garantir que type e status sejam strings, não null/undefined
     const user = {
@@ -491,6 +519,11 @@ export const signIn = async (email, password) => {
       // Sub-role para clientes (superusuario, gerente, comum)
       sub_role:
         userType === "cliente" ? userSubRole || "superusuario" : undefined,
+      // Verificação & Termos
+      email_verified: emailVerified,
+      terms_accepted: termsAccepted,
+      terms_version: termsVersion,
+      requires_action: requiresAction,
     };
 
     // Garantir que admin sempre tenha status active

@@ -167,14 +167,8 @@ class PivoService:
 
         try:
             if checker.is_admin():
-                # Admin: irrigadores filtrados por cnpj_admin
-                if user_cnpj:
-                    pivos = self._find_pivos(
-                        {"table": "irrigadores", "cnpj_admin": user_cnpj}
-                    )
-                else:
-                    # Admin root sem CNPJ: vê todos
-                    pivos = self._find_pivos({"table": "irrigadores"})
+                # Admin vê todos os irrigadores
+                pivos = self._find_pivos({"table": "irrigadores"})
                 return [self._normalize_pivo(p) for p in pivos]
 
             elif checker.is_revenda():
