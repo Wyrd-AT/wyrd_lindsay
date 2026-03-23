@@ -106,6 +106,12 @@ async def create_cliente_admin(
     # Usar doc_id real da revenda (formato: revenda:{uuid}), não user:{email}
     if user.get("type") == "revenda":
         body.revenda_id = user.get("doc_id")
+    elif user.get("type") == "admin":
+        if not body.revenda_id:
+            raise HTTPException(
+                status_code=400,
+                detail="A seleção de uma revenda é obrigatória ao criar um cliente.",
+            )
 
     # Resolver cnpj_admin e cnpj_revenda da hierarquia
     cnpj_admin = None

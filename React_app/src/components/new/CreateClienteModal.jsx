@@ -118,6 +118,11 @@ export const CreateClienteModal = ({
         ? revendaSelectRef.current.value || null
         : null;
 
+    if (showRevendaField && !revendaId) {
+      setError("Por favor, selecione uma revenda.");
+      return;
+    }
+
     if (!name) {
       setError("Por favor, informe um nome.");
       return;
@@ -259,13 +264,17 @@ export const CreateClienteModal = ({
 
         {showRevendaField && (
           <label className="block text-white mb-4">
-            Revenda
+            Revenda *
             <select
               ref={revendaSelectRef}
+              defaultValue=""
               className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
               disabled={isSaving || loadingRevendas}
+              required
             >
-              <option value="">-- Sem atribuição --</option>
+              <option value="" disabled>
+                -- Selecione uma revenda --
+              </option>
               {loadingRevendas ? (
                 <option disabled>Carregando revendas...</option>
               ) : (
@@ -277,7 +286,7 @@ export const CreateClienteModal = ({
               )}
             </select>
             <span className="text-xs text-gray-400">
-              Opcional - Atribua a uma revenda ou deixe em branco
+              Obrigatório - Selecione a revenda responsável por este cliente
             </span>
           </label>
         )}
