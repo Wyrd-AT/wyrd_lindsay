@@ -1,11 +1,12 @@
-/// <reference types="vite/client" />
 /**
  * Modal para criar cliente
+ * Refatorado para utilizar o apiClient (Axios)
  * Usado por admin (com seletor de revenda) e revenda (revenda_id auto-preenchido)
  */
 
 import React, { useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
+import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
 
 interface Revenda {
   _id: string;
@@ -20,8 +21,6 @@ interface CreateClienteModalProps {
   /** Quando false (contexto de revenda), oculta o seletor de revenda e não faz fetch */
   showRevendaField?: boolean;
 }
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
   closeModal,
@@ -75,13 +74,10 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
     setLoading(true);
     setError(null);
 
-    // Para revenda: não envia revenda_id — o backend preenche automaticamente
-    // Para admin: envia o revenda_id selecionado (pode ser null)
     const payload: Record<string, unknown> = {
       name: form.name,
       email: form.email,
       password: form.password,
-      // Envia com a formatação da máscara preservada
       cnpj_cliente: form.cnpj_cliente,
     };
     if (revendas !== undefined) {
@@ -89,23 +85,14 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/clientes`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.detail || `HTTP ${response.status}`);
-      }
-
+      // O apiClient já gerencia o prefixo /api e o Bearer Token
+      await apiClient.post("/clientes", payload);
       onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao criar cliente");
+    } catch (err: any) {
+      // Captura o erro detalhado vindo do FastAPI através do Axios
+      setError(
+        err.response?.data?.detail || err.message || "Erro ao criar cliente",
+      );
     } finally {
       setLoading(false);
     }

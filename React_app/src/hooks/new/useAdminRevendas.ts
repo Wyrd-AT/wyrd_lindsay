@@ -1,14 +1,12 @@
 /**
  * Hook para gerenciar revendas (Admin only)
- * - Listar revendas pendentes
- * - Listar todas as revendas
- * - Aprovar revenda
- * - Rejeitar revenda
+ * Refatorado para utilizar o apiClient (Axios)
  */
 
 import { useCallback, useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import type { Revenda } from "../../types/admin";
+import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
 
 interface UseAdminRevendasReturn {
   pendingRevendas: Revenda[];
@@ -21,8 +19,6 @@ interface UseAdminRevendasReturn {
   rejectRevenda: (email: string) => Promise<void>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export const useAdminRevendas = (): UseAdminRevendasReturn => {
   const token = useAuthStore((state) => state.token);
   const [pendingRevendas, setPendingRevendas] = useState<Revenda[]>([]);
@@ -31,98 +27,64 @@ export const useAdminRevendas = (): UseAdminRevendasReturn => {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Fazer request autenticado
-   */
-  const makeRequest = useCallback(
-    async (endpoint: string, method: string = "GET", body?: any) => {
-      if (!token) {
-        throw new Error("Não autenticado");
-      }
-
-      const options: RequestInit = {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      };
-
-      if (body) {
-        options.body = JSON.stringify(body);
-      }
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    [token],
-  );
-
-  /**
    * Buscar revendas pendentes
    */
   const fetchPendingRevendas = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await makeRequest("/api/revendas/pending");
-      setPendingRevendas(data.revendas || []);
-    } catch (err) {
+      // O prefixo /api já está na baseURL do apiClient
+      const response = await apiClient.get("/revendas/pending");
+      setPendingRevendas(response.data.revendas || []);
+    } catch (err: any) {
       const message =
-        err instanceof Error ? err.message : "Erro ao buscar revendas";
+        err.response?.data?.detail || err.message || "Erro ao buscar revendas";
       setError(message);
       console.error("❌ Erro ao buscar revendas pendentes:", err);
     } finally {
       setLoading(false);
     }
-  }, [makeRequest]);
+  }, [token]);
 
   /**
    * Buscar todas as revendas
    */
   const fetchAllRevendas = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await makeRequest("/api/revendas");
-      setAllRevendas(data.revendas || []);
-    } catch (err) {
+      const response = await apiClient.get("/revendas");
+      setAllRevendas(response.data.revendas || []);
+    } catch (err: any) {
       const message =
-        err instanceof Error ? err.message : "Erro ao buscar revendas";
+        err.response?.data?.detail || err.message || "Erro ao buscar revendas";
       setError(message);
       console.error("❌ Erro ao buscar todas as revendas:", err);
     } finally {
       setLoading(false);
     }
-  }, [makeRequest]);
+  }, [token]);
 
   /**
    * Aprovar revenda
    */
   const approveRevenda = useCallback(
     async (email: string) => {
+      if (!token) return;
       setError(null);
       try {
-        await makeRequest(`/api/revendas/${email}/approve`, "POST");
-
-        // Remover de pendentes e atualizar lista
+        await apiClient.post(`/revendas/${email}/approve`);
         setPendingRevendas((prev) => prev.filter((r) => r.email !== email));
-
-        //console.log('✅ Revenda aprovada:', email);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Erro ao aprovar revenda";
+      } catch (err: any) {
+        const message = err.response?.data?.detail || "Erro ao aprovar revenda";
         setError(message);
         console.error("❌ Erro ao aprovar revenda:", err);
         throw err;
       }
     },
-    [makeRequest],
+    [token],
   );
 
   /**
@@ -130,23 +92,20 @@ export const useAdminRevendas = (): UseAdminRevendasReturn => {
    */
   const rejectRevenda = useCallback(
     async (email: string) => {
+      if (!token) return;
       setError(null);
       try {
-        await makeRequest(`/api/revendas/${email}/reject`, "POST");
-
-        // Remover de pendentes
+        await apiClient.post(`/revendas/${email}/reject`);
         setPendingRevendas((prev) => prev.filter((r) => r.email !== email));
-
-        //console.log('✅ Revenda rejeitada:', email);
-      } catch (err) {
+      } catch (err: any) {
         const message =
-          err instanceof Error ? err.message : "Erro ao rejeitar revenda";
+          err.response?.data?.detail || "Erro ao rejeitar revenda";
         setError(message);
         console.error("❌ Erro ao rejeitar revenda:", err);
         throw err;
       }
     },
-    [makeRequest],
+    [token],
   );
 
   return {

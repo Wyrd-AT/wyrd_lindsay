@@ -1,6 +1,7 @@
 import { useAuthStore } from "../../stores/new/authStore.ts";
 import api, { COGNITO_CLIENT_ID } from "./api";
 import { getDoc, COUCH_USERS_DB } from "./couch";
+import apiClient from "./apiClient"; // 👈 Ajuste o caminho para o seu arquivo apiClient.js
 
 // IMPORTANTE: CLIENT_SECRET deve estar em .env como VITE_COGNITO_CLIENT_SECRET
 // AVISO: CLIENT_SECRET nunca deve ser exposto em produção no frontend!
@@ -194,45 +195,29 @@ export const signUp = async (email, password, customAttributes = {}) => {
  */
 export const registerRevenda = async (email, password, name, domain, cnpj) => {
   try {
-    const API_BASE_URL =
-      import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        password,
-        name,
-        user_type: "revenda",
-        domain,
-        cnpj,
-      }),
+    // O apiClient já utiliza a VITE_API_BASE_URL e inclui o prefixo /api
+    // O endpoint final será: http://seu-ip/api/auth/register
+    const response = await apiClient.post("/auth/register", {
+      email,
+      password,
+      name,
+      user_type: "revenda",
+      domain,
+      cnpj,
     });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.detail || `Erro ao registrar revenda: ${response.status}`,
-      );
-    }
-
-    //console.log('✅ Revenda registrada com sucesso:');
-    //console.log('   Email:', email);
-    //console.log('   Domínio:', domain);
-    //console.log('   CNPJ:', cnpj);
-    //console.log('   Status:', data.message);
-
-    return data;
+    // No Axios, os dados retornados pelo servidor ficam em .data
+    return response.data;
   } catch (error) {
     console.error("❌ Erro ao registrar revenda:", error);
-    throw new Error(
+
+    // Captura a mensagem de erro detalhada vinda do backend (FastAPI) através do Axios
+    const errorMessage =
+      error.response?.data?.detail ||
       error.message ||
-        "Falha ao registrar revenda. Por favor, tente novamente.",
-    );
+      "Falha ao registrar revenda. Por favor, tente novamente.";
+
+    throw new Error(errorMessage);
   }
 };
 

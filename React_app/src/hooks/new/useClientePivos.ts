@@ -1,12 +1,12 @@
 /**
  * Hook para gerenciar pivôs de um cliente
- * - Listar pivôs do cliente
- * - Obter detalhes de um pivô
+ * Refatorado para utilizar o apiClient (Axios)
  */
 
 import { useCallback, useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import type { Pivo } from "../../types/admin";
+import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho conforme sua estrutura de pastas
 
 interface UseClientePivosReturn {
   pivos: Pivo[];
@@ -15,50 +15,36 @@ interface UseClientePivosReturn {
   fetchPivos: () => Promise<void>;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export const useClientePivos = (): UseClientePivosReturn => {
   const token = useAuthStore((state) => state.token);
   const [pivos, setPivos] = useState<Pivo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const makeRequest = useCallback(
-    async (endpoint: string) => {
-      if (!token) throw new Error("Não autenticado");
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    [token],
-  );
-
+  /**
+   * Buscar todos os pivôs
+   */
   const fetchPivos = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
+
     try {
-      const data = await makeRequest("/api/pivos");
-      setPivos(data.pivos || []);
-    } catch (err) {
+      // O prefixo /api já está incluído na baseURL do seu apiClient
+      const response = await apiClient.get("/pivos");
+
+      // No Axios, os dados retornados pelo backend ficam em .data
+      setPivos(response.data.pivos || []);
+    } catch (err: any) {
+      // Captura o erro detalhado enviado pelo FastAPI
       const message =
-        err instanceof Error ? err.message : "Erro ao buscar pivôs";
+        err.response?.data?.detail || err.message || "Erro ao buscar pivôs";
       setError(message);
+      console.error("❌ Erro ao buscar pivôs:", err);
     } finally {
       setLoading(false);
     }
-  }, [makeRequest]);
+  }, [token]);
 
   return {
     pivos,

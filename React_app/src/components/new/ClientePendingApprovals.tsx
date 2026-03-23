@@ -1,24 +1,22 @@
 /**
  * Componente: Fila de Aprovações de Clientes
- * Exibe clientes pendentes e permite aprovar/rejeitar
+ * Refatorado para utilizar o apiClient (Axios)
  * Para uso exclusivo de Revendas
  */
 
 import React, { useEffect, useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import type { Cliente } from "../../types/admin";
+import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
 
 interface ClientePendingApprovalsProps {
   onApprovalChange?: () => void;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export const ClientePendingApprovals: React.FC<
   ClientePendingApprovalsProps
 > = ({ onApprovalChange }) => {
   const token = useAuthStore((state) => state.token);
-  const user = useAuthStore((state) => state.user);
 
   const [pendingClientes, setPendingClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(false);
@@ -34,21 +32,15 @@ export const ClientePendingApprovals: React.FC<
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/clientes/pending`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // O prefixo /api já está na baseURL do seu apiClient
+      const response = await apiClient.get("/clientes/pending");
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      setPendingClientes(data.clientes || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erro ao carregar";
+      // No Axios, os dados retornados ficam em .data
+      setPendingClientes(response.data.clientes || []);
+    } catch (err: any) {
+      // Captura o erro detalhado enviado pelo FastAPI ou Axios
+      const message =
+        err.response?.data?.detail || err.message || "Erro ao carregar";
       setError(message);
       console.error("❌ Erro ao carregar clientes pendentes:", err);
     } finally {
@@ -60,25 +52,6 @@ export const ClientePendingApprovals: React.FC<
     loadPendingClientes();
   }, [token]);
 
-  const makeRequest = async (endpoint: string, method: string = "POST") => {
-    if (!token) throw new Error("Não autenticado");
-
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.detail || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-  };
-
   const handleApprove = async (cliente: Cliente) => {
     if (!confirm(`Aprovar cliente "${cliente.name}" (${cliente.email})?`)) {
       return;
@@ -86,14 +59,16 @@ export const ClientePendingApprovals: React.FC<
 
     setActionLoading(true);
     try {
-      await makeRequest(`/api/clientes/${cliente.email}/approve`);
+      // Usando diretamente o apiClient para o POST
+      await apiClient.post(`/clientes/${cliente.email}/approve`);
+
       setPendingClientes((prev) =>
         prev.filter((c) => c.email !== cliente.email),
       );
       setSelectedCliente(null);
       if (onApprovalChange) onApprovalChange();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao aprovar");
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Erro ao aprovar");
     } finally {
       setActionLoading(false);
     }
@@ -106,14 +81,16 @@ export const ClientePendingApprovals: React.FC<
 
     setActionLoading(true);
     try {
-      await makeRequest(`/api/clientes/${cliente.email}/reject`);
+      // Usando diretamente o apiClient para o POST
+      await apiClient.post(`/clientes/${cliente.email}/reject`);
+
       setPendingClientes((prev) =>
         prev.filter((c) => c.email !== cliente.email),
       );
       setSelectedCliente(null);
       if (onApprovalChange) onApprovalChange();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao rejeitar");
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Erro ao rejeitar");
     } finally {
       setActionLoading(false);
     }

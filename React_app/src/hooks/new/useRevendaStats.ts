@@ -1,16 +1,12 @@
 /**
  * Hook para estatísticas de uma revenda
- * - Total de clientes
- * - Clientes por status
- * - Total de pivôs
- * - Pivôs por status
+ * Refatorado para utilizar o apiClient (Axios)
  */
 
 import { useCallback, useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import type { RevendaStats } from "../../types/admin";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
 
 const DEFAULT_STATS: RevendaStats = {
   totalClientes: 0,
@@ -27,40 +23,25 @@ export const useRevendaStats = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const makeRequest = useCallback(
-    async (endpoint: string) => {
-      if (!token) throw new Error("Não autenticado");
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    [token],
-  );
-
+  /**
+   * Buscar todas as estatísticas (Clientes e Pivôs)
+   */
   const fetchStats = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
 
     try {
-      const [clientesData, pivosData] = await Promise.all([
-        makeRequest("/api/clientes"),
-        makeRequest("/api/pivos"),
+      // O prefixo /api já está na baseURL do seu apiClient
+      // Realiza as chamadas em paralelo para melhor performance
+      const [clientesRes, pivosRes] = await Promise.all([
+        apiClient.get("/clientes"),
+        apiClient.get("/pivos"),
       ]);
 
-      const clientes = clientesData.clientes || [];
-      const pivos = pivosData.pivos || [];
+      // No Axios, os dados retornados ficam em .data
+      const clientes = clientesRes.data.clientes || [];
+      const pivos = pivosRes.data.pivos || [];
 
       const newStats: RevendaStats = {
         totalClientes: clientes.length,
@@ -74,14 +55,18 @@ export const useRevendaStats = () => {
       };
 
       setStats(newStats);
-    } catch (err) {
+    } catch (err: any) {
+      // Captura a mensagem de erro vinda do backend ou do Axios
       const message =
-        err instanceof Error ? err.message : "Erro ao buscar estatísticas";
+        err.response?.data?.detail ||
+        err.message ||
+        "Erro ao buscar estatísticas";
       setError(message);
+      console.error("❌ Erro ao buscar estatísticas da revenda:", err);
     } finally {
       setLoading(false);
     }
-  }, [makeRequest]);
+  }, [token]);
 
   return {
     stats,

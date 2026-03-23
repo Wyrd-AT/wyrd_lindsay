@@ -1,13 +1,12 @@
 /**
  * Hook para estatísticas do sistema (Admin only)
- * - Total de revendas/clientes/pivôs
- * - Revendas/clientes por status
- * - Pivôs por status
+ * Refatorado para utilizar o apiClient (Axios)
  */
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import type { AdminStats } from "../../types/admin";
+import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
 
 interface UseAdminStatsReturn {
   stats: AdminStats | null;
@@ -15,8 +14,6 @@ interface UseAdminStatsReturn {
   error: string | null;
   fetchStats: () => Promise<void>;
 }
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Estatísticas padrão
 const DEFAULT_STATS: AdminStats = {
@@ -41,39 +38,13 @@ export const useAdminStats = (): UseAdminStatsReturn => {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Fazer request autenticado
-   */
-  const makeRequest = useCallback(
-    async (endpoint: string) => {
-      if (!token) {
-        throw new Error("Não autenticado");
-      }
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-
-      return response.json();
-    },
-    [token],
-  );
-
-  /**
    * Buscar estatísticas de revendas
    */
   const fetchRevendasStats = useCallback(async () => {
     try {
-      const data = await makeRequest("/api/revendas");
-      const revendas = data.revendas || [];
+      // O prefixo /api já está na baseURL do apiClient
+      const response = await apiClient.get("/revendas");
+      const revendas = response.data.revendas || [];
 
       return {
         total: revendas.length,
@@ -85,15 +56,15 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       console.warn("⚠️ Erro ao buscar stats de revendas:", err);
       return { total: 0, active: 0, pending: 0, rejected: 0 };
     }
-  }, [makeRequest]);
+  }, []);
 
   /**
    * Buscar estatísticas de clientes
    */
   const fetchClientesStats = useCallback(async () => {
     try {
-      const data = await makeRequest("/api/clientes");
-      const clientes = data.clientes || [];
+      const response = await apiClient.get("/clientes");
+      const clientes = response.data.clientes || [];
 
       return {
         total: clientes.length,
@@ -105,15 +76,15 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       console.warn("⚠️ Erro ao buscar stats de clientes:", err);
       return { total: 0, active: 0, pending: 0, rejected: 0 };
     }
-  }, [makeRequest]);
+  }, []);
 
   /**
    * Buscar estatísticas de pivôs
    */
   const fetchPivosStats = useCallback(async () => {
     try {
-      const data = await makeRequest("/api/pivos");
-      const pivos = data.pivos || [];
+      const response = await apiClient.get("/pivos");
+      const pivos = response.data.pivos || [];
 
       return {
         total: pivos.length,
@@ -126,12 +97,13 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       console.warn("⚠️ Erro ao buscar stats de pivôs:", err);
       return { total: 0, active: 0, alarmed: 0, maintenance: 0 };
     }
-  }, [makeRequest]);
+  }, []);
 
   /**
    * Buscar todas as estatísticas
    */
   const fetchStats = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     setError(null);
 
@@ -158,16 +130,17 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       };
 
       setStats(newStats);
-      //console.log('✅ Estatísticas carregadas:', newStats);
-    } catch (err) {
+    } catch (err: any) {
       const message =
-        err instanceof Error ? err.message : "Erro ao buscar estatísticas";
+        err.response?.data?.detail ||
+        err.message ||
+        "Erro ao buscar estatísticas";
       setError(message);
       console.error("❌ Erro ao buscar estatísticas:", err);
     } finally {
       setLoading(false);
     }
-  }, [fetchRevendasStats, fetchClientesStats, fetchPivosStats]);
+  }, [token, fetchRevendasStats, fetchClientesStats, fetchPivosStats]);
 
   return {
     stats,
