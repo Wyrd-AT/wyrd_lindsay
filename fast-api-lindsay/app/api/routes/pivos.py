@@ -170,6 +170,11 @@ async def create_pivo(
                 "equipamentos": request.equipamentos,
                 "ativo": True,
                 "location": request.location,
+                "contacts": {
+                    "whatsapp": request.whatsapp,
+                    "sms": request.sms,
+                    "email": request.email,
+                },
             },
             checker=checker,
         )

@@ -172,6 +172,10 @@ class CreatePivoRequest(BaseModel):
     equipamentos: List[str] = []  # ex: ["Painel 1", "Torre 1", "Casa de bombas"]
     location: Optional[Dict[str, float]] = None
 
+    whatsapp: Optional[str] = None
+    sms: Optional[str] = None
+    email: Optional[str] = None
+
 
 class UpdatePivoRequest(BaseModel):
     """Requisição para atualizar pivô"""

@@ -72,6 +72,11 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     e.preventDefault();
     const codigo = nameRef.current?.value?.trim();
     const nome = apelidoRef.current?.value?.trim();
+
+    const whatsapp = whatsappRef.current?.value?.trim();
+    const sms = smsRef.current?.value?.trim();
+    const email = emailRef.current?.value?.trim();
+
     if (!codigo) {
       setError("Por favor, informe o código do irrigador.");
       return;
@@ -92,6 +97,9 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       await createPivo({
         codigo,
         nome,
+        whatsapp,
+        sms,
+        email,
         cliente_id: isAdmin ? clienteId : undefined, // cnpj_cliente do cliente selecionado
         equipamentos: equipamentos.filter(Boolean),
       });

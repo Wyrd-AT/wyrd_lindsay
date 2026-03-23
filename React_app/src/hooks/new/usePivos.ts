@@ -48,6 +48,9 @@ export function usePivos() {
       cliente_id?: string;
       equipamentos?: string[];
       location?: { lat: number; lng: number };
+      whatsapp?: string;
+      sms?: string;
+      email?: string;
     }) => {
       if (!authState.isAuthenticated) {
         throw new Error("Usuário não autenticado");

@@ -56,6 +56,10 @@ class PivoModel(BaseModel):
     ativo: bool = True
     location: Optional[Dict] = None  # {"lat": -15.79, "lng": -48.10}
 
+    whatsapp: Optional[str] = None
+    sms: Optional[str] = None
+    email: Optional[str] = None
+
 
 class PivoDocument(PivoModel):
     """Documento completo do pivô no CouchDB"""
@@ -123,9 +127,9 @@ class PivoService:
             "irrigador": pivo_model.nome,
             "equipamentos": pivo_model.equipamentos,
             "contacts": {
-                "whatsapp": None,
-                "sms": None,
-                "email": None,
+                "whatsapp": pivo_data.get("contacts", {}).get("whatsapp"),
+                "sms": pivo_data.get("contacts", {}).get("sms"),
+                "email": pivo_data.get("contacts", {}).get("email"),
             },
             "cnpj_cliente": pivo_model.cnpj_cliente,
             "nome_cliente": pivo_model.nome_cliente,
