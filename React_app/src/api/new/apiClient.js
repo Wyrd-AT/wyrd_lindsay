@@ -46,13 +46,48 @@ apiClient.interceptors.request.use(
  * - Trata erros comuns (401, 403, 500)
  * - Log estruturado de erros
  */
+// Flag para evitar múltiplos redirects simultâneos
+let isRedirecting = false;
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     // Se 401 (não autorizado), limpar token e redirecionar para login
     if (error.response?.status === 401) {
       useAuthStore.getState().logout();
-      window.location.href = "/login";
+      window.location.href = "/";
+    }
+
+    // 403 com códigos específicos de onboarding (NÃO fazer logout)
+    if (error.response?.status === 403 && !isRedirecting) {
+      const detail = error.response?.data?.detail;
+
+      if (detail === "email_not_verified") {
+        isRedirecting = true;
+        window.location.href = "/verify-email";
+        setTimeout(() => { isRedirecting = false; }, 2000);
+        return Promise.reject(error);
+      }
+
+      if (detail === "terms_not_accepted") {
+        isRedirecting = true;
+        window.location.href = "/accept-terms";
+        setTimeout(() => { isRedirecting = false; }, 2000);
+        return Promise.reject(error);
+      }
+
+      if (detail === "account_pending") {
+        isRedirecting = true;
+        window.location.href = "/account-pending";
+        setTimeout(() => { isRedirecting = false; }, 2000);
+        return Promise.reject(error);
+      }
+
+      if (detail === "account_rejected") {
+        useAuthStore.getState().logout();
+        window.location.href = "/?error=account_rejected";
+        return Promise.reject(error);
+      }
     }
 
     // Log de erro estruturado

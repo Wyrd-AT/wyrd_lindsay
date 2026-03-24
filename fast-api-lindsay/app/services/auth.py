@@ -154,6 +154,7 @@ class AuthService:
                     status="error", message=f"Admin '{email}' já existe"
                 )
 
+            now = datetime.utcnow().isoformat()
             admin_doc = {
                 "_id": doc_id,
                 "type": "admin",
@@ -164,7 +165,16 @@ class AuthService:
                 "revendas": [],
                 "status": "active",
                 "created_by": created_by or "system",
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": now,
+                # Verificação & Termos
+                "email_verified": True,  # Admin criado pelo sistema = verificado
+                "email_verified_at": now,
+                "terms_accepted": False,
+                "terms_version": None,
+                "terms_accepted_at": None,
+                "terms_accepted_ip": None,
+                "first_login_at": None,
+                "last_login_at": None,
             }
 
             self.db.save(admin_doc)
@@ -199,6 +209,7 @@ class AuthService:
                     status="error", message=f"Revenda com domínio '{domain}' já existe"
                 )
 
+            now = datetime.utcnow().isoformat()
             revenda_doc = {
                 "_id": doc_id,
                 "type": "revenda",
@@ -208,7 +219,16 @@ class AuthService:
                 "password_hash": self.hash_password(password),
                 "status": "pending",  # Admin deve aprovar
                 "clientes": [],
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": now,
+                # Verificação & Termos
+                "email_verified": False,
+                "email_verified_at": None,
+                "terms_accepted": False,
+                "terms_version": None,
+                "terms_accepted_at": None,
+                "terms_accepted_ip": None,
+                "first_login_at": None,
+                "last_login_at": None,
             }
 
             self.db.save(revenda_doc)
@@ -306,6 +326,7 @@ class AuthService:
                     )
 
             # Criar cliente
+            now = datetime.utcnow().isoformat()
             cliente = {
                 "_id": f"cliente:{email}",
                 "email": email,
@@ -313,7 +334,16 @@ class AuthService:
                 "password_hash": self.hash_password(password),
                 "status": "pending",  # Revenda deve aprovar
                 "pivoIds": [],
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": now,
+                # Verificação & Termos
+                "email_verified": False,
+                "email_verified_at": None,
+                "terms_accepted": False,
+                "terms_version": None,
+                "terms_accepted_at": None,
+                "terms_accepted_ip": None,
+                "first_login_at": None,
+                "last_login_at": None,
             }
 
             # Adicionar ao array de clientes

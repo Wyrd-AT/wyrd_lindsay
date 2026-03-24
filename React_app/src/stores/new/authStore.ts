@@ -17,6 +17,11 @@ export interface User {
   status?: UserStatus;
   doc_id?: string; // ✅ ID do documento no CouchDB
   sub_role?: ClienteSubRole; // Sub-role para clientes
+  // Verificação & Termos
+  email_verified?: boolean;
+  terms_accepted?: boolean;
+  terms_version?: string;
+  requires_action?: "verify_email" | "accept_terms" | null;
   [key: string]: any;
 }
 
@@ -266,6 +271,19 @@ export const selectCanManageCompanyUsers = (state: AuthState) =>
   selectIsActiveUser(state) && selectIsSuperusuario(state);
 
 // Helper para verificar se o usuário pode ver um recurso específico
+// ============================================================================
+// Selectors para Verificação & Termos
+// ============================================================================
+
+export const selectNeedsVerification = (state: AuthState) =>
+  state.isAuthenticated && state.user?.email_verified === false;
+
+export const selectNeedsTerms = (state: AuthState) =>
+  state.isAuthenticated && state.user?.terms_accepted === false;
+
+export const selectRequiresAction = (state: AuthState) =>
+  state.user?.requires_action || null;
+
 export const selectCanViewResource = (
   state: AuthState,
   resourceOwnerId?: string,

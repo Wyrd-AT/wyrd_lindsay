@@ -22,6 +22,11 @@ import GerenciarPivosPage from "./pages/new/GerenciarPivosPage";
 import GerenciarClientesRevendaPage from "./pages/new/GerenciarClientesRevendaPage";
 import GerenciarUsuariosEmpresaPage from "./pages/new/GerenciarUsuariosEmpresaPage";
 import GerenciarAdminsPage from "./pages/new/GerenciarAdminsPage";
+// Onboarding - Verificação & Termos
+import VerifyEmail from "./pages/new/VerifyEmail";
+import AcceptTerms from "./pages/new/AcceptTerms";
+import InvitationActivation from "./pages/new/InvitationActivation";
+import AccountPending from "./pages/new/AccountPending";
 
 import { useAuthStore } from "./stores/new/authStore";
 import { useAuthStateValidator } from "./hooks/new/useAuthStateValidator";
@@ -43,6 +48,12 @@ export default function App() {
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        {/* Onboarding - Verificação & Termos (fora do ProtectedRoute) */}
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/accept-terms" element={<AcceptTerms />} />
+        <Route path="/activate" element={<InvitationActivation />} />
+        <Route path="/account-pending" element={<AccountPending />} />
 
         {/* FASE 1 - Hierarchical dashboards (Admin/Revenda/Cliente) */}
         <Route element={<ProtectedRoute />}>

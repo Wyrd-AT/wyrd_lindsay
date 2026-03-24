@@ -42,15 +42,25 @@ export default function Login() {
         // ✅ auth.js JÁ chamou login(user, token) com type + status
         // Não chamar novamente aqui para não sobrescrever!
 
-        // ✅ Redirecionar baseado no tipo de usuário
-        // Aguardar um tick para o estado atualizar
+        // ✅ Redirecionar baseado no status de verificação/termos e tipo
         setTimeout(() => {
           const authState = useAuthStore.getState();
           const userType = authState.user?.type;
+          const requiresAction = authState.user?.requires_action;
 
-          //console.log('🔐 Login bem-sucedido, redirecionando...');
-          //console.log('   User type:', userType);
-          //console.log('   User status:', authState.user?.status);
+          // Verificar se precisa de onboarding primeiro
+          if (requiresAction === "verify_email") {
+            navigate("/verify-email");
+            return;
+          }
+          if (requiresAction === "accept_terms") {
+            navigate("/accept-terms");
+            return;
+          }
+          if (authState.user?.status === "pending") {
+            navigate("/account-pending");
+            return;
+          }
 
           // Redirecionar para a rota apropriada
           if (userType === "admin") {
@@ -60,11 +70,6 @@ export default function Login() {
           } else if (userType === "cliente") {
             navigate("/home");
           } else {
-            console.warn(
-              "⚠️ User type desconhecido:",
-              userType,
-              "- usando fallback /home",
-            );
             navigate("/home");
           }
         }, 100);

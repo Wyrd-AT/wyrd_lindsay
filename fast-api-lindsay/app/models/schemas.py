@@ -234,3 +234,55 @@ class ErrorResponse(BaseModel):
     detail: str
     status_code: int
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+# ============================================================================
+# Verificação de Email & Termos de Uso
+# ============================================================================
+
+
+class VerifyEmailRequest(BaseModel):
+    """Requisição para verificar email com código de 6 dígitos"""
+
+    email: EmailStr
+    code: str = Field(..., pattern=r"^\d{6}$", description="Código de 6 dígitos")
+
+
+class ResendCodeRequest(BaseModel):
+    """Requisição para reenviar código de verificação"""
+
+    email: EmailStr
+
+
+class AcceptTermsRequest(BaseModel):
+    """Requisição para aceitar termos de uso"""
+
+    terms_version: str
+
+
+class TermsResponse(BaseModel):
+    """Resposta com termos de uso atuais"""
+
+    version: str
+    content: str
+    effective_date: str
+
+
+class InvitationActivateRequest(BaseModel):
+    """Requisição para ativar conta via convite"""
+
+    token: str
+    password: str = Field(..., min_length=6)
+    terms_accepted: bool = True
+
+
+class LoginResponse(BaseModel):
+    """Resposta de login com status de verificação/termos"""
+
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+    email_verified: bool = True
+    terms_accepted: bool = False
+    terms_version: Optional[str] = None
+    requires_action: Optional[str] = None  # "verify_email", "accept_terms", None

@@ -52,6 +52,11 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
                 "fields": ["type", "cnpj_cliente", "sub_role"],
                 "desc": "Índice para filtrar usuários de empresa por cnpj_cliente e sub_role",
             },
+            {
+                "name": "invitation-token",
+                "fields": ["invitation_token"],
+                "desc": "Índice para busca por token de convite",
+            },
         ]
 
         print(f"✅ Conectado ao banco de dados: {database}")
