@@ -2,68 +2,6 @@ import { useAuthStore } from "../../stores/new/authStore.ts";
 import api, { COGNITO_CLIENT_ID } from "./api";
 import { getDoc, COUCH_USERS_DB } from "./couch";
 
-// IMPORTANTE: CLIENT_SECRET deve estar em .env como VITE_COGNITO_CLIENT_SECRET
-// AVISO: CLIENT_SECRET nunca deve ser exposto em produção no frontend!
-// Para aplicações públicas, use um cliente Cognito SEM secret.
-const COGNITO_CLIENT_SECRET =
-  import.meta.env.VITE_COGNITO_CLIENT_SECRET ||
-  "1jeh2l3f1uf4pjaqcf77i7a2rccucjlg7cnc3lu89n9hhc25qcv6";
-
-// Função para calcular SECRET_HASH (HMAC-SHA256)
-const calculateSecretHash = async (username) => {
-  //console.log('\n🔑 Iniciando cálculo de SECRET_HASH...');
-
-  if (!COGNITO_CLIENT_SECRET) {
-    console.warn(
-      "⚠️ COGNITO_CLIENT_SECRET não definido - SECRET_HASH não será calculado",
-    );
-    return "";
-  }
-
-  //console.log('✅ CLIENT_SECRET está disponível');
-  //console.log('📝 Username para hash:', username);
-  //console.log('📝 CLIENT_ID para hash:', COGNITO_CLIENT_ID);
-
-  const message = username + COGNITO_CLIENT_ID;
-  //console.log('📝 Mensagem completa para hash:', message);
-
-  try {
-    // Converter strings para Uint8Array
-    const encoder = new TextEncoder();
-    const messageBuffer = encoder.encode(message);
-    const secretBuffer = encoder.encode(COGNITO_CLIENT_SECRET);
-
-    //console.log('✅ Buffers criados com sucesso');
-
-    // Calcular HMAC-SHA256
-    const key = await crypto.subtle.importKey(
-      "raw",
-      secretBuffer,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-
-    //console.log('✅ Chave HMAC importada');
-
-    const signature = await crypto.subtle.sign("HMAC", key, messageBuffer);
-
-    //console.log('✅ HMAC-SHA256 calculado');
-
-    // Converter para Base64
-    const hashArray = Array.from(new Uint8Array(signature));
-    const hashString = btoa(String.fromCharCode.apply(null, hashArray));
-
-    //console.log('✅ Convertido para Base64');
-    //console.log('🔐 SECRET_HASH final:', hashString.substring(0, 30) + '...');
-
-    return hashString;
-  } catch (err) {
-    console.error("❌ Erro ao calcular SECRET_HASH:", err);
-    throw err;
-  }
-};
-
 // Função auxiliar para decodificar JWT
 const decodeToken = (token) => {
   try {
@@ -87,8 +25,6 @@ const decodeToken = (token) => {
 // Serviço para criar um usuário (sign-up)
 export const signUp = async (email, password, customAttributes = {}) => {
   try {
-    const secretHash = await calculateSecretHash(email);
-
     // Atributos padrão do Cognito (sempre disponíveis)
     const userAttributes = [
       {
@@ -156,18 +92,12 @@ export const signUp = async (email, password, customAttributes = {}) => {
     }
     */
 
-    // Preparar payload - só incluir SecretHash se não estiver vazio
     const payload = {
       ClientId: COGNITO_CLIENT_ID,
       Username: email,
       Password: password,
       UserAttributes: userAttributes,
     };
-
-    // Só adicionar SecretHash se o client tiver secret configurado
-    if (secretHash && secretHash.length > 0) {
-      payload.SecretHash = secretHash;
-    }
 
     const response = await api.post("/", payload, {
       headers: {
@@ -239,19 +169,11 @@ export const registerRevenda = async (email, password, name, domain, cnpj) => {
 // Serviço para confirmar o e-mail após o cadastro
 export const confirmSignUp = async (email, confirmationCode) => {
   try {
-    const secretHash = await calculateSecretHash(email);
-
-    // Preparar payload - só incluir SecretHash se não estiver vazio
     const payload = {
       ClientId: COGNITO_CLIENT_ID,
       Username: email,
       ConfirmationCode: confirmationCode,
     };
-
-    // Só adicionar SecretHash se o client tiver secret configurado
-    if (secretHash && secretHash.length > 0) {
-      payload.SecretHash = secretHash;
-    }
 
     const response = await api.post("/", payload, {
       headers: {
@@ -267,16 +189,10 @@ export const confirmSignUp = async (email, confirmationCode) => {
 // Serviço para reenviar código de confirmação
 export const resendConfirmationCode = async (email) => {
   try {
-    const secretHash = await calculateSecretHash(email);
-
     const payload = {
       ClientId: COGNITO_CLIENT_ID,
       Username: email,
     };
-
-    if (secretHash && secretHash.length > 0) {
-      payload.SecretHash = secretHash;
-    }
 
     const response = await api.post("/", payload, {
       headers: {
@@ -293,44 +209,14 @@ export const resendConfirmationCode = async (email) => {
 // Serviço para autenticar o usuário (sign-in)
 export const signIn = async (email, password) => {
   try {
-    //console.log('\n🔐 ===== INICIANDO AUTENTICAÇÃO =====');
-    //console.log('Email:', email);
-    //console.log('Password length:', password.length);
-    //console.log('CLIENT_ID:', COGNITO_CLIENT_ID);
-    //console.log('CLIENT_SECRET configurado:', !!COGNITO_CLIENT_SECRET);
-
-    const secretHash = await calculateSecretHash(email);
-    //console.log('\n📝 SECRET_HASH calculado:', secretHash ? secretHash.substring(0, 20) + '...' : 'NÃO CALCULADO');
-
-    const authParameters = {
-      USERNAME: email,
-      PASSWORD: password,
-    };
-
-    // Adicionar SECRET_HASH se o client tiver secret configurado
-    if (secretHash && secretHash.length > 0) {
-      authParameters.SECRET_HASH = secretHash;
-      //console.log('✅ SECRET_HASH adicionado aos parâmetros');
-    } else {
-      //console.log('⚠️ SECRET_HASH NÃO foi adicionado (vazio ou não calculado)');
-    }
-
     const payload = {
       AuthFlow: "USER_PASSWORD_AUTH",
       ClientId: COGNITO_CLIENT_ID,
-      AuthParameters: authParameters,
+      AuthParameters: {
+        USERNAME: email,
+        PASSWORD: password,
+      },
     };
-
-    //console.log('\n📦 Payload enviado para Cognito:');
-    // console.log(JSON.stringify({
-    //   AuthFlow: payload.AuthFlow,
-    //   ClientId: payload.ClientId,
-    //   AuthParameters: {
-    //     USERNAME: authParameters.USERNAME,
-    //     PASSWORD: '***REDACTED***',
-    //     SECRET_HASH: authParameters.SECRET_HASH ? authParameters.SECRET_HASH.substring(0, 20) + '...' : 'undefined'
-    //   }
-    // }, null, 2));
 
     const response = await api.post("/", payload, {
       headers: {
@@ -587,7 +473,6 @@ export const signIn = async (email, password) => {
     console.error("\n📋 Resumo do erro:");
     console.error("- Email tentado:", email);
     console.error("- CLIENT_ID usado:", COGNITO_CLIENT_ID);
-    console.error("- CLIENT_SECRET configurado:", !!COGNITO_CLIENT_SECRET);
     console.error("- AuthFlow:", "USER_PASSWORD_AUTH");
 
     const cognitoType = error.response?.data?.__type;
@@ -619,17 +504,10 @@ export const signIn = async (email, password) => {
 // Serviço para iniciar o fluxo de "Esqueci a Senha"
 export const forgotPassword = async (email) => {
   try {
-    const secretHash = await calculateSecretHash(email);
-
     const payload = {
       ClientId: COGNITO_CLIENT_ID,
       Username: email,
     };
-
-    // Adicionar SecretHash se o client tiver secret configurado
-    if (secretHash && secretHash.length > 0) {
-      payload.SecretHash = secretHash;
-    }
 
     const response = await api.post("/", payload, {
       headers: {
@@ -651,19 +529,12 @@ export const confirmForgotPassword = async (
   newPassword,
 ) => {
   try {
-    const secretHash = await calculateSecretHash(email);
-
     const payload = {
       ClientId: COGNITO_CLIENT_ID,
       Username: email,
       ConfirmationCode: confirmationCode,
       Password: newPassword,
     };
-
-    // Adicionar SecretHash se o client tiver secret configurado
-    if (secretHash && secretHash.length > 0) {
-      payload.SecretHash = secretHash;
-    }
 
     const response = await api.post("/", payload, {
       headers: {

@@ -7,7 +7,7 @@ const COGNITO_BASE_URL =
   import.meta.env.VITE_COGNITO_BASE_URL ||
   "https://cognito-idp.sa-east-1.amazonaws.com";
 export const COGNITO_CLIENT_ID =
-  import.meta.env.VITE_COGNITO_CLIENT_ID || "42qha79hpnknpksf2k1djo7eq9";
+  import.meta.env.VITE_COGNITO_CLIENT_ID || "7ehgpvr886jea8mglvvc9pibs1";
 
 // Warn if using defaults (development only)
 if (
