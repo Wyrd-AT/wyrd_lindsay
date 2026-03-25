@@ -25,7 +25,7 @@ from app.models.schemas import (
     TermsResponse,
     InvitationActivateRequest,
 )
-from app.services.auth import AuthService
+from app.services.auth import AuthService, UserType
 from app.services.verification_service import VerificationService
 from app.services.terms_service import TermsService
 from app.services.email_service import EmailService
@@ -281,7 +281,13 @@ async def login(request: UserLoginRequest):
     auth_service = AuthService(settings.COUCHDB_URL, settings.COUCHDB_USERS_DB)
 
     try:
-        user = auth_service.authenticate(request.email, request.password)
+        # Tentar autenticar em todos os tipos de usuário
+        user = None
+        for utype in [UserType.ADMIN, UserType.REVENDA, UserType.CLIENTE]:
+            user = auth_service.authenticate(request.email, request.password, utype)
+            if user:
+                break
+
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

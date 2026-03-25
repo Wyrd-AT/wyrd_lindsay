@@ -478,6 +478,30 @@ class AuthService:
                             "doc_id": doc["_id"],
                         }
 
+            elif user_type == UserType.CLIENTE:
+                doc_id = f"cliente:{email}"
+                doc = self.db.get(doc_id)
+
+                if not doc or doc.get("status") not in ("active", "pending"):
+                    return None
+
+                if self.verify_password(password, doc.get("password_hash", "")):
+                    return {
+                        "email": doc["email"],
+                        "name": doc["name"],
+                        "type": "cliente",
+                        "status": doc["status"],
+                        "doc_id": doc_id,
+                        "cnpj_cliente": doc.get("cnpj_cliente", ""),
+                        "cnpj_revenda": doc.get("cnpj_revenda", ""),
+                        "cnpj_admin": doc.get("cnpj_admin", ""),
+                        "sub_role": doc.get("sub_role", "superusuario"),
+                        "revenda_id": doc.get("revenda_id", ""),
+                        "email_verified": doc.get("email_verified", False),
+                        "terms_accepted": doc.get("terms_accepted", False),
+                        "terms_version": doc.get("terms_version"),
+                    }
+
         except Exception as e:
             print(f"Erro durante autenticação: {e}")
             return None
