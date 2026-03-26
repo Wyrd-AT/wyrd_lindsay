@@ -2,9 +2,8 @@
 /**
  * Página Dedicada: Gerenciar Clientes (Revenda)
  *
- * - Role: revenda (nunca exibir "Revendas Pendentes" aqui; só "Clientes Pendentes")
+ * - Role: revenda
  * - Usa useRevendaClientes e useRevendaStats
- * - Fila de aprovação: ClientePendingApprovals (clientes aguardando aprovação da revenda)
  * - Criar cliente auto-vincula à própria revenda
  */
 
@@ -14,7 +13,7 @@ import Sidebar from "../../components/new/sidebar";
 import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
-import { ClientePendingApprovals } from "../../components/new/ClientePendingApprovals";
+
 import { CreateClienteModal } from "../../components/new/CreateClienteModal";
 import { useRevendaClientes } from "../../hooks/new/useRevendaClientes";
 import { useRevendaStats } from "../../hooks/new/useRevendaStats";
@@ -42,7 +41,6 @@ export function GerenciarClientesRevendaPage() {
     loading: loadingClientes,
     error: clientesError,
     fetchClientes,
-    fetchPendingClientes,
   } = useRevendaClientes();
 
   const {
@@ -56,14 +54,12 @@ export function GerenciarClientesRevendaPage() {
     if (isActiveUser) {
       fetchStats();
       fetchClientes();
-      fetchPendingClientes();
     }
   }, [isActiveUser]);
 
   const handleRefresh = () => {
     fetchStats();
     fetchClientes();
-    fetchPendingClientes();
   };
 
   return (
@@ -100,22 +96,9 @@ export function GerenciarClientesRevendaPage() {
                   value: stats?.totalClientes || 0,
                   subValue: `${stats?.activeClientes || 0} ativos`,
                 },
-                {
-                  label: "Clientes Pendentes",
-                  value: stats?.pendingClientes || 0,
-                  subValue: "Aguardando aprovação",
-                },
               ]}
               loading={loadingStats}
             />
-          </div>
-
-          {/* Fila de Aprovações de Clientes (revenda aprova seus clientes; não usar RevendaPendingApprovals) */}
-          <div className="px-4 mb-8">
-            <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">
-              Clientes Pendentes
-            </h2>
-            <ClientePendingApprovals onApprovalChange={handleRefresh} />
           </div>
 
           {/* Lista de Clientes */}
@@ -226,7 +209,7 @@ function ClientesSection({
 
       {/* Filtros */}
       <div className="mb-4 flex gap-2 flex-wrap">
-        {["all", "active", "pending", "rejected"].map((status) => (
+        {["all", "active"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
@@ -236,13 +219,7 @@ function ClientesSection({
                 : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
             }`}
           >
-            {status === "all"
-              ? "Todos"
-              : status === "active"
-                ? "Ativos"
-                : status === "pending"
-                  ? "Pendentes"
-                  : "Rejeitados"}
+            {status === "all" ? "Todos" : "Ativos"}
             &nbsp;(
             {
               clientes.filter((c) =>
@@ -283,19 +260,9 @@ function ClientesSection({
                   </p>
                 </div>
                 <span
-                  className={`text-xs px-2 py-1 rounded font-bold ${
-                    cliente.status === "active"
-                      ? "bg-green-900 text-green-100"
-                      : cliente.status === "pending"
-                        ? "bg-yellow-900 text-yellow-100"
-                        : "bg-red-900 text-red-100"
-                  }`}
+                  className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100"
                 >
-                  {cliente.status === "active"
-                    ? "Ativo"
-                    : cliente.status === "pending"
-                      ? "Pendente"
-                      : "Rejeitado"}
+                  Ativo
                 </span>
               </div>
             </div>

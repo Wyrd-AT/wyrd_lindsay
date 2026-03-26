@@ -23,7 +23,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const isAdmin = user?.type === "admin";
+  const isAdmin = user?.type === "admin" || user?.type === "superadmin";
 
   useEffect(() => {
     if (!isAuthenticated) {

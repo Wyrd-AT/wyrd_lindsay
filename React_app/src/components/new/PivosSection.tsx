@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
+import { getRecentAll } from "../../hooks/new/getRecent";
+import { parseSwVector } from "../../helpers/helperHomePage";
 
 interface Pivo {
   _id: string;
@@ -13,6 +15,8 @@ interface Pivo {
     lat: number;
     lng: number;
   };
+  alarmCount?: number;
+  lastAlertDate?: string;
 }
 
 export interface PivosSectionProps {
@@ -36,6 +40,16 @@ export interface PivosSectionProps {
   onSelectPivo?: (pivo: Pivo) => void;
 
   /**
+   * Atualizar pivô (admin/superadmin)
+   */
+  onUpdatePivo?: (pivoId: string, pivoData: { nome?: string; ativo?: boolean }) => Promise<void>;
+
+  /**
+   * Deletar pivô (admin/superadmin)
+   */
+  onDeletePivo?: (pivoId: string) => Promise<void>;
+
+  /**
    * Mostrar botão de criar pivô (apenas para cliente)
    */
   showCreateButton?: boolean;
@@ -53,6 +67,8 @@ export default function PivosSection({
   fetchPivos,
   onCreatePivo,
   onSelectPivo,
+  onUpdatePivo,
+  onDeletePivo,
   showCreateButton = false,
 }: PivosSectionProps) {
   const authState = useAuthStore();
@@ -74,7 +90,33 @@ export default function PivosSection({
 
     try {
       const data = await fetchPivos();
-      setPivos(data || []);
+      const base = data || [];
+      const enriched = await Promise.all(
+        base.map(async (pivo: Pivo) => {
+          try {
+            const recent = await getRecentAll("lindsay-data", String(pivo.codigo || ""));
+            const sw = recent?.sw;
+            const parsed = sw
+              ? parseSwVector(sw.data, sw.updated_at)
+              : { totalAlarmado: 0, date: "—" };
+            return {
+              ...pivo,
+              alarmCount: parsed.totalAlarmado || 0,
+              lastAlertDate: parsed.date || "—",
+            };
+          } catch {
+            return {
+              ...pivo,
+              alarmCount: 0,
+              lastAlertDate: "—",
+            };
+          }
+        }),
+      );
+
+      // Mostra primeiro os alarmados
+      enriched.sort((a, b) => (b.alarmCount || 0) - (a.alarmCount || 0));
+      setPivos(enriched);
     } catch (err: any) {
       setError(err?.message || "Erro ao buscar pivôs");
       console.error("Erro ao buscar pivôs:", err);
@@ -114,9 +156,29 @@ export default function PivosSection({
   // Determinar título baseado no role
   const getTitle = () => {
     const role = authState.user?.type;
-    if (role === "admin") return "Todos os Pivôs";
+    if (role === "admin" || role === "superadmin") return "Todos os Pivôs";
     if (role === "revenda") return "Pivôs dos Meus Clientes";
     return "Meus Pivôs";
+  };
+
+  const canManagePivo =
+    (authState.user?.type === "admin" || authState.user?.type === "superadmin") &&
+    !!onUpdatePivo &&
+    !!onDeletePivo;
+
+  const handleEditPivo = async (pivo: Pivo) => {
+    if (!onUpdatePivo) return;
+    const nome = window.prompt("Novo nome do pivô:", pivo.nome || "");
+    if (nome === null) return;
+    await onUpdatePivo(pivo._id, { nome });
+    await loadPivos();
+  };
+
+  const handleDeletePivo = async (pivo: Pivo) => {
+    if (!onDeletePivo) return;
+    if (!window.confirm(`Deseja deletar o pivô ${pivo.nome}?`)) return;
+    await onDeletePivo(pivo._id);
+    await loadPivos();
   };
 
   return (
@@ -200,7 +262,7 @@ export default function PivosSection({
               </p>
 
               {/* Status */}
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
                 <div
                   className={`w-3 h-3 rounded-full ${
                     pivo.ativo ? "bg-green-500" : "bg-red-500"
@@ -209,6 +271,11 @@ export default function PivosSection({
                 <span className="text-sm text-dashboard-text-secondary">
                   {pivo.ativo ? "Ativo" : "Inativo"}
                 </span>
+                {(pivo.alarmCount || 0) > 0 && (
+                  <span className="text-xs px-2 py-1 rounded font-bold bg-red-700 text-red-100">
+                    Alarmado ({pivo.alarmCount})
+                  </span>
+                )}
               </div>
 
               {/* Localização */}
@@ -223,6 +290,32 @@ export default function PivosSection({
                 Criado em:{" "}
                 {new Date(pivo.created_at).toLocaleDateString("pt-BR")}
               </p>
+              <p className="text-xs text-dashboard-text-tertiary mt-1">
+                Último dado: {pivo.lastAlertDate || "—"}
+              </p>
+
+              {canManagePivo && (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditPivo(pivo);
+                    }}
+                    className="px-3 py-1 text-xs rounded bg-dashboard-accent text-white font-bold hover:bg-dashboard-accent-hover transition"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePivo(pivo);
+                    }}
+                    className="px-3 py-1 text-xs rounded bg-red-700 text-white font-bold hover:bg-red-600 transition"
+                  >
+                    Deletar
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -28,8 +28,6 @@ from app.models.schemas import (
 from app.services.auth import AuthService, UserType
 from app.services.verification_service import VerificationService
 from app.services.terms_service import TermsService
-from app.services.email_service import EmailService
-from app.utils.cognito_utils import get_secret_hash
 
 router = APIRouter(prefix="/auth")
 security = HTTPBearer(auto_error=False)
@@ -69,7 +67,7 @@ def _resolve_user_doc(credentials):
     doc_id = None
 
     try:
-        if user_type == "admin":
+        if user_type in ("superadmin", "admin"):
             doc_id = f"admin:{email}"
             user_doc = db[doc_id]
         elif user_type == "revenda":
@@ -124,7 +122,7 @@ def _resolve_user_doc(credentials):
 
     # Resolver campos
     user_type_resolved = user_doc.get("type", user_type)
-    if user_type_resolved == "admin":
+    if user_type_resolved in ("superadmin", "admin"):
         cnpj_resolved = user_doc.get("cnpj_admin") or cnpj_from_token
     elif user_type_resolved == "revenda":
         cnpj_resolved = user_doc.get("cnpj_revenda") or cnpj_from_token
@@ -257,13 +255,6 @@ async def register(request: UserRegisterRequest):
         else:
             raise ValueError(f"Tipo inválido: {request.type}")
 
-        # Gerar e enviar código de verificação
-        db = get_users_db()
-        verification_service = VerificationService(db)
-        success, code, msg = verification_service.generate_code(request.email)
-        if success:
-            EmailService.send_verification_code(request.email, code, request.name)
-
         return UserResponse(
             email=user["email"],
             name=user["name"],
@@ -283,7 +274,7 @@ async def login(request: UserLoginRequest):
     try:
         # Tentar autenticar em todos os tipos de usuário
         user = None
-        for utype in [UserType.ADMIN, UserType.REVENDA, UserType.CLIENTE]:
+        for utype in [UserType.SUPERADMIN, UserType.ADMIN, UserType.REVENDA, UserType.CLIENTE]:
             user = auth_service.authenticate(request.email, request.password, utype)
             if user:
                 break
@@ -296,7 +287,7 @@ async def login(request: UserLoginRequest):
 
         # Gerar token (base64(email:type:cnpj:sub_role))
         user_cnpj = ""
-        if user.get("type") == "admin":
+        if user.get("type") in ("superadmin", "admin"):
             user_cnpj = user.get("cnpj_admin", "") or ""
         elif user.get("type") == "revenda":
             user_cnpj = user.get("cnpj_revenda", "") or ""
@@ -367,43 +358,101 @@ async def login(request: UserLoginRequest):
 
 
 @router.post("/verify-email")
-async def verify_email(request: VerifyEmailRequest):
-    """Verificar email com código de 6 dígitos"""
+async def verify_email(
+    request: VerifyEmailRequest, cognito_client=Depends(get_cognito_client)
+):
+    """Verificar email com código de 6 dígitos.
+
+    Prioriza confirmação nativa do Cognito e mantém fallback legado (código interno).
+    """
     db = get_users_db()
-    verification_service = VerificationService(db)
 
-    success, error = verification_service.verify_code(request.email, request.code)
+    try:
+        cognito_client.confirm_sign_up(
+            ClientId=settings.COGNITO_CLIENT_ID,
+            Username=request.email,
+            ConfirmationCode=request.code,
+        )
 
-    if not success:
-        raise HTTPException(status_code=400, detail=error)
+        # Sincronizar flag local
+        try:
+            user_doc = db.get(f"user:{request.email}")
+            if user_doc:
+                from datetime import datetime
 
-    return {"status": "success", "message": "Email verificado com sucesso"}
+                user_doc["email_verified"] = True
+                user_doc["email_verified_at"] = datetime.utcnow().isoformat()
+                db.save(user_doc)
+        except Exception:
+            pass
+
+        return {"status": "success", "message": "Email verificado com sucesso"}
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+
+        # Usuário já confirmado no Cognito -> tratar como sucesso e sincronizar local.
+        if error_code == "NotAuthorizedException":
+            try:
+                user_doc = db.get(f"user:{request.email}")
+                if user_doc:
+                    from datetime import datetime
+
+                    user_doc["email_verified"] = True
+                    user_doc["email_verified_at"] = datetime.utcnow().isoformat()
+                    db.save(user_doc)
+            except Exception:
+                pass
+            return {"status": "success", "message": "Email já estava verificado"}
+
+        # Erros de código Cognito
+        if error_code in ("CodeMismatchException", "ExpiredCodeException"):
+            raise HTTPException(status_code=400, detail="Código inválido ou expirado")
+
+        # Fallback legado: código interno salvo no CouchDB
+        verification_service = VerificationService(db)
+        success, error = verification_service.verify_code(request.email, request.code)
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        return {"status": "success", "message": "Email verificado com sucesso"}
 
 
 @router.post("/resend-code")
-async def resend_verification_code(request: ResendCodeRequest):
-    """Reenviar código de verificação (rate limit: 3/hora)"""
-    db = get_users_db()
-    verification_service = VerificationService(db)
+async def resend_verification_code(
+    request: ResendCodeRequest, cognito_client=Depends(get_cognito_client)
+):
+    """Reenviar código de verificação usando Cognito nativo (sem SendGrid)."""
+    try:
+        cognito_client.resend_confirmation_code(
+            ClientId=settings.COGNITO_CLIENT_ID,
+            Username=request.email,
+        )
+        return {"status": "success", "message": "Código reenviado com sucesso"}
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        # Usuário já confirmado no Cognito: não bloquear UX
+        if error_code == "NotAuthorizedException":
+            try:
+                db = get_users_db()
+                user_doc = db.get(f"user:{request.email}")
+                if user_doc:
+                    from datetime import datetime
 
-    # Checar rate limit
-    can_send, error = verification_service.can_resend(request.email)
-    if not can_send:
-        raise HTTPException(status_code=429, detail=error)
-
-    # Gerar novo código
-    success, code, msg = verification_service.generate_code(request.email)
-    if not success:
-        raise HTTPException(status_code=400, detail=msg)
-
-    # Buscar nome do usuário
-    user_doc = verification_service._get_user_doc(request.email)
-    name = user_doc.get("name", "") if user_doc else ""
-
-    # Enviar email
-    EmailService.send_verification_code(request.email, code, name)
-
-    return {"status": "success", "message": "Código reenviado com sucesso"}
+                    user_doc["email_verified"] = True
+                    user_doc["email_verified_at"] = datetime.utcnow().isoformat()
+                    db.save(user_doc)
+            except Exception:
+                pass
+            return {
+                "status": "success",
+                "message": "Email já verificado. Não é necessário reenviar código.",
+                "already_verified": True,
+            }
+        if error_code == "UserNotFoundException":
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(
+            status_code=400,
+            detail="Não foi possível reenviar código pelo Cognito",
+        )
 
 
 # ============================================================================
@@ -603,10 +652,6 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
                 ],
             }
 
-            secret_hash = get_secret_hash(email)
-            if secret_hash:
-                sign_up_params["SecretHash"] = secret_hash
-
             cognito_response = cognito_client.sign_up(**sign_up_params)
             cognito_sub = cognito_response["UserSub"]
 
@@ -655,13 +700,6 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
         except Exception as e:
             print(f"⚠️ Aviso ao confirmar usuário no Cognito: {e}")
 
-        # PASSO 4: Enviar código de verificação
-        db = get_users_db()
-        verification_service = VerificationService(db)
-        code_success, code, _ = verification_service.generate_code(email)
-        if code_success:
-            EmailService.send_verification_code(email, code, name)
-
         return {
             "status": "success",
             "message": revenda_data.get("message", "Revenda registrada com sucesso"),
@@ -669,7 +707,7 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
             "email": email,
             "name": name,
             "cnpj": revenda_data.get("cnpj"),
-            "next_steps": "Verifique seu email e aguarde aprovação do administrador",
+            "next_steps": "Aguarde aprovação do administrador",
         }
 
     except HTTPException:

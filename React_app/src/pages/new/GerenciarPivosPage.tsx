@@ -15,6 +15,8 @@ import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import PivosSection from "../../components/new/PivosSection";
 import { useAdminStats } from "../../hooks/new/useAdminStats";
+import { usePivos } from "../../hooks/new/usePivos";
+import { useDataStoreIrrigadores } from "../../stores/new/dataStoreIrrigadores";
 
 interface StatCard {
   label: string;
@@ -37,6 +39,9 @@ export function GerenciarPivosPage() {
     error: statsError,
     fetchStats,
   } = useAdminStats();
+  const { fetchPivos } = usePivos();
+  const updateIrrigador = useDataStoreIrrigadores((s) => s.updateIrrigador);
+  const removeIrrigador = useDataStoreIrrigadores((s) => s.removeIrrigador);
 
   useEffect(() => {
     if (isActiveUser) {
@@ -44,8 +49,16 @@ export function GerenciarPivosPage() {
     }
   }, [isActiveUser]);
 
+  useEffect(() => {
+    if (!isActiveUser) return;
+    const timer = setInterval(() => {
+      fetchStats();
+    }, 300000);
+    return () => clearInterval(timer);
+  }, [isActiveUser, fetchStats]);
+
   return (
-    <PermissionGuard allowedRoles={["admin"]} requireActive>
+    <PermissionGuard allowedRoles={["admin", "superadmin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -96,7 +109,18 @@ export function GerenciarPivosPage() {
               <h2 className="text-xl font-semibold text-dashboard-text-primary mb-4">
                 Monitoramento de Pivôs
               </h2>
-              <PivosSection />
+              <PivosSection
+                fetchPivos={fetchPivos}
+                onUpdatePivo={async (pivoId, pivoData) => {
+                  // Pivô é documento de irrigador no CouchDB; edição direta evita roundtrip no backend.
+                  await updateIrrigador(pivoId, pivoData);
+                }}
+                onDeletePivo={async (pivoId) => {
+                  // Deleção direta do documento irrigador.
+                  await removeIrrigador(pivoId);
+                  await fetchStats();
+                }}
+              />
             </div>
           </div>
         </BodyContent>

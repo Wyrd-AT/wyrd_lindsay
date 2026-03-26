@@ -39,6 +39,7 @@ export const createCliente = async (data) => {
       name: data.name,
       cnpj_cliente: data.cnpj_cliente,
       revenda_id: data.revenda_id || null,
+      sub_role: data.sub_role || null,
     });
     return response.data;
   } catch (error) {
@@ -52,13 +53,9 @@ export const createCliente = async (data) => {
  * @param {string} status - 'active', 'pending', or 'all'
  * @returns {Promise<Object>} Response with revendas list
  */
-export const fetchRevendas = async (status = "active") => {
+export const fetchRevendas = async () => {
   try {
-    let url = "/revendas";
-    if (status === "pending") {
-      url = "/revendas/pending";
-    }
-    const response = await apiClient.get(url);
+    const response = await apiClient.get("/revendas");
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -71,13 +68,9 @@ export const fetchRevendas = async (status = "active") => {
  * @param {string} status - 'active', 'pending', or 'all'
  * @returns {Promise<Object>} Response with clientes list
  */
-export const fetchClientes = async (status = "active") => {
+export const fetchClientes = async () => {
   try {
-    let url = "/clientes";
-    if (status === "pending") {
-      url = "/clientes/pending";
-    }
-    const response = await apiClient.get(url);
+    const response = await apiClient.get("/clientes");
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -101,17 +94,86 @@ export const fetchAdmins = async () => {
 
 /**
  * Create a new admin (admin only)
- * @param {Object} data - { email, password, name, cnpj_admin }
+ * @param {Object} data - { email, password, name, new_type?, cnpj_admin? }
  * @returns {Promise<Object>} Response with admin_id and status
  */
 export const createAdmin = async (data) => {
   try {
-    const response = await apiClient.post("/admins", {
+    const payload = {
       email: data.email,
       password: data.password,
       name: data.name,
-      cnpj_admin: data.cnpj_admin,
-    });
+    };
+    if (data.new_type) payload.new_type = data.new_type;
+    if (data.cnpj_admin) payload.cnpj_admin = data.cnpj_admin;
+
+    const response = await apiClient.post("/admins", payload);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+export const updateAdmin = async (adminId, data) => {
+  try {
+    const response = await apiClient.put(`/admins/${encodeURIComponent(adminId)}`, data);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+export const deleteAdmin = async (adminId) => {
+  try {
+    const response = await apiClient.delete(`/admins/${encodeURIComponent(adminId)}`);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+export const updateRevenda = async (revendaId, data) => {
+  try {
+    const response = await apiClient.put(
+      `/revendas/${encodeURIComponent(revendaId)}`,
+      data,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+export const deleteRevenda = async (revendaId) => {
+  try {
+    const response = await apiClient.delete(`/revendas/${encodeURIComponent(revendaId)}`);
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+export const updateCliente = async (clienteId, data) => {
+  try {
+    const response = await apiClient.put(
+      `/clientes/${encodeURIComponent(clienteId)}`,
+      data,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || error.message;
+    throw new Error(errorMsg);
+  }
+};
+
+export const deleteCliente = async (clienteId) => {
+  try {
+    const response = await apiClient.delete(`/clientes/${encodeURIComponent(clienteId)}`);
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;

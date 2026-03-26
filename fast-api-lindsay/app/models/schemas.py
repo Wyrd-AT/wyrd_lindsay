@@ -75,11 +75,6 @@ class RevendaResponse(BaseModel):
     created_at: str
 
 
-class ApprovalRequest(BaseModel):
-    """Requisição de aprovação"""
-
-    email: str
-
 
 class RevendasListResponse(BaseModel):
     """Lista de revendas"""
@@ -94,7 +89,16 @@ class AdminCreateAdminRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
-    cnpj_admin: str  # CNPJ do novo admin
+    new_type: Optional[str] = None  # "superadmin" ou "admin" (superadmin escolhe)
+    cnpj_admin: Optional[str] = None  # CNPJ do novo admin (quando superadmin cria admin externo)
+
+
+class AdminUpdateRequest(BaseModel):
+    """Requisição para atualizar admin/superadmin"""
+
+    name: Optional[str] = None
+    status: Optional[Literal["active", "pending", "rejected"]] = None
+    cnpj_admin: Optional[str] = None
 
 
 class AdminCreateRevendaRequest(BaseModel):
@@ -105,6 +109,15 @@ class AdminCreateRevendaRequest(BaseModel):
     name: str
     cnpj_revenda: str  # CNPJ da revenda a ser criada
     cnpj_admin: Optional[str] = None  # CNPJ do admin que cria (para hierarquia)
+
+
+class RevendaUpdateRequest(BaseModel):
+    """Requisição para atualizar revenda"""
+
+    name: Optional[str] = None
+    status: Optional[Literal["active", "pending", "rejected"]] = None
+    cnpj_revenda: Optional[str] = None
+    cnpj_admin: Optional[str] = None
 
 
 # ============================================================================
@@ -145,6 +158,18 @@ class AdminCreateClienteRequest(BaseModel):
     cnpj_cliente: str  # CNPJ do cliente
     revenda_id: Optional[str] = None  # Opcional: admin atribui a uma revenda
     sub_role: Optional[str] = None  # Se não informado, default "superusuario"
+
+
+class ClienteUpdateRequest(BaseModel):
+    """Requisição para atualizar cliente"""
+
+    name: Optional[str] = None
+    status: Optional[Literal["active", "pending", "rejected"]] = None
+    sub_role: Optional[Literal["superusuario", "gerente", "comum"]] = None
+    revenda_id: Optional[str] = None
+    cnpj_cliente: Optional[str] = None
+    cnpj_admin: Optional[str] = None
+    cnpj_revenda: Optional[str] = None
 
 
 class SuperusuarioCreateUserRequest(BaseModel):

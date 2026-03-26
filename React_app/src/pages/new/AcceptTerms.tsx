@@ -57,9 +57,9 @@ const AcceptTerms: React.FC = () => {
       setTimeout(() => {
         // Redirecionar para dashboard correto
         const type = user?.type;
-        if (type === "admin") navigate("/admin/home");
-        else if (type === "revenda") navigate("/revenda");
-        else navigate("/cliente");
+        if (type === "admin" || type === "superadmin") navigate("/admin/home");
+        else if (type === "revenda") navigate("/home");
+        else navigate("/home");
       }, 1500);
     } catch (err: any) {
       setError(err.message || "Erro ao aceitar termos");

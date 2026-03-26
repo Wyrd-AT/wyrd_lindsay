@@ -170,9 +170,18 @@ class PivoService:
         user_cnpj = user.get("cnpj", "")
 
         try:
-            if checker.is_admin():
-                # Admin vê todos os irrigadores
+            if checker.is_superadmin():
+                # Superadmin vê todos os irrigadores
                 pivos = self._find_pivos({"table": "irrigadores"})
+                return [self._normalize_pivo(p) for p in pivos]
+
+            elif checker.is_admin_only():
+                # Admin regular: apenas pivôs da própria hierarquia (cnpj_admin)
+                pivos = []
+                if user_cnpj:
+                    pivos = self._find_pivos(
+                        {"table": "irrigadores", "cnpj_admin": user_cnpj}
+                    )
                 return [self._normalize_pivo(p) for p in pivos]
 
             elif checker.is_revenda():

@@ -2,7 +2,7 @@
  * Página Dedicada: Gerenciar Clientes
  *
  * Exibe:
- * - Estatísticas de Clientes (Total, Pendentes, Ativos, Rejeitados)
+ * - Estatísticas de Clientes (Total, Ativos)
  * - Lista completa de clientes com filtros
  * - Ações: criar, ver detalhes
  */
@@ -14,9 +14,11 @@ import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import { CreateClienteModal } from "../../components/new/CreateClienteModal";
+import EditEntityModal from "../../components/new/EditEntityModal";
 import { useAdminClientes } from "../../hooks/new/useAdminClientes";
 import { useAdminStats } from "../../hooks/new/useAdminStats";
 import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
+import { updateCliente, deleteCliente } from "../../api/new/fastapi-admin";
 import type { Cliente } from "../../types/admin";
 
 interface StatCard {
@@ -33,8 +35,11 @@ interface StatsSectionProps {
 export function GerenciarClientesPage() {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
+  const isSuperadmin = authState.user?.type === "superadmin";
 
   const [showCreateCliente, setShowCreateCliente] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const {
     clientes,
@@ -59,8 +64,32 @@ export function GerenciarClientesPage() {
     }
   }, [isActiveUser]);
 
+  const handleEditCliente = async (cliente: Cliente) => {
+    setEditingCliente(cliente);
+  };
+
+  const handleSaveCliente = async (payload: Record<string, any>) => {
+    if (!editingCliente?._id) return;
+    setSavingEdit(true);
+    try {
+      await updateCliente(editingCliente._id, payload);
+      setEditingCliente(null);
+      await fetchClientes();
+      await fetchStats();
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteCliente = async (cliente: Cliente) => {
+    if (!window.confirm(`Deseja deletar ${cliente.name || cliente.email}?`)) return;
+    await deleteCliente(cliente._id);
+    await fetchClientes();
+    await fetchStats();
+  };
+
   return (
-    <PermissionGuard allowedRoles={["admin"]} requireActive>
+    <PermissionGuard allowedRoles={["admin", "superadmin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -96,11 +125,6 @@ export function GerenciarClientesPage() {
                   value: stats?.totalClientes || 0,
                   subValue: `${stats?.activeClientes || 0} ativos`,
                 },
-                {
-                  label: "Clientes Pendentes",
-                  value: stats?.pendingClientes || 0,
-                  subValue: `${stats?.rejectedClientes || 0} rejeitados`,
-                },
               ]}
               loading={loadingStats}
             />
@@ -113,6 +137,9 @@ export function GerenciarClientesPage() {
               loading={loadingClientes}
               onRefresh={fetchClientes}
               onCreateClick={() => setShowCreateCliente(true)}
+              isSuperadmin={isSuperadmin}
+              onEditCliente={handleEditCliente}
+              onDeleteCliente={handleDeleteCliente}
             />
           </div>
 
@@ -126,6 +153,17 @@ export function GerenciarClientesPage() {
                 fetchStats();
               }}
               revendas={allRevendas}
+            />
+          )}
+
+          {editingCliente && (
+            <EditEntityModal
+              entityType="cliente"
+              entity={editingCliente}
+              isSuperadmin={isSuperadmin}
+              isSaving={savingEdit}
+              onClose={() => setEditingCliente(null)}
+              onSave={handleSaveCliente}
             />
           )}
         </BodyContent>
@@ -183,6 +221,9 @@ interface ClientesSectionProps {
   loading: boolean;
   onRefresh: () => void;
   onCreateClick: () => void;
+  isSuperadmin: boolean;
+  onEditCliente: (cliente: Cliente) => Promise<void>;
+  onDeleteCliente: (cliente: Cliente) => Promise<void>;
 }
 
 function ClientesSection({
@@ -190,6 +231,9 @@ function ClientesSection({
   loading,
   onRefresh,
   onCreateClick,
+  isSuperadmin,
+  onEditCliente,
+  onDeleteCliente,
 }: ClientesSectionProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
@@ -222,7 +266,7 @@ function ClientesSection({
 
       {/* Filtros */}
       <div className="mb-4 flex gap-2 flex-wrap">
-        {["all", "active", "pending", "rejected"].map((status) => (
+        {["all", "active"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
@@ -232,13 +276,7 @@ function ClientesSection({
                 : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
             }`}
           >
-            {status === "all"
-              ? "Todos"
-              : status === "active"
-                ? "Ativos"
-                : status === "pending"
-                  ? "Pendentes"
-                  : "Rejeitados"}
+            {status === "all" ? "Todos" : "Ativos"}
             (
             {
               clientes.filter((c) =>
@@ -284,21 +322,27 @@ function ClientesSection({
                   )}
                 </div>
                 <span
-                  className={`text-xs px-2 py-1 rounded font-bold ${
-                    cliente.status === "active"
-                      ? "bg-green-900 text-green-100"
-                      : cliente.status === "pending"
-                        ? "bg-yellow-900 text-yellow-100"
-                        : "bg-red-900 text-red-100"
-                  }`}
+                  className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100"
                 >
-                  {cliente.status === "active"
-                    ? "Ativo"
-                    : cliente.status === "pending"
-                      ? "Pendente"
-                      : "Rejeitado"}
+                  Ativo
                 </span>
               </div>
+              {isSuperadmin && (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => onEditCliente(cliente)}
+                    className="px-3 py-1 text-xs rounded bg-dashboard-accent text-white font-bold hover:bg-dashboard-accent-hover transition"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => onDeleteCliente(cliente)}
+                    className="px-3 py-1 text-xs rounded bg-red-700 text-white font-bold hover:bg-red-600 transition"
+                  >
+                    Deletar
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

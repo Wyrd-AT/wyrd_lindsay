@@ -71,11 +71,11 @@ export const useDataStoreIrrigadores = create((set, get) => ({
   /**
    * Busca irrigadores por CNPJ.
    * @param cnpj - CNPJ do cliente (cnpj_cliente), da revenda (cnpj_revenda) ou do admin (cnpj_admin)
-   * @param filterBy - 'cnpj_cliente' | 'cnpj_revenda' | 'cnpj_admin'
+   * @param filterBy - 'cnpj_cliente' | 'cnpj_revenda' | 'cnpj_admin' | 'all'
    */
   fetchIrrigadores: async (cnpj, filterBy = "cnpj_cliente") => {
     //console.log(`[DataStore] fetchIrrigadores iniciado. CNPJ: ${cnpj}, filterBy: ${filterBy}`);
-    if (!cnpj) {
+    if (filterBy !== "all" && !cnpj) {
       set({ irrigadores: [], isLoading: false });
       return;
     }
@@ -88,11 +88,13 @@ export const useDataStoreIrrigadores = create((set, get) => ({
       } else {
         await ensureIndexCliente();
       }
+      const selector =
+        filterBy === "all"
+          ? { table: "irrigadores" }
+          : { table: "irrigadores", [filterBy]: cnpj };
+
       const data = await couchFind(DB, {
-        selector: {
-          table: "irrigadores",
-          [filterBy]: cnpj,
-        },
+        selector,
         limit: 500,
       });
       set({
@@ -219,7 +221,9 @@ export function useIrrigadores(cnpj, userType) {
   const irrigadores = useDataStoreIrrigadores((s) => s.irrigadores);
   const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
   const filterBy =
-    userType === "admin"
+    userType === "superadmin"
+      ? "all"
+      : userType === "admin"
       ? "cnpj_admin"
       : userType === "revenda"
         ? "cnpj_revenda"

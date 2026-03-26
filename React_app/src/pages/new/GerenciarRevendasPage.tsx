@@ -2,10 +2,9 @@
  * Página Dedicada: Gerenciar Revendas
  *
  * Exibe:
- * - Estatísticas de Revendas (Total, Pendentes, Ativas, Rejeitadas)
- * - Fila de aprovação de revendas pendentes
+ * - Estatísticas de Revendas (Total, Ativas)
  * - Lista completa de revendas com filtros
- * - Ações: criar, aprovar, rejeitar
+ * - Ação: criar revenda
  */
 
 import React, { useEffect, useState } from "react";
@@ -14,10 +13,11 @@ import Sidebar from "../../components/new/sidebar";
 import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
-import { RevendaPendingApprovals } from "../../components/new/RevendaPendingApprovals";
 import { CreateRevendaModal } from "../../components/new/CreateRevendaModal";
+import EditEntityModal from "../../components/new/EditEntityModal";
 import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
 import { useAdminStats } from "../../hooks/new/useAdminStats";
+import { updateRevenda, deleteRevenda } from "../../api/new/fastapi-admin";
 import type { Revenda } from "../../types/admin";
 
 interface StatCard {
@@ -34,14 +34,16 @@ interface StatsSectionProps {
 export function GerenciarRevendasPage() {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
+  const isSuperadmin = authState.user?.type === "superadmin";
 
   const [showCreateRevenda, setShowCreateRevenda] = useState(false);
+  const [editingRevenda, setEditingRevenda] = useState<Revenda | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const {
     allRevendas,
     loading: loadingRevendas,
     error: revendasError,
-    fetchPendingRevendas,
     fetchAllRevendas,
   } = useAdminRevendas();
 
@@ -54,14 +56,37 @@ export function GerenciarRevendasPage() {
 
   useEffect(() => {
     if (isActiveUser) {
-      fetchPendingRevendas();
       fetchStats();
       fetchAllRevendas();
     }
   }, [isActiveUser]);
 
+  const handleEditRevenda = async (revenda: Revenda) => {
+    setEditingRevenda(revenda);
+  };
+
+  const handleSaveRevenda = async (payload: Record<string, any>) => {
+    if (!editingRevenda?._id) return;
+    setSavingEdit(true);
+    try {
+      await updateRevenda(editingRevenda._id, payload);
+      setEditingRevenda(null);
+      await fetchAllRevendas();
+      await fetchStats();
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteRevenda = async (revenda: Revenda) => {
+    if (!window.confirm(`Deseja deletar ${revenda.name || revenda.email}?`)) return;
+    await deleteRevenda(revenda._id);
+    await fetchAllRevendas();
+    await fetchStats();
+  };
+
   return (
-    <PermissionGuard allowedRoles={["admin"]} requireActive>
+    <PermissionGuard allowedRoles={["admin", "superadmin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -73,7 +98,6 @@ export function GerenciarRevendasPage() {
               onClick={() => {
                 fetchStats();
                 fetchAllRevendas();
-                fetchPendingRevendas();
               }}
               className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
             >
@@ -98,24 +122,8 @@ export function GerenciarRevendasPage() {
                   value: stats?.totalRevendas || 0,
                   subValue: `${stats?.activeRevendas || 0} ativas`,
                 },
-                {
-                  label: "Revendas Pendentes",
-                  value: stats?.pendingRevendas || 0,
-                  subValue: `${stats?.rejectedRevendas || 0} rejeitadas`,
-                },
               ]}
               loading={loadingStats}
-            />
-          </div>
-
-          {/* Revendas Pendentes de Aprovação */}
-          <div className="px-4 mb-8">
-            <RevendaPendingApprovals
-              onApprovalChange={() => {
-                fetchStats();
-                fetchPendingRevendas();
-                fetchAllRevendas();
-              }}
             />
           </div>
 
@@ -126,6 +134,9 @@ export function GerenciarRevendasPage() {
               loading={loadingRevendas}
               onRefresh={fetchAllRevendas}
               onCreateClick={() => setShowCreateRevenda(true)}
+              isSuperadmin={isSuperadmin}
+              onEditRevenda={handleEditRevenda}
+              onDeleteRevenda={handleDeleteRevenda}
             />
           </div>
 
@@ -138,6 +149,17 @@ export function GerenciarRevendasPage() {
                 fetchAllRevendas();
                 fetchStats();
               }}
+            />
+          )}
+
+          {editingRevenda && (
+            <EditEntityModal
+              entityType="revenda"
+              entity={editingRevenda}
+              isSuperadmin={isSuperadmin}
+              isSaving={savingEdit}
+              onClose={() => setEditingRevenda(null)}
+              onSave={handleSaveRevenda}
             />
           )}
         </BodyContent>
@@ -195,6 +217,9 @@ interface RevendasSectionProps {
   loading: boolean;
   onRefresh: () => void;
   onCreateClick: () => void;
+  isSuperadmin: boolean;
+  onEditRevenda: (revenda: Revenda) => Promise<void>;
+  onDeleteRevenda: (revenda: Revenda) => Promise<void>;
 }
 
 function RevendasSection({
@@ -202,13 +227,10 @@ function RevendasSection({
   loading,
   onRefresh,
   onCreateClick,
+  isSuperadmin,
+  onEditRevenda,
+  onDeleteRevenda,
 }: RevendasSectionProps) {
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-
-  const filteredRevendas = revendas.filter((r) =>
-    filterStatus === "all" ? true : r.status === filterStatus,
-  );
-
   return (
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
@@ -232,51 +254,18 @@ function RevendasSection({
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="mb-4 flex gap-2 flex-wrap">
-        {["all", "active", "pending", "rejected"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            className={`px-3 py-1 rounded text-sm transition ${
-              filterStatus === status
-                ? "bg-dashboard-accent text-black font-bold"
-                : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
-            }`}
-          >
-            {status === "all"
-              ? "Todas"
-              : status === "active"
-                ? "Ativas"
-                : status === "pending"
-                  ? "Pendentes"
-                  : "Rejeitadas"}
-            (
-            {
-              revendas.filter((r) =>
-                status === "all" ? true : r.status === status,
-              ).length
-            }
-            )
-          </button>
-        ))}
-      </div>
-
       {/* Lista */}
       {loading ? (
         <div className="flex justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent"></div>
         </div>
-      ) : filteredRevendas.length === 0 ? (
+      ) : revendas.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
-          <p>
-            Nenhuma revenda{" "}
-            {filterStatus !== "all" ? `com status "${filterStatus}"` : ""}
-          </p>
+          <p>Nenhuma revenda cadastrada</p>
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
-          {filteredRevendas.map((revenda, idx) => (
+          {revendas.map((revenda, idx) => (
             <div
               key={revenda._id ?? revenda.email ?? `revenda-${idx}`}
               className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"
@@ -289,39 +278,36 @@ function RevendasSection({
                   <p className="text-sm text-dashboard-text-secondary mt-1">
                     {revenda.email}
                   </p>
-                  <p className="text-xs text-dashboard-text-tertiary mt-1">
-                    Domínio: {revenda.domain}
-                  </p>
                   {revenda.cnpj_revenda && (
                     <p className="text-xs text-dashboard-text-tertiary mt-1">
                       CNPJ: {revenda.cnpj_revenda}
                     </p>
                   )}
                 </div>
-                <span
-                  className={`text-xs px-2 py-1 rounded font-bold ${
-                    revenda.status === "active"
-                      ? "bg-green-900 text-green-100"
-                      : revenda.status === "pending"
-                        ? "bg-yellow-900 text-yellow-100"
-                        : "bg-red-900 text-red-100"
-                  }`}
-                >
-                  {revenda.status === "active"
-                    ? "Ativa"
-                    : revenda.status === "pending"
-                      ? "Pendente"
-                      : "Rejeitada"}
+                <span className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100">
+                  Ativa
                 </span>
               </div>
+              {isSuperadmin && (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => onEditRevenda(revenda)}
+                    className="px-3 py-1 text-xs rounded bg-dashboard-accent text-white font-bold hover:bg-dashboard-accent-hover transition"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => onDeleteRevenda(revenda)}
+                    className="px-3 py-1 text-xs rounded bg-red-700 text-white font-bold hover:bg-red-600 transition"
+                  >
+                    Deletar
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
-
-      {/* <button className="w-full mt-4 bg-dashboard-accent hover:bg-dashboard-accent-hover text-black px-4 py-2 rounded-lg font-bold transition-colors"> */}
-      {/*   Ver Relatório Completo */}
-      {/* </button> */}
     </div>
   );
 }

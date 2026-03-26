@@ -8,13 +8,16 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
   const emailRef = useRef();
   const passwordRef = useRef();
 
+  const isSuperadmin = adminUser?.type === "superadmin";
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-
-  // Novo estado para controlar o valor do documento e aplicar a máscara em tempo real
   const [documento, setDocumento] = useState("");
+  const [selectedAdminCnpj, setSelectedAdminCnpj] = useState(adminUser?.cnpj || "");
+  const [adminsList, setAdminsList] = useState([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
 
   // Formata CPF ou CNPJ conforme a digitação
   const formatDocumento = (value) => {
@@ -64,6 +67,26 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
   const isPasswordValid = Object.values(passwordCriteria).every(
     (v) => v === true,
   );
+
+  // Carregar lista de admins quando superadmin
+  useEffect(() => {
+    if (!isSuperadmin) return;
+    const loadAdmins = async () => {
+      setLoadingAdmins(true);
+      try {
+        const { fetchAdmins } = await import("../../api/new/fastapi-admin");
+        const response = await fetchAdmins();
+        if (response && response.admins) {
+          setAdminsList(response.admins);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar admins:", err);
+      } finally {
+        setLoadingAdmins(false);
+      }
+    };
+    loadAdmins();
+  }, [isSuperadmin]);
 
   // Preencher campos automaticamente com dados do admin
   useEffect(() => {
@@ -138,8 +161,8 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
         email,
         password,
         name,
-        cnpj_revenda: documento, // ← Envia com a formatação da máscara
-        cnpj_admin: adminUser?.cnpj,
+        cnpj_revenda: documento,
+        cnpj_admin: selectedAdminCnpj || adminUser?.cnpj,
       });
 
       if (response && response.revenda_id) {
@@ -298,6 +321,33 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
             </span>
           )}
         </label>
+
+        {isSuperadmin && (
+          <label className="block text-white mb-4">
+            Vincular ao Admin *
+            <select
+              value={selectedAdminCnpj}
+              onChange={(e) => setSelectedAdminCnpj(e.target.value)}
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              disabled={isSaving || loadingAdmins}
+              required
+            >
+              <option value="">-- Selecione um admin --</option>
+              {loadingAdmins ? (
+                <option disabled>Carregando admins...</option>
+              ) : (
+                adminsList.map((admin) => (
+                  <option key={admin._id} value={admin.cnpj_admin}>
+                    {admin.name} ({admin.email}) - CNPJ: {admin.cnpj_admin}
+                  </option>
+                ))
+              )}
+            </select>
+            <span className="text-xs text-gray-400">
+              Selecione o admin responsável por esta revenda
+            </span>
+          </label>
+        )}
 
         <label className="block text-white mb-4">
           Senha *

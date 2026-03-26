@@ -37,6 +37,16 @@ const VerifyEmail: React.FC = () => {
     }
   }, [email, navigate]);
 
+  useEffect(() => {
+    if (user?.email_verified) {
+      if (user?.terms_accepted) {
+        navigate("/home");
+      } else {
+        navigate("/accept-terms");
+      }
+    }
+  }, [navigate, user?.email_verified, user?.terms_accepted]);
+
   const handleChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
 
@@ -111,7 +121,19 @@ const VerifyEmail: React.FC = () => {
     setError("");
 
     try {
-      await resendVerificationCode(email);
+      const response = await resendVerificationCode(email);
+      if (response?.already_verified) {
+        setSuccess(true);
+        updateUser({ email_verified: true, requires_action: "accept_terms" });
+        setTimeout(() => {
+          if (user?.terms_accepted) {
+            navigate("/home");
+          } else {
+            navigate("/accept-terms");
+          }
+        }, 800);
+        return;
+      }
       setResendCooldown(60);
     } catch (err: any) {
       setError(err.message || "Erro ao reenviar código");

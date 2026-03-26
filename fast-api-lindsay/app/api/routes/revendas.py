@@ -7,14 +7,12 @@ from app.core.database import get_db, get_users_db
 from app.core.config import settings
 from app.models.schemas import (
     RevendasListResponse,
-    ApprovalRequest,
     AdminCreateRevendaRequest,
+    RevendaUpdateRequest,
 )
-from app.services.auth import AuthService
 from app.services.permissions import PermissionChecker
 from app.services.revenda import RevendaService
 from app.utils.validators import validate_password, validate_cnpj_or_cpf, format_cnpj
-from app.utils.cognito_utils import get_secret_hash
 from app.api.routes.auth import get_current_user
 
 router = APIRouter(prefix="/revendas")
@@ -22,15 +20,18 @@ router = APIRouter(prefix="/revendas")
 
 @router.get("", response_model=RevendasListResponse)
 async def list_revendas(user: dict = Depends(get_current_user)):
-    """Listar revendas (admin only) - Filtradas por CNPJ do admin"""
+    """Listar revendas (admin/superadmin)"""
     checker = PermissionChecker(user)
     if not checker.can_manage_revendas():
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     db = get_users_db()
     try:
-        # Admin vê todas as revendas
-        selector = {"type": "revenda"}
+        # Superadmin vê todas; admin regular vê apenas revendas da própria hierarquia.
+        if checker.is_superadmin():
+            selector = {"type": "revenda"}
+        else:
+            selector = {"type": "revenda", "cnpj_admin": user.get("cnpj")}
 
         result = db.find({"selector": selector, "limit": 500})
 
@@ -51,21 +52,6 @@ async def list_revendas(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/pending")
-async def get_pending_revendas(user: dict = Depends(get_current_user)):
-    """Listar revendas pendentes (admin only)"""
-    checker = PermissionChecker(user)
-    if not checker.can_approve_revendas():
-        raise HTTPException(status_code=403, detail="Acesso negado")
-
-    auth_service = AuthService(settings.COUCHDB_URL, settings.COUCHDB_USERS_DB)
-    try:
-        pending = auth_service.get_pending_revendas()
-        return {"total": len(pending), "revendas": pending}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.post("", status_code=201)
 async def create_revenda_admin(
     body: AdminCreateRevendaRequest,
@@ -76,6 +62,13 @@ async def create_revenda_admin(
     checker = PermissionChecker(user)
     if not checker.can_manage_revendas():
         raise HTTPException(status_code=403, detail="Acesso negado")
+
+    # Resolver cnpj_admin: superadmin pode atribuir a outro admin, admin regular herda o próprio
+    if checker.is_superadmin():
+        if not body.cnpj_admin:
+            body.cnpj_admin = user["cnpj"]
+    else:
+        body.cnpj_admin = user["cnpj"]
 
     # Validar senha
     is_valid_password, password_error = validate_password(body.password)
@@ -109,7 +102,7 @@ async def create_revenda_admin(
             name=body.name,
             cnpj_revenda=cnpj_revenda_formatted,
             cognito_sub=None,  # Será preenchido depois
-            initial_status="pending",  # ✅ Sempre pending, admin precisa aprovar depois
+            initial_status="active",
             cnpj_admin=body.cnpj_admin,
         )
 
@@ -130,21 +123,17 @@ async def create_revenda_admin(
                     {"Name": "email", "Value": body.email},
                     {"Name": "name", "Value": body.name},
                     {"Name": "custom:type", "Value": "revenda"},
-                    {"Name": "custom:status", "Value": "pending"},
+                    {"Name": "custom:status", "Value": "active"},
                     {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
                     {"Name": "custom:doc_id", "Value": doc_id},
                 ],
             }
 
-            secret_hash = get_secret_hash(body.email)
-            if secret_hash:
-                sign_up_params["SecretHash"] = secret_hash
-
             cognito_response = cognito_client.sign_up(**sign_up_params)
             cognito_sub = cognito_response.get("UserSub")
             print(f"✅ Usuário criado no Cognito: {cognito_sub}")
             print(
-                f"✅ Custom attributes salvos: type=revenda, status=pending, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}"
+                f"✅ Custom attributes salvos: type=revenda, status=active, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}"
             )
 
             # ✅ PASSO 3: Atualizar revenda no CouchDB com cognito_sub
@@ -220,93 +209,110 @@ async def create_revenda_admin(
         raise HTTPException(status_code=500, detail=f"Erro ao criar revenda: {str(e)}")
 
 
-@router.post("/{email}/approve")
-async def approve_revenda(
-    email: str,
+@router.put("/{revenda_id}")
+async def update_revenda(
+    revenda_id: str,
+    body: RevendaUpdateRequest,
     user: dict = Depends(get_current_user),
     cognito_client=Depends(get_cognito_client),
 ):
-    """Aprovar revenda (admin only) - muda status de pending para active"""
+    """Atualizar revenda. Superadmin pode editar qualquer revenda."""
     checker = PermissionChecker(user)
-    if not checker.can_approve_revendas():
+    if not checker.can_manage_revendas():
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    revenda_service = RevendaService(
-        settings.COUCHDB_URL,
-        settings.COUCHDB_USERS_DB,
-        cognito_region=settings.AWS_REGION,
-        cognito_pool_id=settings.COGNITO_USER_POOL_ID,
-    )
+    db = get_users_db()
+    try:
+        revenda = db.get(revenda_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Revenda não encontrada")
+
+    if revenda.get("type") != "revenda":
+        raise HTTPException(status_code=404, detail="Revenda não encontrada")
+
+    # Admin regular só pode editar revendas da sua hierarquia
+    if not checker.is_superadmin() and revenda.get("cnpj_admin") != user.get("cnpj"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    changed = False
+    cognito_attrs = []
+
+    if body.name is not None and body.name != revenda.get("name"):
+        revenda["name"] = body.name
+        cognito_attrs.append({"Name": "name", "Value": body.name})
+        changed = True
+
+    if body.status is not None and body.status != revenda.get("status"):
+        revenda["status"] = body.status
+        cognito_attrs.append({"Name": "custom:status", "Value": body.status})
+        changed = True
+
+    if body.cnpj_revenda is not None and body.cnpj_revenda != revenda.get("cnpj_revenda"):
+        revenda["cnpj_revenda"] = body.cnpj_revenda
+        cognito_attrs.append({"Name": "custom:cnpj", "Value": body.cnpj_revenda})
+        changed = True
+
+    if body.cnpj_admin is not None and body.cnpj_admin != revenda.get("cnpj_admin"):
+        if not checker.is_superadmin():
+            raise HTTPException(
+                status_code=403, detail="Apenas superadmin pode alterar cnpj_admin"
+            )
+        revenda["cnpj_admin"] = body.cnpj_admin
+        changed = True
+
+    if not changed:
+        return {
+            "status": "success",
+            "message": "Nenhuma alteração aplicada",
+            "revenda": revenda,
+        }
+
+    db.save(revenda)
 
     try:
-        # 1. Aprovar no CouchDB
-        success, msg = revenda_service.approve_revenda(email)
-        if not success:
-            raise HTTPException(status_code=400, detail=msg)
-
-        # 2. Atualizar status no Cognito também
-        try:
+        if cognito_attrs and revenda.get("email"):
             cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
-                Username=email,
-                UserAttributes=[{"Name": "custom:status", "Value": "active"}],
+                Username=revenda["email"],
+                UserAttributes=cognito_attrs,
             )
-            print(f"✅ Status atualizado no Cognito para {email}")
-        except Exception as cognito_err:
-            print(f"⚠️ Aviso ao atualizar Cognito: {cognito_err}")
-            # Continua mesmo se Cognito falhar, pois CouchDB já foi atualizado
-
-        return {"status": "success", "message": msg}
-
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Erro ao aprovar revenda: {str(e)}"
-        )
+        print(f"⚠️ Aviso ao atualizar Cognito (revenda): {e}")
+
+    return {"status": "success", "message": "Revenda atualizada com sucesso", "revenda": revenda}
 
 
-@router.post("/{email}/reject")
-async def reject_revenda(
-    email: str,
+@router.delete("/{revenda_id}")
+async def delete_revenda(
+    revenda_id: str,
     user: dict = Depends(get_current_user),
     cognito_client=Depends(get_cognito_client),
 ):
-    """Rejeitar revenda (admin only) - muda status de pending para rejected"""
+    """Deletar revenda. Superadmin pode deletar qualquer revenda."""
     checker = PermissionChecker(user)
-    if not checker.can_approve_revendas():
+    if not checker.can_manage_revendas():
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    revenda_service = RevendaService(
-        settings.COUCHDB_URL,
-        settings.COUCHDB_USERS_DB,
-        cognito_region=settings.AWS_REGION,
-        cognito_pool_id=settings.COGNITO_USER_POOL_ID,
-    )
+    db = get_users_db()
+    try:
+        revenda = db.get(revenda_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Revenda não encontrada")
+
+    if revenda.get("type") != "revenda":
+        raise HTTPException(status_code=404, detail="Revenda não encontrada")
+
+    if not checker.is_superadmin() and revenda.get("cnpj_admin") != user.get("cnpj"):
+        raise HTTPException(status_code=403, detail="Acesso negado")
 
     try:
-        # 1. Rejeitar no CouchDB
-        success, msg = revenda_service.reject_revenda(email)
-        if not success:
-            raise HTTPException(status_code=400, detail=msg)
-
-        # 2. Atualizar status no Cognito também
-        try:
-            cognito_client.admin_update_user_attributes(
+        if revenda.get("email"):
+            cognito_client.admin_delete_user(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
-                Username=email,
-                UserAttributes=[{"Name": "custom:status", "Value": "rejected"}],
+                Username=revenda["email"],
             )
-            print(f"✅ Status atualizado no Cognito para {email}")
-        except Exception as cognito_err:
-            print(f"⚠️ Aviso ao atualizar Cognito: {cognito_err}")
-            # Continua mesmo se Cognito falhar, pois CouchDB já foi atualizado
-
-        return {"status": "success", "message": msg}
-
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Erro ao rejeitar revenda: {str(e)}"
-        )
+        print(f"⚠️ Aviso ao remover revenda no Cognito: {e}")
+
+    db.delete(revenda)
+    return {"status": "success", "message": "Revenda deletada com sucesso"}

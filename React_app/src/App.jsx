@@ -14,8 +14,6 @@ import SignUp from "./pages/new/SignUp";
 import ForgotPassword from "./pages/new/ForgotPassword";
 // FASE 1 - Integrate dashboards
 import AdminDashboard from "./pages/new/AdminDashboard";
-import RevendaDashboard from "./pages/new/RevendaDashboard";
-import ClienteDashboard from "./pages/new/ClienteDashboard";
 import GerenciarRevendasPage from "./pages/new/GerenciarRevendasPage";
 import GerenciarClientesPage from "./pages/new/GerenciarClientesPage";
 import GerenciarPivosPage from "./pages/new/GerenciarPivosPage";
@@ -90,12 +88,6 @@ export default function App() {
 
           {/* Gerenciar Pivôs Page */}
           <Route path="/gerenciar-pivos" element={<GerenciarPivosPage />} />
-
-          {/* Revenda Dashboard */}
-          <Route path="/revenda" element={<RevendaDashboard />} />
-
-          {/* Cliente Dashboard */}
-          <Route path="/cliente" element={<ClienteDashboard />} />
 
           {/* Legacy routes */}
           <Route path="/home" element={<HomePageRevenda />} />

@@ -10,7 +10,6 @@
  *
  * Exibe:
  * - Estatísticas dos clientes da revenda
- * - Fila de aprovação de clientes
  * - Lista de clientes da revenda
  * - Monitoramento de pivôs
  */
@@ -21,7 +20,7 @@ import Sidebar from "../../components/new/sidebar";
 import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
-import { ClientePendingApprovals } from "../../components/new/ClientePendingApprovals";
+
 import PivosSection from "../../components/new/PivosSection";
 import { useRevendaClientes } from "../../hooks/new/useRevendaClientes";
 import { useRevendaStats } from "../../hooks/new/useRevendaStats";
@@ -40,7 +39,6 @@ export function RevendaDashboard() {
     loading: loadingClientes,
     error: clientesError,
     fetchClientes,
-    fetchPendingClientes,
   } = useRevendaClientes();
 
   const {
@@ -53,7 +51,6 @@ export function RevendaDashboard() {
   // Carregar dados ao montar
   useEffect(() => {
     if (isActiveUser) {
-      fetchPendingClientes();
       fetchStats();
       fetchClientes();
     }
@@ -72,7 +69,6 @@ export function RevendaDashboard() {
               onClick={() => {
                 fetchStats();
                 fetchClientes();
-                fetchPendingClientes();
               }}
               className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
             >
@@ -99,12 +95,6 @@ export function RevendaDashboard() {
                   value: stats?.totalClientes || 0,
                   subValue: `${stats?.activeClientes || 0} ativos`,
                   icon: "👥",
-                },
-                {
-                  label: "Clientes Pendentes",
-                  value: stats?.pendingClientes || 0,
-                  subValue: "Aguardando aprovação",
-                  icon: "⏳",
                 },
               ]}
               loading={loadingStats}
@@ -136,17 +126,6 @@ export function RevendaDashboard() {
             <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">
               👥 Gerenciar Clientes
             </h2>
-
-            {/* Clientes Pendentes de Aprovação */}
-            <div className="mb-6">
-              <ClientePendingApprovals
-                onApprovalChange={() => {
-                  fetchStats();
-                  fetchPendingClientes();
-                  fetchClientes();
-                }}
-              />
-            </div>
 
             {/* Lista de Clientes */}
             <ClientesSection
@@ -271,7 +250,7 @@ function ClientesSection({
 
       {/* Filtros */}
       <div className="mb-4 flex gap-2 flex-wrap">
-        {["all", "active", "pending", "rejected"].map((status) => (
+        {["all", "active"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
@@ -281,13 +260,7 @@ function ClientesSection({
                 : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-bg-tertiary"
             }`}
           >
-            {status === "all"
-              ? "Todos"
-              : status === "active"
-                ? "Ativos"
-                : status === "pending"
-                  ? "Pendentes"
-                  : "Rejeitados"}
+            {status === "all" ? "Todos" : "Ativos"}
             (
             {
               clientes.filter((c) =>
@@ -328,19 +301,9 @@ function ClientesSection({
                   </p>
                 </div>
                 <span
-                  className={`text-xs px-2 py-1 rounded font-bold ${
-                    cliente.status === "active"
-                      ? "bg-green-900 text-green-100"
-                      : cliente.status === "pending"
-                        ? "bg-yellow-900 text-yellow-100"
-                        : "bg-red-900 text-red-100"
-                  }`}
+                  className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100"
                 >
-                  {cliente.status === "active"
-                    ? "✓ Ativo"
-                    : cliente.status === "pending"
-                      ? "⏳ Pendente"
-                      : "✕ Rejeitado"}
+                  Ativo
                 </span>
               </div>
             </div>

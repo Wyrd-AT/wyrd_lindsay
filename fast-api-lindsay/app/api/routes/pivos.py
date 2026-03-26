@@ -38,9 +38,10 @@ async def create_pivo(
     request: CreatePivoRequest, user: dict = Depends(get_current_user)
 ):
     """Criar novo pivô (apenas admin); associação por cnpj_cliente (enviado em cliente_id)."""
-    if user.get("type") != "admin":
+    checker = PermissionChecker(user)
+    if not checker.is_admin():
         raise HTTPException(
-            status_code=403, detail="Apenas administradores podem criar pivôs"
+            status_code=403, detail="Apenas admin/superadmin podem criar pivôs"
         )
 
     if not request.cliente_id:
@@ -59,8 +60,6 @@ async def create_pivo(
     db = get_db()
     users_db = get_users_db()
     pivo_service = PivoService(db)
-    checker = PermissionChecker(user)
-
     try:
         # Buscar cliente por cnpj_cliente (lindsay-users; fallback lindsay-data)
         cliente_doc = None
@@ -243,7 +242,7 @@ async def update_pivo(
 
 @router.delete("/{pivo_id}")
 async def delete_pivo(pivo_id: str, user: dict = Depends(get_current_user)):
-    """Deletar pivô (admin only)"""
+    """Deletar pivô (admin/superadmin)"""
     db = get_db()
     pivo_service = PivoService(db)
     checker = PermissionChecker(user)
