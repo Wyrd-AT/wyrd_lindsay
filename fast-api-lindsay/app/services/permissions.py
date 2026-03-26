@@ -28,6 +28,7 @@ from enum import Enum
 class Role(str, Enum):
     """Papéis de usuário no sistema"""
 
+    SUPERADMIN = "superadmin"
     ADMIN = "admin"
     REVENDA = "revenda"
     CLIENTE = "cliente"
@@ -46,14 +47,12 @@ class Permission(str, Enum):
 
     # Admin
     MANAGE_REVENDAS = "manage_revendas"
-    APPROVE_REVENDAS = "approve_revendas"
     VIEW_ALL_DATA = "view_all_data"
     VIEW_ALL_PIVOS = "view_all_pivos"
     MANAGE_SISTEMA = "manage_sistema"
 
     # Revenda (Gerente)
     MANAGE_CLIENTES = "manage_clientes"
-    APPROVE_CLIENTES = "approve_clientes"
     VIEW_CLIENTES = "view_clientes"
     VIEW_CLIENTE_PIVOS = "view_cliente_pivos"
     CREATE_CLIENTE = "create_cliente"
@@ -86,9 +85,8 @@ class PermissionChecker:
 
     # Mapeamento de permissões por papel
     ROLE_PERMISSIONS = {
-        Role.ADMIN: {
+        Role.SUPERADMIN: {
             Permission.MANAGE_REVENDAS,
-            Permission.APPROVE_REVENDAS,
             Permission.VIEW_ALL_DATA,
             Permission.VIEW_ALL_PIVOS,
             Permission.MANAGE_SISTEMA,
@@ -97,12 +95,23 @@ class PermissionChecker:
             Permission.VIEW_OWN_PIVOS,
             Permission.RESOLVE_ALERTS,
             Permission.EXPORT_REPORTS,
-            Permission.APPROVE_CLIENTES,
+            Permission.CREATE_CLIENTE,
+            Permission.MANAGE_COMPANY_USERS,
+        },
+        Role.ADMIN: {
+            Permission.MANAGE_REVENDAS,
+            Permission.VIEW_ALL_DATA,
+            Permission.VIEW_ALL_PIVOS,
+            Permission.MANAGE_SISTEMA,
+            Permission.MANAGE_CLIENTES,
+            Permission.VIEW_CLIENTES,
+            Permission.VIEW_OWN_PIVOS,
+            Permission.RESOLVE_ALERTS,
+            Permission.EXPORT_REPORTS,
             Permission.CREATE_CLIENTE,
         },
         Role.REVENDA: {
             Permission.MANAGE_CLIENTES,
-            Permission.APPROVE_CLIENTES,
             Permission.VIEW_CLIENTES,
             Permission.VIEW_CLIENTE_PIVOS,
             Permission.CREATE_CLIENTE,
@@ -207,21 +216,25 @@ class PermissionChecker:
     # Admin Checks
     # =====================================================================
 
+    def is_superadmin(self) -> bool:
+        """Verificar se usuário é superadmin"""
+        return self.role == Role.SUPERADMIN
+
     def is_admin(self) -> bool:
-        """Verificar se usuário é admin"""
+        """Verificar se usuário é admin (inclui superadmin)"""
+        return self.role in (Role.ADMIN, Role.SUPERADMIN)
+
+    def is_admin_only(self) -> bool:
+        """Verificar se usuário é admin regular (não superadmin)"""
         return self.role == Role.ADMIN
 
     def is_active_admin(self) -> bool:
-        """Verificar se usuário é admin ativo"""
+        """Verificar se usuário é admin ativo (inclui superadmin)"""
         return self.is_admin() and self.is_active()
 
     def can_manage_revendas(self) -> bool:
         """Admin pode gerenciar revendas"""
         return self.has_permission(Permission.MANAGE_REVENDAS) and self.is_active()
-
-    def can_approve_revendas(self) -> bool:
-        """Admin pode aprovar revendas"""
-        return self.has_permission(Permission.APPROVE_REVENDAS) and self.is_active()
 
     def can_manage_sistema(self) -> bool:
         """Admin pode gerenciar sistema"""
@@ -246,10 +259,6 @@ class PermissionChecker:
     def can_manage_clientes(self) -> bool:
         """Revenda pode gerenciar seus clientes"""
         return self.has_permission(Permission.MANAGE_CLIENTES) and self.is_active()
-
-    def can_approve_clientes(self) -> bool:
-        """Revenda pode aprovar seus clientes"""
-        return self.has_permission(Permission.APPROVE_CLIENTES) and self.is_active()
 
     def can_view_clientes(self) -> bool:
         """Revenda pode visualizar seus clientes"""
@@ -371,25 +380,7 @@ class PermissionChecker:
         """Revenda (gerente) pode criar novos clientes"""
         return self.has_permission(Permission.CREATE_CLIENTE) and self.is_active()
 
-    # =====================================================================
-    # Approval Checks
-    # =====================================================================
 
-    def can_approve_revenda(self) -> bool:
-        """Apenas admin pode aprovar revendas"""
-        return self.is_active_admin() and self.can_approve_revendas()
-
-    def can_approve_cliente(self) -> bool:
-        """Apenas revenda ativa pode aprovar clientes"""
-        return self.is_active_revenda() and self.can_approve_clientes()
-
-    def can_reject_revenda(self) -> bool:
-        """Apenas admin pode rejeitar revendas"""
-        return self.is_active_admin()
-
-    def can_reject_cliente(self) -> bool:
-        """Apenas revenda ativa pode rejeitar clientes"""
-        return self.is_active_revenda()
 
     # =====================================================================
     # Cliente Sub-Role Checks

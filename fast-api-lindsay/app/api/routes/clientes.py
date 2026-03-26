@@ -1,6 +1,7 @@
 """Rotas de clientes (Revenda e Admin)"""
 
 import boto3
+from botocore.exceptions import ClientError
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 from app.core.aws import get_cognito_client
@@ -10,16 +11,46 @@ from app.models.schemas import (
     ClientesListResponse,
     AdminCreateClienteRequest,
     SuperusuarioCreateUserRequest,
+    ClienteUpdateRequest,
 )
 from app.services.auth import AuthService
 from app.services.permissions import PermissionChecker
-from app.services.verification_service import VerificationService
-from app.services.email_service import EmailService
 from app.utils.validators import validate_password, validate_email, validate_name
-from app.utils.cognito_utils import get_secret_hash
 from app.api.routes.auth import get_current_user
 
 router = APIRouter(prefix="/clientes")
+
+
+def _can_manage_cliente_target(checker: PermissionChecker, user: dict, cliente_doc: dict) -> bool:
+    """Regra de escopo para editar/deletar clientes."""
+    if checker.is_superadmin():
+        return True
+    if checker.is_admin_only():
+        return cliente_doc.get("cnpj_admin") == user.get("cnpj")
+    if checker.is_revenda():
+        return cliente_doc.get("revenda_id") == user.get("doc_id")
+    return False
+
+
+def _raise_cognito_http_error(exc: ClientError) -> None:
+    """Converte erros comuns do Cognito para respostas HTTP mais claras."""
+    error = (exc.response or {}).get("Error", {})
+    code = error.get("Code", "CognitoError")
+    message = error.get("Message", str(exc))
+
+    if code in {"UnrecognizedClientException", "InvalidClientTokenId", "ExpiredTokenException"}:
+        raise HTTPException(
+            status_code=502,
+            detail="Falha de autenticação com AWS Cognito (credenciais/token inválidos no backend).",
+        )
+
+    if code in {"UsernameExistsException", "AliasExistsException"}:
+        raise HTTPException(status_code=409, detail="Email já cadastrado no Cognito.")
+
+    raise HTTPException(
+        status_code=502,
+        detail=f"Erro de integração com Cognito ({code}): {message}",
+    )
 
 
 @router.get("", response_model=ClientesListResponse)
@@ -31,10 +62,15 @@ async def list_clientes(user: dict = Depends(get_current_user)):
 
     db_conn = get_users_db()
     try:
-        if user.get("type") == "admin":
-            # Admin global: Busca absolutamente TODOS os clientes do banco
+        if checker.is_superadmin():
+            # Superadmin: Busca absolutamente TODOS os clientes do banco
             clientes_raw = list(
                 db_conn.find({"selector": {"type": "cliente"}, "limit": 2000})
+            )
+        elif checker.is_admin_only():
+            # Admin regular: Busca clientes vinculados ao seu cnpj_admin
+            clientes_raw = list(
+                db_conn.find({"selector": {"type": "cliente", "cnpj_admin": user["cnpj"]}, "limit": 2000})
             )
         else:
             # Revenda: busca clientes cujo revenda_id == doc_id da revenda
@@ -78,20 +114,6 @@ async def list_clientes(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/pending")
-async def get_pending_clientes(user: dict = Depends(get_current_user)):
-    """Listar clientes pendentes (revenda only)"""
-    checker = PermissionChecker(user)
-    if not checker.can_approve_clientes():
-        raise HTTPException(status_code=403, detail="Acesso negado")
-
-    auth_service = AuthService(settings.COUCHDB_URL, settings.COUCHDB_USERS_DB)
-    try:
-        pending = auth_service.get_pending_clientes(user["email"])
-        return {"total": len(pending), "clientes": pending}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("", status_code=201)
 async def create_cliente_admin(
@@ -101,7 +123,7 @@ async def create_cliente_admin(
 ):
     """Criar cliente (admin ou revenda - criado já com status active)"""
     checker = PermissionChecker(user)
-    if not checker.can_approve_clientes():
+    if not checker.can_create_cliente():
         raise HTTPException(status_code=403, detail="Acesso negado")
 
     # Revenda só pode criar clientes vinculados a si mesma
@@ -175,7 +197,6 @@ async def create_cliente_admin(
                 {"Name": "custom:doc_id", "Value": f"user:{body.email}"},
                 # sub_role fica apenas no CouchDB; Cognito não tem custom:sub_role no schema
             ],
-            MessageAction="SUPPRESS",  # Não envia email/SMS ao cliente
         )
         cognito_sub = create_response["User"]["Username"]
         print(
@@ -214,9 +235,9 @@ async def create_cliente_admin(
                 "cnpj_revenda": cnpj_revenda,
                 "sub_role": body.sub_role or "superusuario",
                 "irrigadores": [],
-                # Verificação & Termos — cliente deve ativar via convite
-                "email_verified": False,
-                "email_verified_at": None,
+                # Verificação & Termos — fluxo com convite nativo do Cognito
+                "email_verified": True,
+                "email_verified_at": now,
                 "terms_accepted": False,
                 "terms_version": None,
                 "terms_accepted_at": None,
@@ -226,19 +247,6 @@ async def create_cliente_admin(
             }
 
             db.save(cliente_doc)
-
-            # Gerar token de convite e enviar email
-            verification_service = VerificationService(db)
-            token_success, invitation_token, _ = (
-                verification_service.generate_invitation_token(body.email)
-            )
-            if token_success:
-                EmailService.send_invitation(
-                    email=body.email,
-                    invitation_token=invitation_token,
-                    name=body.name,
-                    invited_by=user.get("email", ""),
-                )
 
             # ✅ Atualizar revenda.clientes[] com o cnpj_cliente
             if body.revenda_id and body.cnpj_cliente:
@@ -275,7 +283,7 @@ async def create_cliente_admin(
         # ✅ Usuário já criado e confirmado via admin_create_user + admin_set_user_password
         return {
             "status": "success",
-            "message": "Cliente criado com sucesso!",
+            "message": "Cliente criado com sucesso! Convite enviado pelo Cognito.",
             "cliente_id": doc_id,
             "email": body.email,
             "name": body.name,
@@ -285,6 +293,16 @@ async def create_cliente_admin(
 
     except HTTPException:
         raise
+    except ClientError as e:
+        # Rollback se algo der errado no Cognito após criação parcial
+        if cognito_client and cognito_sub:
+            try:
+                cognito_client.admin_delete_user(
+                    UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
+                )
+            except Exception:
+                pass
+        _raise_cognito_http_error(e)
     except Exception as e:
         # Rollback se algo der errado
         if cognito_client and cognito_sub:
@@ -297,34 +315,134 @@ async def create_cliente_admin(
         raise HTTPException(status_code=500, detail=f"Erro ao criar cliente: {str(e)}")
 
 
-@router.post("/{email}/approve")
-async def approve_cliente(email: str, user: dict = Depends(get_current_user)):
-    """Aprovar cliente (revenda only)"""
+@router.put("/{cliente_id}")
+async def update_cliente(
+    cliente_id: str,
+    body: ClienteUpdateRequest,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
+):
+    """Atualizar cliente. Superadmin pode editar qualquer cliente."""
     checker = PermissionChecker(user)
-    if not checker.can_approve_clientes():
+    if not (checker.can_manage_clientes() or checker.is_superadmin()):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    auth_service = AuthService(settings.COUCHDB_URL, settings.COUCHDB_USERS_DB)
+    db = get_users_db()
     try:
-        cliente = auth_service.approve_cliente(email, user["email"])
-        return {"status": "approved", "cliente": cliente}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        cliente = db.get(cliente_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
+    if cliente.get("type") != "cliente":
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
-@router.post("/{email}/reject")
-async def reject_cliente(email: str, user: dict = Depends(get_current_user)):
-    """Rejeitar cliente (revenda only)"""
-    checker = PermissionChecker(user)
-    if not checker.can_approve_clientes():
+    if not _can_manage_cliente_target(checker, user, cliente):
         raise HTTPException(status_code=403, detail="Acesso negado")
 
-    auth_service = AuthService(settings.COUCHDB_URL, settings.COUCHDB_USERS_DB)
+    changed = False
+    cognito_attrs = []
+
+    if body.name is not None and body.name != cliente.get("name"):
+        cliente["name"] = body.name
+        cognito_attrs.append({"Name": "name", "Value": body.name})
+        changed = True
+
+    if body.status is not None and body.status != cliente.get("status"):
+        cliente["status"] = body.status
+        cognito_attrs.append({"Name": "custom:status", "Value": body.status})
+        changed = True
+
+    if body.sub_role is not None and body.sub_role != cliente.get("sub_role"):
+        cliente["sub_role"] = body.sub_role
+        changed = True
+
+    if body.revenda_id is not None and body.revenda_id != cliente.get("revenda_id"):
+        # Revenda não pode reassociar cliente para outra revenda
+        if checker.is_revenda():
+            raise HTTPException(
+                status_code=403, detail="Revenda não pode alterar revenda_id do cliente"
+            )
+        cliente["revenda_id"] = body.revenda_id
+        changed = True
+
+    if body.cnpj_cliente is not None and body.cnpj_cliente != cliente.get("cnpj_cliente"):
+        cliente["cnpj_cliente"] = body.cnpj_cliente
+        cognito_attrs.append({"Name": "custom:cnpj", "Value": body.cnpj_cliente})
+        changed = True
+
+    if body.cnpj_admin is not None and body.cnpj_admin != cliente.get("cnpj_admin"):
+        if not checker.is_superadmin():
+            raise HTTPException(
+                status_code=403, detail="Apenas superadmin pode alterar cnpj_admin"
+            )
+        cliente["cnpj_admin"] = body.cnpj_admin
+        changed = True
+
+    if body.cnpj_revenda is not None and body.cnpj_revenda != cliente.get("cnpj_revenda"):
+        if checker.is_revenda():
+            raise HTTPException(
+                status_code=403, detail="Revenda não pode alterar cnpj_revenda"
+            )
+        cliente["cnpj_revenda"] = body.cnpj_revenda
+        changed = True
+
+    if not changed:
+        return {
+            "status": "success",
+            "message": "Nenhuma alteração aplicada",
+            "cliente": cliente,
+        }
+
+    db.save(cliente)
+
     try:
-        cliente = auth_service.reject_cliente(email, user["email"])
-        return {"status": "rejected", "cliente": cliente}
+        if cognito_attrs and cliente.get("email"):
+            cognito_client.admin_update_user_attributes(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=cliente["email"],
+                UserAttributes=cognito_attrs,
+            )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"⚠️ Aviso ao atualizar Cognito (cliente): {e}")
+
+    return {"status": "success", "message": "Cliente atualizado com sucesso", "cliente": cliente}
+
+
+@router.delete("/{cliente_id}")
+async def delete_cliente(
+    cliente_id: str,
+    user: dict = Depends(get_current_user),
+    cognito_client=Depends(get_cognito_client),
+):
+    """Deletar cliente. Superadmin pode deletar qualquer cliente."""
+    checker = PermissionChecker(user)
+    if not (checker.can_manage_clientes() or checker.is_superadmin()):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    db = get_users_db()
+    try:
+        cliente = db.get(cliente_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    if cliente.get("type") != "cliente":
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    if not _can_manage_cliente_target(checker, user, cliente):
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    try:
+        if cliente.get("email"):
+            cognito_client.admin_delete_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=cliente["email"],
+            )
+    except Exception as e:
+        print(f"⚠️ Aviso ao remover cliente no Cognito: {e}")
+
+    db.delete(cliente)
+    return {"status": "success", "message": "Cliente deletado com sucesso"}
+
 
 
 # ============================================================================
@@ -433,7 +551,6 @@ async def create_company_user(
                 {"Name": "custom:doc_id", "Value": f"user:{body.email}"},
                 # sub_role fica apenas no CouchDB; Cognito não tem custom:sub_role no schema
             ],
-            MessageAction="SUPPRESS",
         )
         cognito_sub = create_response["User"]["Username"]
 
@@ -466,9 +583,9 @@ async def create_company_user(
             "cnpj_admin": cnpj_admin,
             "cnpj_revenda": cnpj_revenda,
             "irrigadores": [],
-            # Verificação & Termos — usuário deve ativar via convite
-            "email_verified": False,
-            "email_verified_at": None,
+            # Verificação & Termos — fluxo com convite nativo do Cognito
+            "email_verified": True,
+            "email_verified_at": now,
             "terms_accepted": False,
             "terms_version": None,
             "terms_accepted_at": None,
@@ -479,22 +596,9 @@ async def create_company_user(
 
         db.save(cliente_doc)
 
-        # Gerar token de convite e enviar email
-        verification_service = VerificationService(db)
-        token_success, invitation_token, _ = (
-            verification_service.generate_invitation_token(body.email)
-        )
-        if token_success:
-            EmailService.send_invitation(
-                email=body.email,
-                invitation_token=invitation_token,
-                name=body.name,
-                invited_by=user.get("email", ""),
-            )
-
         return {
             "status": "success",
-            "message": f"Usuário {body.sub_role} criado com sucesso! Email de ativação enviado.",
+            "message": f"Usuário {body.sub_role} criado com sucesso! Convite enviado pelo Cognito.",
             "cliente_id": doc_id,
             "email": body.email,
             "name": body.name,
@@ -503,6 +607,15 @@ async def create_company_user(
 
     except HTTPException:
         raise
+    except ClientError as e:
+        if cognito_client and cognito_sub:
+            try:
+                cognito_client.admin_delete_user(
+                    UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
+                )
+            except Exception:
+                pass
+        _raise_cognito_http_error(e)
     except Exception as e:
         if cognito_client and cognito_sub:
             try:

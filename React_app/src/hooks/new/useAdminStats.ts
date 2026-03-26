@@ -7,6 +7,8 @@ import { useCallback, useState } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import type { AdminStats } from "../../types/admin";
 import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
+import { getRecentAll } from "./getRecent";
+import { parseSwVector } from "../../helpers/helperHomePage";
 
 interface UseAdminStatsReturn {
   stats: AdminStats | null;
@@ -86,10 +88,28 @@ export const useAdminStats = (): UseAdminStatsReturn => {
       const response = await apiClient.get("/pivos");
       const pivos = response.data.pivos || [];
 
+      // "alarmado" vem do snapshot recente de SW (mesma lógica da Home),
+      // não de um campo fixo status no doc do irrigador.
+      const swResults = await Promise.all(
+        pivos.map(async (p: any) => {
+          try {
+            const recent = await getRecentAll("lindsay-data", String(p.codigo || ""));
+            const sw = recent?.sw;
+            const parsed = sw
+              ? parseSwVector(sw.data, sw.updated_at)
+              : { totalAlarmado: 0 };
+            return parsed.totalAlarmado > 0;
+          } catch {
+            return false;
+          }
+        }),
+      );
+      const alarmedCount = swResults.filter(Boolean).length;
+
       return {
         total: pivos.length,
-        active: pivos.filter((p: any) => p.status === "active").length,
-        alarmed: pivos.filter((p: any) => p.status === "alarmed").length,
+        active: pivos.filter((p: any) => p.ativo === true).length,
+        alarmed: alarmedCount,
         maintenance: pivos.filter((p: any) => p.status === "maintenance")
           .length,
       };

@@ -18,6 +18,7 @@ export const CreateClienteModal = ({
   const [loadingRevendas, setLoadingRevendas] = useState(false);
   const [revendasList, setRevendasList] = useState(revendas);
   const [documento, setDocumento] = useState("");
+  const [subRole, setSubRole] = useState("superusuario");
 
   // Formata CPF (XXX.XXX.XXX-XX) ou CNPJ (XX.XXX.XXX/XXXX-XX) conforme a digitação
   const formatDocumento = (value) => {
@@ -153,8 +154,9 @@ export const CreateClienteModal = ({
         email,
         password,
         name,
-        cnpj_cliente: documento.replace(/\D/g, ""), // só dígitos para o backend
+        cnpj_cliente: documento.replace(/\D/g, ""),
         revenda_id: revendaId,
+        sub_role: subRole,
       });
 
       if (response && response.cliente_id) {
@@ -239,7 +241,7 @@ export const CreateClienteModal = ({
         </label>
 
         <label className="block text-white mb-4">
-          CNPJ ou CPF da Revenda *
+          CNPJ ou CPF do Cliente *
           <input
             type="text"
             value={documento}
@@ -290,6 +292,23 @@ export const CreateClienteModal = ({
             </span>
           </label>
         )}
+
+        <label className="block text-white mb-4">
+          Tipo de Usuário *
+          <select
+            value={subRole}
+            onChange={(e) => setSubRole(e.target.value)}
+            className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+            disabled={isSaving}
+          >
+            <option value="superusuario">Superusuário</option>
+            <option value="gerente">Gerente</option>
+            <option value="comum">Comum</option>
+          </select>
+          <span className="text-xs text-gray-400">
+            Superusuário: acesso total · Gerente: gerencia pivôs · Comum: apenas visualiza
+          </span>
+        </label>
 
         <label className="block text-white mb-4">
           Senha *

@@ -13,16 +13,20 @@ import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import { CreateAdminModal } from "../../components/new/CreateAdminModal";
-import { fetchAdmins } from "../../api/new/fastapi-admin";
+import EditEntityModal from "../../components/new/EditEntityModal";
+import { fetchAdmins, updateAdmin, deleteAdmin } from "../../api/new/fastapi-admin";
 
 export function GerenciarAdminsPage() {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
+  const isSuperadmin = authState.user?.type === "superadmin";
 
   const [showCreateAdmin, setShowCreateAdmin] = useState(false);
   const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingAdmin, setEditingAdmin] = useState<any | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadAdmins = async () => {
     setLoading(true);
@@ -43,8 +47,37 @@ export function GerenciarAdminsPage() {
     }
   }, [isActiveUser]);
 
+  const handleEditAdmin = async (admin: any) => {
+    setEditingAdmin(admin);
+  };
+
+  const handleSaveAdmin = async (payload: Record<string, any>) => {
+    if (!editingAdmin?._id) return;
+    setSavingEdit(true);
+    try {
+      await updateAdmin(editingAdmin._id, payload);
+      setEditingAdmin(null);
+      await loadAdmins();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao atualizar admin");
+      throw err;
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (admin: any) => {
+    if (!window.confirm(`Deseja deletar ${admin.name || admin.email}?`)) return;
+    try {
+      await deleteAdmin(admin._id);
+      await loadAdmins();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao deletar admin");
+    }
+  };
+
   return (
-    <PermissionGuard allowedRoles={["admin"]} requireActive>
+    <PermissionGuard allowedRoles={["admin", "superadmin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -137,10 +170,30 @@ export function GerenciarAdminsPage() {
                             </p>
                           )}
                         </div>
-                        <span className="text-xs px-2 py-1 rounded font-bold bg-purple-900 text-purple-100">
-                          Admin
+                        <span className={`text-xs px-2 py-1 rounded font-bold ${
+                          admin.type === "superadmin"
+                            ? "bg-yellow-700 text-yellow-100"
+                            : "bg-purple-900 text-purple-100"
+                        }`}>
+                          {admin.type === "superadmin" ? "Superadmin" : "Admin"}
                         </span>
                       </div>
+                      {isSuperadmin && (
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            onClick={() => handleEditAdmin(admin)}
+                            className="px-3 py-1 text-xs rounded bg-dashboard-accent text-black font-bold hover:bg-dashboard-accent-hover transition"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAdmin(admin)}
+                            className="px-3 py-1 text-xs rounded bg-red-700 text-white font-bold hover:bg-red-600 transition"
+                          >
+                            Deletar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -155,6 +208,17 @@ export function GerenciarAdminsPage() {
                 setShowCreateAdmin(false);
                 loadAdmins();
               }}
+            />
+          )}
+
+          {editingAdmin && (
+            <EditEntityModal
+              entityType="admin"
+              entity={editingAdmin}
+              isSuperadmin={isSuperadmin}
+              isSaving={savingEdit}
+              onClose={() => setEditingAdmin(null)}
+              onSave={handleSaveAdmin}
             />
           )}
         </BodyContent>

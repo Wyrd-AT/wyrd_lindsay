@@ -88,7 +88,7 @@ const SignUp = () => {
       const customAttributes = {
         name: name,
         type: userType,
-        status: userType === "admin" ? "active" : "pending", // Admin ativo, outros pendentes
+        status: userType === "admin" || userType === "superadmin" ? "active" : "pending",
       };
 
       // Adicionar telefone se fornecido
@@ -229,7 +229,7 @@ const SignUp = () => {
                   <option value="admin">Admin</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  {userType === "admin" &&
+                  {(userType === "admin" || userType === "superadmin") &&
                     "⚠️ Admin será criado com status ativo"}
                   {userType === "revenda" &&
                     "⚠️ Revenda precisa de aprovação do admin"}

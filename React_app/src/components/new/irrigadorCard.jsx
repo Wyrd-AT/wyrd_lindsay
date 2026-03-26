@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { FiAlertOctagon, FiChevronRight } from "react-icons/fi";
+import { FiAlertOctagon } from "react-icons/fi";
 
 /**
  * userType: "cliente" | "revenda" | "admin"
@@ -14,13 +14,22 @@ export default function IrrigadorCard({
   nomeCliente,
   nomeRevenda,
   nomeAdmin,
+  cnpjCliente,
+  cnpjRevenda,
+  cnpjAdmin,
+  revendaId,
+  ownerId,
   userType,
   lastAlertDate,
   alertCount,
 }) {
-  const showCliente = userType === "revenda" || userType === "admin";
-  const showRevenda = userType === "admin";
-  const showAdmin = false; // nunca exibir nome do admin no card
+  const showCliente = userType === "revenda" || userType === "admin" || userType === "superadmin";
+  const showRevenda = userType === "admin" || userType === "superadmin";
+  const showAdmin = userType === "superadmin";
+
+  const clienteInfo = nomeCliente || cnpjCliente || ownerId || "—";
+  const revendaInfo = nomeRevenda || cnpjRevenda || revendaId || "—";
+  const adminInfo = nomeAdmin || cnpjAdmin || "—";
 
   // se tiver alerta, pisca border e badge
   const borderClass =
@@ -35,51 +44,51 @@ export default function IrrigadorCard({
     <Link
       to={`/maquina/${machineId}`}
       className={`
-        flex flex-row w-fit h-52 px-4 justify-center
+        flex flex-row w-full min-h-[230px] px-4 py-3 gap-4 items-center
         bg-[#39393a] hover:bg-[#4a4a4b]
         rounded-lg overflow-hidden
         transition-shadow shadow-sm hover:shadow-md
-        m-2 no-underline text-white
+        no-underline text-white
         ${borderClass}
       `}
     >
-      <div className="flex-shrink-0 flex items-center justify-center">
+      <div className="flex-shrink-0 flex items-center justify-center w-40">
         <img
           src="/irrigador (1).svg"
           alt={displayName}
-          className="h-full object-contain filter brightness-0 invert"
+          className="h-32 object-contain filter brightness-0 invert"
         />
       </div>
 
-      <div className="flex-1 flex flex-col justify-center">
+      <div className="flex-1 flex flex-col justify-center min-w-0">
         <div>
-          <h3 className="text-3xl font-semibold truncate">
+          <h3 className="text-4xl font-semibold truncate">
             Pivô {displayName}
           </h3>
-          {showCliente && nomeCliente && (
-            <p className="text-base text-gray-400 truncate">
-              Cliente: {nomeCliente}
+          {showCliente && (
+            <p className="text-base text-gray-400 break-words">
+              Cliente: {clienteInfo}
             </p>
           )}
-          {showRevenda && nomeRevenda && (
-            <p className="text-base text-gray-400 truncate">
-              Revenda: {nomeRevenda}
+          {showRevenda && (
+            <p className="text-base text-gray-400 break-words">
+              Revenda: {revendaInfo}
             </p>
           )}
-          {showAdmin && nomeAdmin && (
-            <p className="text-base text-gray-400 truncate">
-              Admin: {nomeAdmin}
+          {showAdmin && (
+            <p className="text-base text-gray-400 break-words">
+              Admin: {adminInfo}
             </p>
           )}
-          <p className="text-lg text-gray-300 truncate">
+          <p className="text-base leading-snug text-gray-300 break-words pr-2">
             {lastAlertDate ? `Último dado: ${lastAlertDate}` : "Sem alertas"}
           </p>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-start">
           <span
             className={`
-              w-fit mr-4 flex items-center justify-start p-4 rounded-md ${badgeClass}
+              w-fit flex items-center justify-start p-3 rounded-md ${badgeClass}
             `}
           >
             <FiAlertOctagon className="mr-4 font-bold " size={50} />

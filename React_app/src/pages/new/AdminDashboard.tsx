@@ -22,7 +22,6 @@ import Sidebar from "../../components/new/sidebar";
 import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
-import { RevendaPendingApprovals } from "../../components/new/RevendaPendingApprovals";
 import PivosSection from "../../components/new/PivosSection";
 import { CreateRevendaModal } from "../../components/new/CreateRevendaModal";
 import { CreateClienteModal } from "../../components/new/CreateClienteModal";
@@ -70,7 +69,6 @@ export function AdminDashboard() {
     allRevendas,
     loading: loadingRevendas,
     error: revendasError,
-    fetchPendingRevendas,
     fetchAllRevendas,
   } = useAdminRevendas();
 
@@ -90,7 +88,6 @@ export function AdminDashboard() {
   // Carregar dados ao montar
   useEffect(() => {
     if (isActiveUser) {
-      fetchPendingRevendas();
       fetchStats();
       fetchAllRevendas();
       fetchClientes();
@@ -118,7 +115,7 @@ export function AdminDashboard() {
   }, []);
 
   return (
-    <PermissionGuard allowedRoles={["admin"]} requireActive>
+    <PermissionGuard allowedRoles={["admin", "superadmin"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -130,7 +127,6 @@ export function AdminDashboard() {
               onClick={() => {
                 fetchStats();
                 fetchAllRevendas();
-                fetchPendingRevendas();
                 fetchClientes();
                 loadAdmins();
               }}
@@ -280,17 +276,6 @@ export function AdminDashboard() {
             <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">
               📋 Gerenciar Revendas
             </h2>
-
-            {/* Revendas Pendentes de Aprovação */}
-            <div className="mb-6">
-              <RevendaPendingApprovals
-                onApprovalChange={() => {
-                  fetchStats();
-                  fetchPendingRevendas();
-                  fetchAllRevendas();
-                }}
-              />
-            </div>
 
             {/* Lista de Revendas */}
             <RevendasSection

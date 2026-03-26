@@ -63,7 +63,7 @@ export default function Login() {
           }
 
           // Redirecionar para a rota apropriada
-          if (userType === "admin") {
+          if (userType === "admin" || userType === "superadmin") {
             navigate("home");
           } else if (userType === "revenda") {
             navigate("/home");

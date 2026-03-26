@@ -45,14 +45,14 @@ export default function HomePageRevenda() {
     const docId = user?.doc_id;
     if (!docId || user.cnpj) return;
     const type = user.type;
-    if (type !== "admin" && type !== "revenda" && type !== "cliente") return;
+    if (type !== "admin" && type !== "superadmin" && type !== "revenda" && type !== "cliente") return;
     let cancelled = false;
     (async () => {
       try {
         const doc = await getDoc(COUCH_USERS_DB, docId);
         if (cancelled || !doc) return;
         const cnpj =
-          type === "admin"
+          type === "admin" || type === "superadmin"
             ? doc.cnpj_admin
             : type === "revenda"
               ? (doc.cnpj_revenda ?? doc.cnpj)
@@ -76,7 +76,7 @@ export default function HomePageRevenda() {
   const irrigadores = useIrrigadores(cnpjUser, userType);
   const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
   const filterBy =
-    userType === "admin"
+    userType === "admin" || userType === "superadmin"
       ? "cnpj_admin"
       : userType === "revenda"
         ? "cnpj_revenda"
@@ -214,9 +214,9 @@ export default function HomePageRevenda() {
 
         <div className="flex items-center justify-between px-4 mb-4">
           <h1 className="text-2xl font-bold">
-            {userType === "admin" ? "Todos os Pivôs" : "Pivôs"}
+            {userType === "admin" || userType === "superadmin" ? "Todos os Pivôs" : "Pivôs"}
           </h1>
-          {userType === "admin" && (
+          {(userType === "admin" || userType === "superadmin") && (
             <button
               onClick={openModal}
               className="bg-[#08cb7c] p-2 rounded-lg font-bold"
@@ -227,9 +227,9 @@ export default function HomePageRevenda() {
         </div>
 
         <div
-          className="w-full flex flex-wrap overflow-auto justify-start 
-                     scrollbar scrollbar-thin scrollbar-thumb-red-500 
-                     scrollbar-track-gray-800 py-4 gap-4 px-4"
+          className="w-full grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3
+                     overflow-auto scrollbar scrollbar-thin scrollbar-thumb-red-500
+                     scrollbar-track-gray-800 py-4 gap-5 px-4"
         >
           {irrigadores.length > 0 ? (
             irrigadores.map((doc) => {
@@ -248,6 +248,11 @@ export default function HomePageRevenda() {
                   nomeCliente={doc.nome_cliente}
                   nomeRevenda={doc.nome_revenda}
                   nomeAdmin={doc.nome_admin}
+                  cnpjCliente={doc.cnpj_cliente}
+                  cnpjRevenda={doc.cnpj_revenda}
+                  cnpjAdmin={doc.cnpj_admin}
+                  revendaId={doc.revenda_id}
+                  ownerId={doc.owner_id}
                   userType={user?.type}
                   alertCount={info.totalAlarmado}
                   lastAlertDate={info.date}

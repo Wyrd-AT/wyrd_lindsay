@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
-export type UserRole = "admin" | "revenda" | "cliente";
+export type UserRole = "superadmin" | "admin" | "revenda" | "cliente";
 export type UserStatus = "active" | "pending" | "rejected";
 export type ClienteSubRole = "superusuario" | "gerente" | "comum";
 
@@ -174,7 +174,12 @@ export const selectUserStatus = (state: AuthState) =>
   state.user?.status || null;
 
 // Verificar role específico
-export const selectIsAdmin = (state: AuthState) => state.user?.type === "admin";
+export const selectIsSuperAdmin = (state: AuthState) =>
+  state.user?.type === "superadmin";
+export const selectIsAdmin = (state: AuthState) =>
+  state.user?.type === "admin" || state.user?.type === "superadmin";
+export const selectIsAdminOnly = (state: AuthState) =>
+  state.user?.type === "admin";
 export const selectIsRevenda = (state: AuthState) =>
   state.user?.type === "revenda";
 export const selectIsCliente = (state: AuthState) =>
@@ -190,8 +195,11 @@ export const selectIsRejected = (state: AuthState) =>
 
 // Verificar se usuário está ativo (necessário para maioria das operações)
 export const selectIsActiveUser = (state: AuthState) => {
-  // Admin sempre é considerado ativo, mesmo se status não estiver definido
-  if (state.isAuthenticated && state.user?.type === "admin") {
+  // Admin e superadmin sempre são considerados ativos
+  if (
+    state.isAuthenticated &&
+    (state.user?.type === "admin" || state.user?.type === "superadmin")
+  ) {
     return true;
   }
   return state.isAuthenticated && state.user?.status === "active";
@@ -216,16 +224,6 @@ export const selectCanViewPivos = (state: AuthState) => {
   );
 };
 
-// Verificar permissões de aprovação
-export const selectCanApproveRevendas = (state: AuthState) => {
-  // Apenas admins ativos podem aprovar revendas
-  return selectIsActiveUser(state) && selectIsAdmin(state);
-};
-
-export const selectCanApproveClientes = (state: AuthState) => {
-  // Apenas revendas ativas podem aprovar clientes
-  return selectIsActiveUser(state) && selectIsRevenda(state);
-};
 
 // ============================================================================
 // Selectors para Cliente Sub-Roles (Superusuário > Gerente > Comum)

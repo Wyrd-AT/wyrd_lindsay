@@ -30,6 +30,7 @@ from pydantic import BaseModel, EmailStr, validator
 
 
 class UserType(str, Enum):
+    SUPERADMIN = "superadmin"
     ADMIN = "admin"
     REVENDA = "revenda"
     CLIENTE = "cliente"
@@ -138,11 +139,12 @@ class AuthService:
         password: str,
         cnpj_admin: Optional[str] = None,
         created_by: Optional[str] = None,
+        user_type: str = "admin",
     ) -> ApprovalResult:
         """
-        Registrar novo ADMIN
+        Registrar novo ADMIN ou SUPERADMIN
 
-        ⚠️ Apenas outro admin pode criar novo admin
+        ⚠️ Apenas outro admin/superadmin pode criar
         """
         doc_id = f"admin:{email}"
 
@@ -157,7 +159,7 @@ class AuthService:
             now = datetime.utcnow().isoformat()
             admin_doc = {
                 "_id": doc_id,
-                "type": "admin",
+                "type": user_type,
                 "email": email,
                 "name": name,
                 "password_hash": self.hash_password(password),
@@ -241,54 +243,6 @@ class AuthService:
         except Exception as e:
             return ApprovalResult(status="error", message=str(e))
 
-    def approve_revenda(
-        self,
-        revenda_id: str,
-        approved_by: str,
-        approved: bool = True,
-        reason: Optional[str] = None,
-    ) -> ApprovalResult:
-        """
-        ADMIN aprova ou rejeita REVENDA
-
-        Args:
-            revenda_id: ID do documento revenda (ex: revenda:domain.com)
-            approved_by: Email do admin que aprova
-            approved: True para aprovar, False para rejeitar
-            reason: Motivo da rejeição (opcional)
-        """
-        try:
-            revenda_doc = self.db.get(revenda_id)
-
-            if revenda_doc.get("status") != "pending":
-                return ApprovalResult(
-                    status="error",
-                    message=f"Revenda não está em status 'pending' (status atual: {revenda_doc.get('status')})",
-                )
-
-            revenda_doc["status"] = "active" if approved else "rejected"
-            revenda_doc["approved_by"] = approved_by
-            revenda_doc["approved_at"] = datetime.utcnow().isoformat()
-
-            if reason:
-                revenda_doc["approval_reason"] = reason
-
-            self.db.save(revenda_doc)
-
-            action = "aprovada" if approved else "rejeitada"
-            return ApprovalResult(
-                status="success",
-                message=f"Revenda {action} com sucesso",
-                document_id=revenda_id,
-            )
-
-        except couchdb.http.ResourceNotFound:
-            return ApprovalResult(
-                status="error", message=f"Revenda '{revenda_id}' não encontrada"
-            )
-        except Exception as e:
-            return ApprovalResult(status="error", message=str(e))
-
     # =====================================================================
     # CLIENTE Operations
     # =====================================================================
@@ -363,68 +317,6 @@ class AuthService:
         except Exception as e:
             return ApprovalResult(status="error", message=str(e))
 
-    def approve_cliente(
-        self,
-        revenda_id: str,
-        cliente_email: str,
-        approved: bool = True,
-        reason: Optional[str] = None,
-    ) -> ApprovalResult:
-        """
-        REVENDA aprova ou rejeita CLIENTE
-
-        Args:
-            revenda_id: ID do documento revenda
-            cliente_email: Email do cliente a aprovar
-            approved: True para aprovar, False para rejeitar
-            reason: Motivo da rejeição (opcional)
-        """
-        try:
-            revenda_doc = self.db.get(revenda_id)
-
-            # Buscar cliente no array
-            cliente_encontrado = False
-            for cliente in revenda_doc.get("clientes", []):
-                if cliente.get("email") == cliente_email:
-                    cliente_encontrado = True
-
-                    if cliente.get("status") != "pending":
-                        return ApprovalResult(
-                            status="error",
-                            message=f"Cliente não está em status 'pending' (status: {cliente.get('status')})",
-                        )
-
-                    cliente["status"] = "active" if approved else "rejected"
-                    cliente["approved_at"] = datetime.utcnow().isoformat()
-
-                    if reason:
-                        cliente["approval_reason"] = reason
-
-                    break
-
-            if not cliente_encontrado:
-                return ApprovalResult(
-                    status="error",
-                    message=f"Cliente '{cliente_email}' não encontrado nesta revenda",
-                )
-
-            # Salvar revenda com cliente atualizado
-            self.db.save(revenda_doc)
-
-            action = "aprovado" if approved else "rejeitado"
-            return ApprovalResult(
-                status="success",
-                message=f"Cliente {action} com sucesso",
-                document_id=f"cliente:{cliente_email}",
-            )
-
-        except couchdb.http.ResourceNotFound:
-            return ApprovalResult(
-                status="error", message=f"Revenda '{revenda_id}' não encontrada"
-            )
-        except Exception as e:
-            return ApprovalResult(status="error", message=str(e))
-
     # =====================================================================
     # Authentication
     # =====================================================================
@@ -444,11 +336,28 @@ class AuthService:
             Dicionário com dados do usuário ou None se falhar
         """
         try:
-            if user_type == UserType.ADMIN:
+            if user_type == UserType.SUPERADMIN:
                 doc_id = f"admin:{email}"
                 doc = self.db.get(doc_id)
 
-                if not doc or doc.get("status") != "active":
+                if not doc or doc.get("type") != "superadmin" or doc.get("status") != "active":
+                    return None
+
+                if self.verify_password(password, doc.get("password_hash", "")):
+                    return {
+                        "email": doc["email"],
+                        "name": doc["name"],
+                        "type": "superadmin",
+                        "status": doc["status"],
+                        "doc_id": doc_id,
+                        "cnpj_admin": doc.get("cnpj_admin", ""),
+                    }
+
+            elif user_type == UserType.ADMIN:
+                doc_id = f"admin:{email}"
+                doc = self.db.get(doc_id)
+
+                if not doc or doc.get("type") != "admin" or doc.get("status") != "active":
                     return None
 
                 if self.verify_password(password, doc.get("password_hash", "")):
@@ -458,6 +367,7 @@ class AuthService:
                         "type": "admin",
                         "status": doc["status"],
                         "doc_id": doc_id,
+                        "cnpj_admin": doc.get("cnpj_admin", ""),
                     }
 
             elif user_type == UserType.REVENDA:
@@ -511,24 +421,6 @@ class AuthService:
     # =====================================================================
     # Query Methods
     # =====================================================================
-
-    def get_pending_revendas(self) -> List[Dict]:
-        """Obter todas as revendas pendentes de aprovação"""
-        try:
-            results = self.db.view("app/revendas_by_status", key="pending")
-            return [row.value for row in results]
-        except Exception as e:
-            print(f"Erro ao buscar revendas pendentes: {e}")
-            return []
-
-    def get_pending_clientes(self, revenda_id: str) -> List[Dict]:
-        """Obter clientes pendentes de uma revenda"""
-        try:
-            results = self.db.view("app/clientes_pending_approval", key=revenda_id)
-            return [row.value for row in results]
-        except Exception as e:
-            print(f"Erro ao buscar clientes pendentes: {e}")
-            return []
 
     def get_revenda_clientes(
         self, revenda_id: str, status: Optional[str] = None

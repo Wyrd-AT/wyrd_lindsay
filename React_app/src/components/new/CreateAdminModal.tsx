@@ -1,56 +1,115 @@
 /// <reference types="vite/client" />
 /**
- * Modal para admin criar outro admin
+ * Modal para criar admin/superadmin
+ * Superadmin escolhe a equipe:
+ *   - Sua equipe → cria superadmin (herda cnpj)
+ *   - Equipe de outro admin → cria admin (herda cnpj do admin)
+ *   - Equipe nova → cria admin (informa CNPJ)
+ * Admin regular: sempre cria admin na mesma equipe (backend herda cnpj)
  */
 
-import React, { useState } from "react";
-import { createAdmin } from "../../api/new/fastapi-admin";
+import React, { useState, useEffect } from "react";
+import { useAuthStore } from "../../stores/new/authStore";
+import { createAdmin, fetchAdmins } from "../../api/new/fastapi-admin";
 
 interface CreateAdminModalProps {
   closeModal: () => void;
   onSuccess: () => void;
 }
 
+const formatDocumento = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d)/, "$1.$2")
+      .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+};
+
+interface TeamOption {
+  cnpj: string;
+  label: string;
+  isSuperadminTeam: boolean;
+}
+
 export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
   closeModal,
   onSuccess,
 }) => {
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    cnpj_admin: "",
-  });
+  const user = useAuthStore((state) => state.user);
+  const isSuperadmin = user?.type === "superadmin";
+
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [selectedTeam, setSelectedTeam] = useState<string>(user?.cnpj || "");
+  const [newCnpj, setNewCnpj] = useState("");
+  const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Formata CPF ou CNPJ conforme a digitação
-  const formatDocumento = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 14);
-    if (digits.length <= 11) {
-      return digits
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-    }
-    return digits
-      .replace(/(\d{2})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d)/, "$1/$2")
-      .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
-  };
+  const isNewTeam = selectedTeam === "__new__";
 
-  // Valida se tem 11, 14 ou 0 dígitos (para não dar erro antes de digitar)
-  const isDocumentoValid = (() => {
-    const digits = form.cnpj_admin.replace(/\D/g, "");
-    return digits.length === 11 || digits.length === 14 || digits.length === 0;
+  // Carregar equipes existentes
+  useEffect(() => {
+    if (!isSuperadmin) return;
+    const load = async () => {
+      setLoadingTeams(true);
+      try {
+        const response: any = await fetchAdmins();
+        if (response?.admins) {
+          const teamsMap = new Map<string, TeamOption>();
+          for (const admin of response.admins) {
+            const cnpj = admin.cnpj_admin;
+            if (cnpj && !teamsMap.has(cnpj)) {
+              const isMine = cnpj === user?.cnpj;
+              teamsMap.set(cnpj, {
+                cnpj,
+                label: isMine
+                  ? `Minha equipe (${admin.name} — ${cnpj})`
+                  : `${admin.name} — ${cnpj}`,
+                isSuperadminTeam: isMine,
+              });
+            }
+          }
+          // Minha equipe primeiro
+          const sorted = Array.from(teamsMap.values()).sort((a, b) =>
+            a.isSuperadminTeam ? -1 : b.isSuperadminTeam ? 1 : 0
+          );
+          setTeams(sorted);
+        }
+      } catch {
+        // silencioso
+      } finally {
+        setLoadingTeams(false);
+      }
+    };
+    load();
+  }, [isSuperadmin, user?.cnpj]);
+
+  const isCnpjValid = (() => {
+    if (!isNewTeam) return true;
+    const digits = newCnpj.replace(/\D/g, "");
+    return digits.length === 11 || digits.length === 14;
   })();
+
+  // Determinar tipo baseado na equipe selecionada
+  const resolveType = (): string => {
+    if (!isSuperadmin) return "admin";
+    if (isNewTeam) return "admin";
+    const team = teams.find((t) => t.cnpj === selectedTeam);
+    return team?.isSuperadminTeam ? "superadmin" : "admin";
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const digitsLength = form.cnpj_admin.replace(/\D/g, "").length;
-    if (digitsLength !== 11 && digitsLength !== 14) {
+    if (isNewTeam && !isCnpjValid) {
       setError("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.");
       return;
     }
@@ -59,12 +118,15 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
     setError(null);
 
     try {
+      const newType = resolveType();
+      const cnpj = isNewTeam ? newCnpj : selectedTeam !== user?.cnpj ? selectedTeam : undefined;
+
       await createAdmin({
         email: form.email,
         password: form.password,
         name: form.name,
-        // Envia com a formatação da máscara preservada
-        cnpj_admin: form.cnpj_admin,
+        new_type: isSuperadmin ? newType : undefined,
+        cnpj_admin: cnpj,
       });
       onSuccess();
     } catch (err) {
@@ -76,7 +138,7 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-dashboard-bg-secondary rounded-lg p-6 w-full max-w-md border border-dashboard-border shadow-xl">
+      <div className="bg-dashboard-bg-secondary rounded-lg p-6 w-full max-w-md border border-dashboard-border shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-dashboard-text-primary">
             Criar Admin
@@ -96,6 +158,40 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isSuperadmin && (
+            <div>
+              <label className="block text-sm text-dashboard-text-secondary mb-1">
+                Equipe
+              </label>
+              <select
+                value={selectedTeam}
+                onChange={(e) => setSelectedTeam(e.target.value)}
+                className="w-full bg-dashboard-bg-tertiary border border-dashboard-border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none focus:border-dashboard-accent"
+                disabled={loadingTeams}
+              >
+                {loadingTeams ? (
+                  <option>Carregando equipes...</option>
+                ) : (
+                  <>
+                    {teams.map((t) => (
+                      <option key={t.cnpj} value={t.cnpj}>
+                        {t.label}
+                      </option>
+                    ))}
+                    <option value="__new__">+ Criar equipe nova (informar CNPJ)</option>
+                  </>
+                )}
+              </select>
+              <span className="text-xs text-dashboard-text-tertiary mt-1 block">
+                {isNewTeam
+                  ? "Será criado um admin independente com seu próprio CNPJ"
+                  : selectedTeam === user?.cnpj
+                    ? "Será criado um superadmin com os mesmos poderes"
+                    : "Será criado um admin na equipe selecionada"}
+              </span>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm text-dashboard-text-secondary mb-1">
               Nome
@@ -139,34 +235,30 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-dashboard-text-secondary mb-1">
-              CNPJ ou CPF do Admin
-            </label>
-            <input
-              type="text"
-              required
-              value={form.cnpj_admin}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  cnpj_admin: formatDocumento(e.target.value),
-                })
-              }
-              className={`w-full bg-dashboard-bg-tertiary border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none ${
-                form.cnpj_admin && !isDocumentoValid
-                  ? "border-red-500 focus:border-red-500"
-                  : "border-dashboard-border focus:border-dashboard-accent"
-              }`}
-              placeholder="XX.XXX.XXX/0001-XX ou XXX.XXX.XXX-XX"
-            />
-            {form.cnpj_admin && !isDocumentoValid && (
-              <span className="text-xs text-red-400 block mt-1">
-                Documento incompleto (
-                {form.cnpj_admin.replace(/\D/g, "").length} dígitos)
-              </span>
-            )}
-          </div>
+          {isNewTeam && (
+            <div>
+              <label className="block text-sm text-dashboard-text-secondary mb-1">
+                CNPJ ou CPF do novo Admin
+              </label>
+              <input
+                type="text"
+                required
+                value={newCnpj}
+                onChange={(e) => setNewCnpj(formatDocumento(e.target.value))}
+                className={`w-full bg-dashboard-bg-tertiary border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none ${
+                  newCnpj && !isCnpjValid
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-dashboard-border focus:border-dashboard-accent"
+                }`}
+                placeholder="XX.XXX.XXX/0001-XX ou XXX.XXX.XXX-XX"
+              />
+              {newCnpj && !isCnpjValid && (
+                <span className="text-xs text-red-400 block mt-1">
+                  Documento incompleto ({newCnpj.replace(/\D/g, "").length} dígitos)
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button
@@ -178,10 +270,10 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || !isDocumentoValid}
+              disabled={loading || !isCnpjValid}
               className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 disabled:text-gray-400 text-black font-bold rounded transition"
             >
-              {loading ? "Criando..." : "Criar Admin"}
+              {loading ? "Criando..." : "Criar"}
             </button>
           </div>
         </form>
