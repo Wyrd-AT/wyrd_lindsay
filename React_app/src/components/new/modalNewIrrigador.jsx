@@ -19,6 +19,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState("");
+  const [isOwnPivo, setIsOwnPivo] = useState(false);
   const [loadingClientes, setLoadingClientes] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -31,7 +32,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Carregar clientes ao abrir (admin precisa selecionar o cliente para associar o pivô)
+  // Carregar clientes ao abrir (admin pode associar a cliente ou criar próprio)
   useEffect(() => {
     if (!isAdmin) return;
     let cancelled = false;
@@ -44,7 +45,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         if (!cancelled) {
           setClientes(list);
           const firstCnpj = list[0]?.cnpj_cliente ?? "";
-          if (list.length > 0 && !clienteId) setClienteId(firstCnpj);
+          if (list.length > 0 && !clienteId && !isOwnPivo) setClienteId(firstCnpj);
         }
       } catch (err) {
         if (!cancelled)
@@ -56,7 +57,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin]);
+  }, [isAdmin, isOwnPivo]);
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(16);
 
@@ -85,7 +86,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       setError("Por favor, informe o nome do irrigador.");
       return;
     }
-    if (isAdmin && !clienteId) {
+    if (isAdmin && !isOwnPivo && !clienteId) {
       setError("Selecione o cliente ao qual o pivô será associado.");
       return;
     }
@@ -100,7 +101,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         whatsapp,
         sms,
         email,
-        cliente_id: isAdmin ? clienteId : undefined, // cnpj_cliente do cliente selecionado
+        cliente_id: isAdmin && !isOwnPivo ? clienteId : undefined, // cnpj_cliente do cliente selecionado
         equipamentos: equipamentos.filter(Boolean),
       });
       onSuccess?.();
@@ -146,15 +147,31 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
         {isAdmin && (
           <label className="block text-white mb-4">
-            Cliente (obrigatório):
+            <div className="flex items-center justify-between mb-2">
+              <span>Cliente</span>
+              <label className="flex items-center gap-2 text-sm text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={isOwnPivo}
+                  onChange={(e) => {
+                    setIsOwnPivo(e.target.checked);
+                    if (e.target.checked) {
+                      setClienteId("");
+                    }
+                  }}
+                  disabled={isSaving}
+                />
+                Pivô próprio do admin
+              </label>
+            </div>
             <select
               value={clienteId}
               onChange={(e) => setClienteId(e.target.value)}
               className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              disabled={isSaving || loadingClientes}
-              required
+              disabled={isSaving || loadingClientes || isOwnPivo}
+              required={!isOwnPivo}
             >
-              <option value="">Selecione o cliente</option>
+              <option value="">{isOwnPivo ? "Pivô próprio do admin" : "Selecione o cliente"}</option>
               {clientes.map((c) => (
                 <option
                   key={c._id ?? c.cnpj_cliente}
@@ -169,7 +186,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
                 Carregando clientes...
               </span>
             )}
-            {!loadingClientes && clientes.length === 0 && (
+            {!loadingClientes && clientes.length === 0 && !isOwnPivo && (
               <span className="text-amber-400 text-sm">
                 Nenhum cliente superusuário encontrado. Apenas clientes com
                 perfil superusuário podem receber pivôs.
