@@ -9,9 +9,29 @@
 import axios from "axios";
 import { useAuthStore } from "../../stores/new/authStore";
 
-// URL base da API (variavelmente via env)
+// URL base da API:
+// - Em produção, evita usar localhost acidentalmente (build com .env de dev)
+// - Fallback padrão para rota relativa /api no mesmo host
+const ENV_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").trim();
+const isBrowser = typeof window !== "undefined";
+const isLocalRuntime =
+  isBrowser &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1");
+const currentHost = isBrowser ? window.location.hostname : "";
+const envPointsToLocalhost =
+  /:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(ENV_API_BASE_URL);
+
+const HOST_API_MAP = {
+  "lindsay.vpn.ind.br": "https://api.lindsay.vpn.ind.br/api",
+};
+
+const hostBasedApi = HOST_API_MAP[currentHost] || "";
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
+  ENV_API_BASE_URL && !(envPointsToLocalhost && !isLocalRuntime)
+    ? ENV_API_BASE_URL
+    : hostBasedApi || "/api";
 
 // Criar instância do axios com config base
 const apiClient = axios.create({

@@ -192,7 +192,7 @@ class CreatePivoRequest(BaseModel):
     codigo: str
     nome: str
     cliente_id: Optional[str] = (
-        None  # doc_id do cliente (ex: "user:email@x.com") - admin/revenda especifica
+        None  # Se informado: CNPJ do cliente; se vazio: pivô próprio do admin/superadmin
     )
     equipamentos: List[str] = []  # ex: ["Painel 1", "Torre 1", "Casa de bombas"]
     location: Optional[Dict[str, float]] = None

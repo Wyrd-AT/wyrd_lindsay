@@ -37,7 +37,11 @@ async def list_pivos(user: dict = Depends(get_current_user)):
 async def create_pivo(
     request: CreatePivoRequest, user: dict = Depends(get_current_user)
 ):
-    """Criar novo pivô (apenas admin); associação por cnpj_cliente (enviado em cliente_id)."""
+    """Criar novo pivô (admin/superadmin).
+
+    - Se cliente_id informado: associa ao cliente (cnpj_cliente).
+    - Se cliente_id vazio: cria pivô próprio do admin/superadmin (sem cliente).
+    """
     checker = PermissionChecker(user)
     if not checker.is_admin():
         raise HTTPException(
@@ -45,9 +49,39 @@ async def create_pivo(
         )
 
     if not request.cliente_id:
-        raise HTTPException(
-            status_code=400, detail="cliente_id é obrigatório (cnpj_cliente do cliente)"
+        # Criar pivô próprio do admin/superadmin (sem cliente)
+        cnpj_admin = user.get("cnpj")
+        if not cnpj_admin:
+            raise HTTPException(
+                status_code=400,
+                detail="cnpj_admin é obrigatório para criar pivô próprio do admin",
+            )
+
+        pivo = PivoService(get_db()).create_pivo(
+            user=user,
+            pivo_data={
+                "codigo": request.codigo,
+                "nome": request.nome,
+                "owner_id": user.get("email"),
+                "cnpj_cliente": None,
+                "nome_cliente": None,
+                "cnpj_revenda": None,
+                "nome_revenda": None,
+                "cnpj_admin": cnpj_admin,
+                "nome_admin": user.get("name"),
+                "revenda_id": None,
+                "equipamentos": request.equipamentos,
+                "ativo": True,
+                "location": request.location,
+                "contacts": {
+                    "whatsapp": request.whatsapp,
+                    "sms": request.sms,
+                    "email": request.email,
+                },
+            },
+            checker=checker,
         )
+        return {"status": "created", "pivo": pivo}
 
     cnpj_cliente = request.cliente_id.strip()
     logger.info(
