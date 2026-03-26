@@ -88,42 +88,41 @@ async def create_admin(
 
         doc_id = result.document_id
 
-        # PASSO 2: Criar no Cognito
+        # PASSO 2: Criar no Cognito (admin_create_user)
         try:
-            sign_up_params = {
-                "ClientId": settings.COGNITO_CLIENT_ID,
-                "Username": body.email,
-                "Password": body.password,
-                "UserAttributes": [
+            create_response = cognito_client.admin_create_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                UserAttributes=[
                     {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
                     {"Name": "name", "Value": body.name},
                     {"Name": "custom:type", "Value": new_type},
                     {"Name": "custom:status", "Value": "active"},
                     {"Name": "custom:cnpj", "Value": cnpj_admin},
                     {"Name": "custom:doc_id", "Value": doc_id or ""},
                 ],
-            }
+                MessageAction="SUPPRESS",
+            )
+            cognito_sub = create_response["User"]["Username"]
 
-            cognito_response = cognito_client.sign_up(**sign_up_params)
-            cognito_sub = cognito_response.get("UserSub")
+            # Definir senha permanente
+            cognito_client.admin_set_user_password(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                Password=body.password,
+                Permanent=True,
+            )
 
             # Atualizar CouchDB com cognito_sub
             try:
                 db = get_users_db()
                 admin_doc = db.get(doc_id)
                 admin_doc["cognito_sub"] = cognito_sub
+                admin_doc["cognito_synced"] = True
                 db.save(admin_doc)
             except Exception as e:
                 print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
-
-            # Confirmar no Cognito
-            try:
-                cognito_client.admin_confirm_sign_up(
-                    UserPoolId=settings.COGNITO_USER_POOL_ID,
-                    Username=body.email,
-                )
-            except Exception as e:
-                print(f"⚠️ Aviso ao confirmar admin no Cognito: {e}")
 
         except Exception as cognito_error:
             print(f"❌ Erro ao criar admin no Cognito: {cognito_error}")

@@ -112,28 +112,34 @@ async def create_revenda_admin(
 
         print(f"✅ Revenda criada no CouchDB: {doc_id}")
 
-        # ✅ PASSO 2: Criar usuário no Cognito (DEPOIS de CouchDB funcionar)
+        # ✅ PASSO 2: Criar usuário no Cognito (admin_create_user)
         try:
-            # ✅ Passar custom attributes JÁ no sign_up
-            sign_up_params = {
-                "ClientId": settings.COGNITO_CLIENT_ID,
-                "Username": body.email,
-                "Password": body.password,
-                "UserAttributes": [
+            create_response = cognito_client.admin_create_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                UserAttributes=[
                     {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
                     {"Name": "name", "Value": body.name},
                     {"Name": "custom:type", "Value": "revenda"},
                     {"Name": "custom:status", "Value": "active"},
                     {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
                     {"Name": "custom:doc_id", "Value": doc_id},
                 ],
-            }
-
-            cognito_response = cognito_client.sign_up(**sign_up_params)
-            cognito_sub = cognito_response.get("UserSub")
+                MessageAction="SUPPRESS",
+            )
+            cognito_sub = create_response["User"]["Username"]
             print(f"✅ Usuário criado no Cognito: {cognito_sub}")
             print(
                 f"✅ Custom attributes salvos: type=revenda, status=active, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}"
+            )
+
+            # Definir senha permanente
+            cognito_client.admin_set_user_password(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                Password=body.password,
+                Permanent=True,
             )
 
             # ✅ PASSO 3: Atualizar revenda no CouchDB com cognito_sub
@@ -145,16 +151,6 @@ async def create_revenda_admin(
                 print(f"✅ Cognito Sub atualizado no CouchDB")
             except Exception as e:
                 print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
-
-            # ✅ PASSO 4: Confirmar usuário no Cognito automaticamente
-            try:
-                cognito_client.admin_confirm_sign_up(
-                    UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
-                )
-                print(f"✅ Usuário confirmado no Cognito")
-            except Exception as e:
-                print(f"⚠️ Aviso ao confirmar usuário: {e}")
-                # Continua mesmo se falhar - custom attributes já foram salvos no sign_up
 
             # ✅ PASSO 5: Atualizar admin.revendas[] com o cnpj_revenda
             try:
