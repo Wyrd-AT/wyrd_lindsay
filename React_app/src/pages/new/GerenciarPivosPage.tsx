@@ -32,6 +32,7 @@ interface StatsSectionProps {
 export function GerenciarPivosPage() {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const {
     stats,
@@ -62,7 +63,12 @@ export function GerenciarPivosPage() {
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="admin" />
+          <Header
+            page="admin"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Pesquisar pivô por nome, código ou dono..."
+          />
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Pivôs</h1>
@@ -110,6 +116,7 @@ export function GerenciarPivosPage() {
                 Monitoramento de Pivôs
               </h2>
               <PivosSection
+                searchTerm={searchTerm}
                 fetchPivos={fetchPivos}
                 onUpdatePivo={async (pivoId, pivoData) => {
                   // Pivô é documento de irrigador no CouchDB; edição direta evita roundtrip no backend.

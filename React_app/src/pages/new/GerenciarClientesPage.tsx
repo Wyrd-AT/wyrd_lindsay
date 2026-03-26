@@ -20,6 +20,7 @@ import { useAdminStats } from "../../hooks/new/useAdminStats";
 import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
 import { updateCliente, deleteCliente } from "../../api/new/fastapi-admin";
 import type { Cliente } from "../../types/admin";
+import { matchesSearchTerm } from "../../utils/search";
 
 interface StatCard {
   label: string;
@@ -40,6 +41,7 @@ export function GerenciarClientesPage() {
   const [showCreateCliente, setShowCreateCliente] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const {
     clientes,
@@ -93,7 +95,12 @@ export function GerenciarClientesPage() {
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="admin" />
+          <Header
+            page="admin"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Pesquisar cliente por nome, email ou revenda..."
+          />
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Clientes</h1>
@@ -135,6 +142,7 @@ export function GerenciarClientesPage() {
             <ClientesSection
               clientes={clientes}
               loading={loadingClientes}
+              searchTerm={searchTerm}
               onRefresh={fetchClientes}
               onCreateClick={() => setShowCreateCliente(true)}
               isSuperadmin={isSuperadmin}
@@ -219,6 +227,7 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
 interface ClientesSectionProps {
   clientes: Cliente[];
   loading: boolean;
+  searchTerm: string;
   onRefresh: () => void;
   onCreateClick: () => void;
   isSuperadmin: boolean;
@@ -229,6 +238,7 @@ interface ClientesSectionProps {
 function ClientesSection({
   clientes,
   loading,
+  searchTerm,
   onRefresh,
   onCreateClick,
   isSuperadmin,
@@ -237,9 +247,22 @@ function ClientesSection({
 }: ClientesSectionProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const filteredClientes = clientes.filter((c) =>
-    filterStatus === "all" ? true : c.status === filterStatus,
-  );
+  const filteredClientes = clientes.filter((c) => {
+    const matchesStatus =
+      filterStatus === "all" ? true : c.status === filterStatus;
+
+    return (
+      matchesStatus &&
+      matchesSearchTerm(searchTerm, [
+        c.name,
+        c.email,
+        c.revenda_id,
+        c.cnpj_cliente,
+        c.cnpj_revenda,
+        c.status,
+      ])
+    );
+  });
 
   return (
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
@@ -296,8 +319,9 @@ function ClientesSection({
       ) : filteredClientes.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
           <p>
-            Nenhum cliente{" "}
-            {filterStatus !== "all" ? `com status "${filterStatus}"` : ""}
+            {clientes.length === 0
+              ? `Nenhum cliente ${filterStatus !== "all" ? `com status "${filterStatus}"` : ""}`
+              : "Nenhum cliente encontrado para os filtros atuais"}
           </p>
         </div>
       ) : (

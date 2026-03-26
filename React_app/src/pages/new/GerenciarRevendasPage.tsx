@@ -19,6 +19,7 @@ import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
 import { useAdminStats } from "../../hooks/new/useAdminStats";
 import { updateRevenda, deleteRevenda } from "../../api/new/fastapi-admin";
 import type { Revenda } from "../../types/admin";
+import { matchesSearchTerm } from "../../utils/search";
 
 interface StatCard {
   label: string;
@@ -39,6 +40,7 @@ export function GerenciarRevendasPage() {
   const [showCreateRevenda, setShowCreateRevenda] = useState(false);
   const [editingRevenda, setEditingRevenda] = useState<Revenda | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const {
     allRevendas,
@@ -90,7 +92,12 @@ export function GerenciarRevendasPage() {
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="admin" />
+          <Header
+            page="admin"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Pesquisar revenda por nome, email ou CNPJ..."
+          />
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Revendas</h1>
@@ -132,6 +139,7 @@ export function GerenciarRevendasPage() {
             <RevendasSection
               revendas={allRevendas}
               loading={loadingRevendas}
+              searchTerm={searchTerm}
               onRefresh={fetchAllRevendas}
               onCreateClick={() => setShowCreateRevenda(true)}
               isSuperadmin={isSuperadmin}
@@ -215,6 +223,7 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
 interface RevendasSectionProps {
   revendas: Revenda[];
   loading: boolean;
+  searchTerm: string;
   onRefresh: () => void;
   onCreateClick: () => void;
   isSuperadmin: boolean;
@@ -225,12 +234,23 @@ interface RevendasSectionProps {
 function RevendasSection({
   revendas,
   loading,
+  searchTerm,
   onRefresh,
   onCreateClick,
   isSuperadmin,
   onEditRevenda,
   onDeleteRevenda,
 }: RevendasSectionProps) {
+  const filteredRevendas = revendas.filter((revenda) =>
+    matchesSearchTerm(searchTerm, [
+      revenda.name,
+      revenda.email,
+      revenda.cnpj_revenda,
+      revenda.status,
+      revenda._id,
+    ]),
+  );
+
   return (
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
@@ -259,13 +279,17 @@ function RevendasSection({
         <div className="flex justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent"></div>
         </div>
-      ) : revendas.length === 0 ? (
+      ) : filteredRevendas.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
-          <p>Nenhuma revenda cadastrada</p>
+          <p>
+            {revendas.length === 0
+              ? "Nenhuma revenda cadastrada"
+              : "Nenhuma revenda encontrada para a busca atual"}
+          </p>
         </div>
       ) : (
         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
-          {revendas.map((revenda, idx) => (
+          {filteredRevendas.map((revenda, idx) => (
             <div
               key={revenda._id ?? revenda.email ?? `revenda-${idx}`}
               className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"
