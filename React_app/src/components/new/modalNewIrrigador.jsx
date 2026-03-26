@@ -305,7 +305,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
             type="submit"
             disabled={
               isSaving ||
-              (isAdmin && (loadingClientes || clientes.length === 0))
+              (isAdmin && !isOwnPivo && (loadingClientes || clientes.length === 0))
             }
             className={`px-4 py-2 rounded-md text-white ${isSaving ? "bg-gray-500 cursor-not-allowed" : "bg-[#08cb7c] hover:bg-green-600"}`}
           >
