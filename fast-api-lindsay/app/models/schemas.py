@@ -213,7 +213,7 @@ class UpdatePivoRequest(BaseModel):
 class PivoResponse(BaseModel):
     """Dados de pivô (created_at/updated_at opcionais para docs antigos do CouchDB)"""
 
-    _id: str
+    id: str = Field(..., alias="_id")
     codigo: str
     nome: str
     owner_id: str
@@ -221,6 +221,8 @@ class PivoResponse(BaseModel):
     ativo: bool
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    model_config = {"populate_by_name": True, "by_alias": True}
 
 
 class PivosListResponse(BaseModel):

@@ -333,7 +333,7 @@ class PivoService:
         """
         try:
             # Tentar query Mango
-            result = self.db.find({"selector": selector})
+            result = self.db.find({"selector": selector, "limit": 1000})
             pivos = list(result)
 
             # Se não encontrou nada, tentar método alternativo

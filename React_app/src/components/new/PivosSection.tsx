@@ -3,6 +3,8 @@ import { useAuthStore } from "../../stores/new/authStore";
 import { getRecentAll } from "../../hooks/new/getRecent";
 import { parseSwVector } from "../../helpers/helperHomePage";
 import { matchesSearchTerm } from "../../utils/search";
+import { getDoc } from "../../api/new/couch";
+import ModalEditIrrigador from "./ModalEditIrrigador";
 
 interface Pivo {
   _id: string;
@@ -16,8 +18,15 @@ interface Pivo {
     lat: number;
     lng: number;
   };
+  equipamentos?: string[];
+  contacts?: {
+    whatsapp?: string;
+    sms?: string;
+    email?: string;
+  };
   alarmCount?: number;
   lastAlertDate?: string;
+  [key: string]: any;
 }
 
 export interface PivosSectionProps {
@@ -43,7 +52,7 @@ export interface PivosSectionProps {
   /**
    * Atualizar pivô (admin/superadmin)
    */
-  onUpdatePivo?: (pivoId: string, pivoData: { nome?: string; ativo?: boolean }) => Promise<void>;
+  onUpdatePivo?: (pivoId: string, pivoData: Record<string, any>) => Promise<void>;
 
   /**
    * Deletar pivô (admin/superadmin)
@@ -185,17 +194,31 @@ export default function PivosSection({
     ]),
   );
 
-  const handleEditPivo = async (pivo: Pivo) => {
+  const [editingPivo, setEditingPivo] = useState<Pivo | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
+
+  const openEditModal = async (pivo: Pivo) => {
+    setLoadingEdit(true);
+    try {
+      const fullDoc = await getDoc<Pivo>("lindsay-data", pivo._id);
+      setEditingPivo(fullDoc);
+    } catch (err) {
+      console.error("Erro ao buscar documento completo:", err);
+      setEditingPivo(pivo);
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
+  const handleSaveEdit = async (pivoId: string, updates: Record<string, any>) => {
     if (!onUpdatePivo) return;
-    const nome = window.prompt("Novo nome do pivô:", pivo.nome || "");
-    if (nome === null) return;
-    await onUpdatePivo(pivo._id, { nome });
+    await onUpdatePivo(pivoId, updates);
     await loadPivos();
   };
 
   const handleDeletePivo = async (pivo: Pivo) => {
     if (!onDeletePivo) return;
-    if (!window.confirm(`Deseja deletar o pivô ${pivo.nome}?`)) return;
+    if (!window.confirm(`Deseja deletar o pivô "${pivo.nome}"? Esta ação não pode ser desfeita.`)) return;
     await onDeletePivo(pivo._id);
     await loadPivos();
   };
@@ -269,9 +292,9 @@ export default function PivosSection({
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredPivos.map((pivo) => (
+          {filteredPivos.map((pivo, idx) => (
             <div
-              key={pivo._id}
+              key={pivo._id || `pivo-${idx}`}
               onClick={() => onSelectPivo?.(pivo)}
               className="border border-dashboard-border rounded-lg p-4 bg-dashboard-bg-tertiary hover:bg-dashboard-border transition cursor-pointer"
             >
@@ -320,7 +343,7 @@ export default function PivosSection({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleEditPivo(pivo);
+                      openEditModal(pivo);
                     }}
                     className="px-3 py-1 text-xs rounded bg-dashboard-accent text-white font-bold hover:bg-dashboard-accent-hover transition"
                   >
@@ -340,6 +363,15 @@ export default function PivosSection({
             </div>
           ))}
         </div>
+      )}
+
+      {/* Modal de Edição */}
+      {editingPivo && (
+        <ModalEditIrrigador
+          pivo={editingPivo}
+          onSave={handleSaveEdit}
+          onClose={() => setEditingPivo(null)}
+        />
       )}
     </div>
   );
