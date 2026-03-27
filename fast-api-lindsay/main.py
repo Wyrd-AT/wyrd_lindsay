@@ -66,10 +66,11 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Iniciando background MQTT Listener...")
     if not start_mqtt_background():
-        print("❌ ERRO FATAL: O listener MQTT retornou False na inicialização.")
-        raise RuntimeError("ERRO FATAL: O listener MQTT não pôde ser iniciado.")
-
-    print("✅ Background MQTT Listener iniciado com sucesso!")
+        print("⚠️  MQTT Listener não pôde ser iniciado. API rodando sem MQTT.")
+        # TODO: reverter para fatal antes do deploy:
+        # raise RuntimeError("ERRO FATAL: O listener MQTT não pôde ser iniciado.")
+    else:
+        print("✅ Background MQTT Listener iniciado com sucesso!")
 
     yield
 

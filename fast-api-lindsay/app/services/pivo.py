@@ -125,7 +125,7 @@ class PivoService:
             "table": "irrigadores",
             "codigo": pivo_model.codigo,
             "irrigador": pivo_model.nome,
-            "equipamentos": pivo_model.equipamentos,
+            "equipamentos": ["Painel 1", "Painel 2"] + [e for e in pivo_model.equipamentos if e not in ("Painel 1", "Painel 2")],
             "contacts": {
                 "whatsapp": pivo_data.get("contacts", {}).get("whatsapp"),
                 "sms": pivo_data.get("contacts", {}).get("sms"),
