@@ -3,6 +3,7 @@ import re
 import sys
 import signal
 import threading
+import time
 from queue import Queue, Full, Empty
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Tuple, Set  # >>> WS ADD: Set
@@ -114,6 +115,8 @@ NOTIFICATION_MODE = os.getenv("NOTIFICATION_MODE")
 
 # Rate limiting
 RATE_LIMIT_DELAY = float(os.getenv("RATE_LIMIT_DELAY"))
+VOICE_ZAPI_MAX_ATTEMPTS = int(os.getenv("VOICE_ZAPI_MAX_ATTEMPTS", "5"))
+VOICE_ZAPI_RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
 
 # >>> WS ADD: Config WebSocket
 WS_HOST = os.getenv("WS_HOST")
@@ -790,6 +793,123 @@ def send_whatsapp(msg: str, to: List[str], template_params: Optional[Dict[str, A
 
     return results
 
+def send_voice_call_zapi(to: List[str], call_duration: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Inicia ligação de voz via Z-API para múltiplos números.
+
+    Args:
+        to: Lista de números no formato internacional (+5511999999999)
+        call_duration: Duração opcional da chamada em segundos
+
+    Returns:
+        dict com 'success' (list), 'failed' (list), 'invalid' (list)
+    """
+    results = {"success": [], "failed": [], "invalid": []}
+
+    if not to:
+        log("warn", "Nenhum número para iniciar ligação via Z-API")
+        return results
+
+    if not ZAPI_INSTANCE or not ZAPI_TOKEN or not ZAPI_CLIENT_TOKEN:
+        log("error", "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)")
+        return results
+
+    url = f"{ZAPI_BASE_URL}/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-call"
+    headers = {
+        "Client-Token": ZAPI_CLIENT_TOKEN,
+        "Content-Type": "application/json"
+    }
+
+    for i, phone in enumerate(to):
+        if not validate_phone_number(phone):
+            results["invalid"].append({"phone": phone, "reason": "Formato inválido"})
+            log("warn", f"Número inválido ignorado para ligação Z-API: {phone}")
+            continue
+
+        if i > 0:
+            time.sleep(RATE_LIMIT_DELAY)
+
+        phone_clean = re.sub(r"[^\d]", "", phone)
+        payload: Dict[str, Any] = {"phone": phone_clean}
+        if call_duration is not None:
+            payload["callDuration"] = call_duration
+
+        for attempt in range(1, VOICE_ZAPI_MAX_ATTEMPTS + 1):
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+                if 200 <= response.status_code < 300:
+                    data = response.json() if response.content else {}
+                    results["success"].append({
+                        "phone": phone,
+                        "message_id": data.get("messageId"),
+                        "zaap_id": data.get("zaapId"),
+                        "status": "initiated",
+                        "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                        "type": "voice_call_zapi",
+                        "attempt": attempt
+                    })
+                    log("ok", f"Ligação Z-API iniciada para {phone} na tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}")
+                    break
+
+                retryable = response.status_code in {408, 409, 429} or response.status_code >= 500
+                error_message = f"HTTP {response.status_code}: {response.text}"
+
+                if retryable and attempt < VOICE_ZAPI_MAX_ATTEMPTS:
+                    delay = VOICE_ZAPI_RETRY_DELAYS[min(attempt - 1, len(VOICE_ZAPI_RETRY_DELAYS) - 1)]
+                    log(
+                        "warn",
+                        f"Falha temporária ao iniciar ligação Z-API para {phone} "
+                        f"(tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}): {error_message}. "
+                        f"Nova tentativa em {delay:.0f}s"
+                    )
+                    time.sleep(delay)
+                    continue
+
+                results["failed"].append({
+                    "phone": phone,
+                    "error": error_message,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "voice_call_zapi",
+                    "attempts": attempt
+                })
+                log("error", f"Falha ao iniciar ligação Z-API para {phone} após {attempt} tentativa(s): {error_message}")
+                break
+
+            except requests.RequestException as e:
+                if attempt < VOICE_ZAPI_MAX_ATTEMPTS:
+                    delay = VOICE_ZAPI_RETRY_DELAYS[min(attempt - 1, len(VOICE_ZAPI_RETRY_DELAYS) - 1)]
+                    log(
+                        "warn",
+                        f"Erro transitório ao iniciar ligação Z-API para {phone} "
+                        f"(tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}): {type(e).__name__} - {str(e)}. "
+                        f"Nova tentativa em {delay:.0f}s"
+                    )
+                    time.sleep(delay)
+                    continue
+
+                results["failed"].append({
+                    "phone": phone,
+                    "error": str(e),
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "voice_call_zapi",
+                    "attempts": attempt
+                })
+                log("error", f"Erro ao iniciar ligação Z-API para {phone} após {attempt} tentativa(s): {type(e).__name__} - {str(e)}")
+                break
+
+            except Exception as e:
+                results["failed"].append({
+                    "phone": phone,
+                    "error": str(e),
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "voice_call_zapi",
+                    "attempts": attempt
+                })
+                log("error", f"Erro inesperado ao iniciar ligação Z-API para {phone}: {type(e).__name__} - {str(e)}")
+                break
+
+    return results
+
 def send_notification(msg: str, contacts: Dict[str, List[str]], template_params: Optional[Dict[str, Any]] = None,
                      email_subject: Optional[str] = None, email_html: Optional[str] = None,
                      irrigador_nome: Optional[str] = None) -> Dict[str, Any]:
@@ -1082,6 +1202,34 @@ def is_whatsapp_enabled_for_irrigador(irrigador_id: str) -> bool:
     except Exception as e:
         log("warn", f"Erro ao verificar config WhatsApp para {irrigador_id}: {e} - assumindo ativado")
         return True
+
+def is_whatsapp_call_enabled_for_irrigador(irrigador_id: str) -> bool:
+    """
+    Verifica se as ligações via WhatsApp/Z-API estão ativadas para um irrigador específico.
+
+    Args:
+        irrigador_id: ID do irrigador (ex: LIND01)
+
+    Returns:
+        True se ativado, False se desativado (ou se não existir configuração)
+    """
+    try:
+        db = get_couch_db()
+        if db is None:
+            log("warn", "CouchDB não disponível - assumindo ligação desativada")
+            return False
+
+        doc_id = f"whatsapp_config:{irrigador_id}"
+        config_doc = db.get(doc_id)
+
+        if config_doc is None:
+            return False
+
+        return config_doc.get("whatsapp_call_enabled", False)
+
+    except Exception as e:
+        log("warn", f"Erro ao verificar config de ligação WhatsApp para {irrigador_id}: {e} - assumindo desativado")
+        return False
 
 
 def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
@@ -1663,7 +1811,9 @@ def process_payload(topic: str, payload_str: str):
                     # 3. Envia notificações SMS/WhatsApp/Email (se notify estiver ativo)
                     # Verifica se WhatsApp está ativado para este irrigador
                     whatsapp_enabled = is_whatsapp_enabled_for_irrigador(irrigador_id)
+                    whatsapp_call_enabled = is_whatsapp_call_enabled_for_irrigador(irrigador_id)
                     log("info", f"WhatsApp/SMS para {irrigador_id}: {'ATIVADO' if whatsapp_enabled else 'DESATIVADO'}")
+                    log("info", f"Ligação WhatsApp/Z-API para {irrigador_id}: {'ATIVADA' if whatsapp_call_enabled else 'DESATIVADA'}")
 
                     # Busca informações completas do irrigador (nome + contatos + equipamentos)
                     irrigador_info = get_irrigador_info(irrigador_id)
@@ -1692,9 +1842,13 @@ def process_payload(topic: str, payload_str: str):
                     else:
                         log("info", f"Usando contatos específicos para email{irrigador_id}")
 
-                    # Só envia se notify estiver ativo E whatsapp_enabled for True
-                    log("notfy", f"notify={notify}, whatsapp_enabled={whatsapp_enabled}, phones={phones}, emails={emails}")
-                    if notify and whatsapp_enabled and (phones or emails):
+                    # Mensagens e ligação usam toggles separados, mas ambos respeitam o notify global.
+                    log(
+                        "notfy",
+                        f"notify={notify}, whatsapp_enabled={whatsapp_enabled}, "
+                        f"whatsapp_call_enabled={whatsapp_call_enabled}, phones={phones}, emails={emails}"
+                    )
+                    if notify and (whatsapp_enabled or whatsapp_call_enabled) and (phones or emails):
                         event_type = parsed.get("eventType", "A")
                         monitor = parsed.get("monitor", "00")
                         timestamp = parsed.get("timestamp_formatted", "")
@@ -1743,16 +1897,43 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
 </div></body></html>"""
 
                         try:
-                            # Envia notificações
-                            contacts = {"phones": phones, "emails": emails}
-                            send_results = send_notification(
-                                msg=msg_body,
-                                contacts=contacts,
-                                template_params=template_params,
-                                email_subject=f"🚨 Alarme {equipamento_nome} ({irrigador_nome}) - {MONITOR_TENSAO.get(monitor, 'Evento')}",
-                                email_html=email_html,
-                                irrigador_nome=equipamento_nome
-                            )
+                            send_results = {
+                                "success": [],
+                                "failed": [],
+                                "invalid": [],
+                                "modes_used": []
+                            }
+
+                            if whatsapp_enabled:
+                                contacts = {"phones": phones, "emails": emails}
+                                message_results = send_notification(
+                                    msg=msg_body,
+                                    contacts=contacts,
+                                    template_params=template_params,
+                                    email_subject=f"🚨 Alarme {equipamento_nome} ({irrigador_nome}) - {MONITOR_TENSAO.get(monitor, 'Evento')}",
+                                    email_html=email_html,
+                                    irrigador_nome=equipamento_nome
+                                )
+                                send_results["success"].extend(message_results["success"])
+                                send_results["failed"].extend(message_results["failed"])
+                                send_results["invalid"].extend(message_results["invalid"])
+                                send_results["modes_used"].extend(message_results.get("modes_used", []))
+                            else:
+                                log("info", f"Mensagens WhatsApp/SMS desativadas para {irrigador_id} - pulando envio de texto")
+
+                            if whatsapp_call_enabled and phones:
+                                voice_results = send_voice_call_zapi(phones)
+                                send_results["success"].extend(voice_results["success"])
+                                send_results["failed"].extend(voice_results["failed"])
+                                send_results["invalid"].extend(voice_results["invalid"])
+                                if (
+                                    voice_results["success"]
+                                    or voice_results["failed"]
+                                    or voice_results["invalid"]
+                                ):
+                                    send_results["modes_used"].append("voice_zapi")
+                            elif whatsapp_call_enabled:
+                                log("info", f"Ligação WhatsApp/Z-API ativada para {irrigador_id}, mas sem telefone para ligar")
 
                             # Registra histórico no documento
                             docs[0]["notification_history"] = {
@@ -1786,8 +1967,8 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                             log("error", f"Erro ao enviar notificações Twilio: {e}")
                         except Exception as e:
                             log("error", f"Erro inesperado ao enviar notificações: {e}")
-                    elif notify and not whatsapp_enabled:
-                        log("info", f"Notificações WhatsApp/SMS DESATIVADAS para {irrigador_id} - nenhuma mensagem será enviada")
+                    elif notify and not (whatsapp_enabled or whatsapp_call_enabled):
+                        log("info", f"Notificações e ligações DESATIVADAS para {irrigador_id} - nada será enviado")
                     elif notify:
                         log("info", "Nenhum contato para notificar")
                 else:
