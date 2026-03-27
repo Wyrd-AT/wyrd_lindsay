@@ -37,8 +37,10 @@ export default function Overview({
   const [localManOverride, setLocalManOverride] = useState<null | boolean>(
     null,
   );
+  const [localSireneOverride, setLocalSireneOverride] = useState<
+    null | boolean
+  >(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSireneActive, setIsSireneActive] = useState(false);
   const canResolveAlerts = useAuthStore(selectCanResolveAlerts);
 
   // FASE 1 - Performance: Adaptive polling
@@ -201,6 +203,20 @@ export default function Overview({
     [localManOverride, parsed_sw],
   );
 
+  const isSireneActive = useMemo(
+    () =>
+      localSireneOverride !== null
+        ? localSireneOverride
+        : parsed_sw?.sirene === "1",
+    [localSireneOverride, parsed_sw],
+  );
+
+  useEffect(() => {
+    if (parsed_sw) {
+      setLocalSireneOverride(null);
+    }
+  }, [parsed_sw?.sirene]);
+
   /* ----------------- cards ----------------- */
   const cards: DeviceCard[] = useMemo(() => {
     if (!parsed_sw) return [];
@@ -270,7 +286,7 @@ export default function Overview({
   const handleToggleSirene = async () => {
     const current = isSireneActive;
     const next = !current;
-    setIsSireneActive(next);
+    setLocalSireneOverride(next);
     setIsSaving(true);
     try {
       const successMsg = next
@@ -289,7 +305,7 @@ export default function Overview({
         loading,
       );
     } catch (error) {
-      setIsSireneActive(current);
+      setLocalSireneOverride(current);
     } finally {
       setIsSaving(false);
     }

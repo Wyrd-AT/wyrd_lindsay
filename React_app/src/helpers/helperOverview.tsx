@@ -16,6 +16,7 @@ export type Monitor = {
 };
 export type ParsedSW = {
   status_manutencao: "0" | "1";
+  sirene: "0" | "1";
   painel_1: string;
   painel_2?: string;
   monitores: Monitor[];
@@ -73,6 +74,7 @@ export function parseSwVectorOverview(data: RecentSWDoc["data"] | undefined) {
 
   return {
     status_manutencao: (Number(data.manutencao) > 0 ? "1" : "0") as "0" | "1",
+    sirene: (Number(data.sirene) > 0 ? "1" : "0") as "0" | "1",
     painel_1: toStr(data.painel_1),
     painel_2: toStr(data.painel_2),
     monitores: mArr,
