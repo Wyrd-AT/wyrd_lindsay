@@ -5,6 +5,7 @@ import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import useMessageStore from "../../stores/new/messageStore";
 import { useIrrigadores } from "../../stores/new/dataStoreIrrigadores";
 import { sendCommand } from "../../helpers/helperOverview";
+import { selectCanToggleAlarm, useAuthStore } from "../../stores/new/authStore";
 
 // Mapeamento dos códigos para a descrição
 const valueDescriptions = {
@@ -33,6 +34,8 @@ export default function StatusAlarmModal({
   const [loading, setLoading] = useState(false);
   const [responseMsg, setResponseMsg] = useState("");
   const [collapsedSections, setCollapsedSections] = useState({});
+
+  const canToggleAlarm = useAuthStore(selectCanToggleAlarm);
 
   // Fecha modal com Esc
   useEffect(() => {
@@ -120,41 +123,45 @@ export default function StatusAlarmModal({
 
         {/* Botões de ação */}
         <div className="flex gap-2 mb-4">
-          <button
-            type="button"
-            onClick={() =>
-              sendCommand(
-                `AlarmeON${monitorCode}`,
-                "Alarme ligado com sucesso!",
-                "Falha ao ligar alarme.",
-                machineId,
-                setResponseMsg,
-                setLoading,
-              )
-            }
-            disabled={loading || !monitorCode}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-2 rounded"
-          >
-            {loading ? "..." : "Ligar Alarme"}
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              sendCommand(
-                `AlarmeOFF${monitorCode}`,
-                "Alarme desligado com sucesso!",
-                "falha ao desligar alarme.",
-                machineId,
-                setResponseMsg,
-                setLoading,
-                loading,
-              )
-            }
-            disabled={loading || !monitorCode}
-            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 px-4 py-2 rounded"
-          >
-            {loading ? "..." : "Desligar Alarme"}
-          </button>
+          {canToggleAlarm && (
+            <button
+              type="button"
+              onClick={() =>
+                sendCommand(
+                  `AlarmeON${monitorCode}`,
+                  "Alarme ligado com sucesso!",
+                  "Falha ao ligar alarme.",
+                  machineId,
+                  setResponseMsg,
+                  setLoading,
+                )
+              }
+              disabled={loading || !monitorCode}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-2 rounded"
+            >
+              {loading ? "..." : "Ligar Alarme"}
+            </button>
+          )}
+          {canToggleAlarm && (
+            <button
+              type="button"
+              onClick={() =>
+                sendCommand(
+                  `AlarmeOFF${monitorCode}`,
+                  "Alarme desligado com sucesso!",
+                  "falha ao desligar alarme.",
+                  machineId,
+                  setResponseMsg,
+                  setLoading,
+                  loading,
+                )
+              }
+              disabled={loading || !monitorCode}
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 px-4 py-2 rounded"
+            >
+              {loading ? "..." : "Desligar Alarme"}
+            </button>
+          )}
         </div>
 
         {responseMsg && (

@@ -263,6 +263,22 @@ export const selectCanExportReports = (state: AuthState): boolean => {
   return false;
 };
 
+// Pode ligar e desligar o alarme: superusuario, gerente, admin, revenda
+export const selectCanToggleAlarm = (state: AuthState): boolean => {
+  if (!selectIsActiveUser(state)) return false;
+
+  // Admins e Revendas PODEM
+  if (selectIsAdmin(state) || selectIsRevenda(state)) return true;
+
+  // Se for cliente, o Cliente Admin (superusuario) e o Gerente PODEM
+  // Apenas o Cliente Comum fica de fora
+  if (selectIsCliente(state)) {
+    return selectIsSuperusuario(state) || selectIsGerente(state);
+  }
+
+  return false;
+};
+
 // Pode gerenciar usuários da empresa: apenas superusuário
 export const selectCanManageCompanyUsers = (state: AuthState) =>
   selectIsActiveUser(state) && selectIsSuperusuario(state);
