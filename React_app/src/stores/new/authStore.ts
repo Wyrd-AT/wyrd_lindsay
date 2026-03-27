@@ -279,6 +279,15 @@ export const selectCanToggleAlarm = (state: AuthState): boolean => {
   return false;
 };
 
+// Pode enviar comandos para a máquina: apenas superadmin e admin
+export const selectCanSendCommands = (state: AuthState): boolean => {
+  if (!selectIsActiveUser(state)) return false;
+
+  // Apenas Admins (o que inclui Superadmin pela lógica do selectIsAdmin) PODEM
+  // Revendas e todos os perfis de Cliente ficam de fora
+  return selectIsAdmin(state);
+};
+
 // Pode gerenciar usuários da empresa: apenas superusuário
 export const selectCanManageCompanyUsers = (state: AuthState) =>
   selectIsActiveUser(state) && selectIsSuperusuario(state);

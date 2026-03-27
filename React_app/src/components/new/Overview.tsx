@@ -391,16 +391,15 @@ export default function Overview({
                 </button>
               )}
             </div>
-            {canResolveAlerts && (
-              <button
-                type="button"
-                onClick={handleSolicitarStatus}
-                disabled={loading || isSaving}
-                className="px-3 bg-green-600 hover:bg-green-700 rounded text-sm py-1 disabled:opacity-60"
-              >
-                {loading ? "..." : "Solicitar Status"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleSolicitarStatus}
+              disabled={loading || isSaving}
+              className="px-3 bg-green-600 hover:bg-green-700 rounded text-sm py-1 disabled:opacity-60"
+            >
+              {loading ? "..." : "Solicitar Status"}
+            </button>
+
             {/* Toggle Sirene */}
             {canResolveAlerts && (
               <div className="flex items-center gap-2 ml-2">
