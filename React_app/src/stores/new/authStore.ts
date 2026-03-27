@@ -224,7 +224,6 @@ export const selectCanViewPivos = (state: AuthState) => {
   );
 };
 
-
 // ============================================================================
 // Selectors para Cliente Sub-Roles (Superusuário > Gerente > Comum)
 // ============================================================================
@@ -254,12 +253,12 @@ export const selectCanResolveAlerts = (state: AuthState) => {
   return false;
 };
 
-// Pode exportar relatórios: superusuario, gerente, admin, revenda
-export const selectCanExportReports = (state: AuthState) => {
+// Pode exportar relatórios: superusuario, admin, revenda
+export const selectCanExportReports = (state: AuthState): boolean => {
   if (!selectIsActiveUser(state)) return false;
   if (selectIsAdmin(state) || selectIsRevenda(state)) return true;
   if (selectIsCliente(state)) {
-    return selectIsSuperusuario(state) || selectIsGerente(state);
+    return selectIsSuperusuario(state); // Correção: removido o || selectIsGerente(state)
   }
   return false;
 };
