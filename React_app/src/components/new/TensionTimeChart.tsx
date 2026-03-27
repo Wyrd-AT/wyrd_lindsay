@@ -19,6 +19,10 @@ import { IoMdDownload } from "react-icons/io";
 import { IoReload } from "react-icons/io5";
 import { FaFileExcel } from "react-icons/fa"; // Ícone específico do Excel
 import * as XLSX from "xlsx";
+import {
+  selectCanExportReports,
+  useAuthStore,
+} from "../../stores/new/authStore";
 
 const COLORS = [
   "#8884d8",
@@ -57,6 +61,7 @@ export function TensionTimeChart({
   equipmentNames,
 }: TensionTimeChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
+  const canExportReports = useAuthStore(selectCanExportReports);
 
   const { points, loading, error, refresh } = useTensionData({
     irrigadorId,
@@ -227,21 +232,25 @@ export function TensionTimeChart({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-semibold text-white">{chartTitle}</h3>
         <div className="flex gap-2">
-          <button
-            onClick={handleDownloadExcel}
-            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-            title="Baixar dados em Excel"
-          >
-            <FaFileExcel style={{ color: "#FFFFFF" }} />
-          </button>
+          {canExportReports && (
+            <button
+              onClick={handleDownloadExcel}
+              className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+              title="Baixar dados em Excel"
+            >
+              <FaFileExcel style={{ color: "#FFFFFF" }} />
+            </button>
+          )}
+          {canExportReports && (
+            <button
+              onClick={handleDownloadPDF}
+              className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
+              title="Baixar o gráfico em PDF"
+            >
+              <IoMdDownload />
+            </button>
+          )}
 
-          <button
-            onClick={handleDownloadPDF}
-            className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
-            title="Baixar o gráfico em PDF"
-          >
-            <IoMdDownload />
-          </button>
           <button
             onClick={refresh}
             className="bg-gray-700 text-white text-sm font-medium px-4 py-1 border border-gray-600 rounded-full flex items-center gap-2 hover:bg-gray-600 transition"
