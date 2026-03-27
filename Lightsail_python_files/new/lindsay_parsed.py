@@ -1376,10 +1376,10 @@ def parse_vetor_tensao(payload: str) -> Dict[str, Any]:
     if len(parts) < 3:
         raise ValueError("Vetor tensão inválido: menos de 3 partes")
     pivo_tipo = parts[0]
-    if len(pivo_tipo) < 2:
-        raise ValueError(f"Identificação inválida: {pivo_tipo}")
-    irrigador_id = pivo_tipo[:-1]
-    tipo = pivo_tipo[-1]
+    if len(pivo_tipo) != 7:
+        raise ValueError(f"Identificação de vetor tensão inválida: {pivo_tipo} (esperado ID de 6 chars + tipo)")
+    irrigador_id = pivo_tipo[:6]
+    tipo = pivo_tipo[6]
     if tipo not in ['A', 'B', 'C', 'D']:
         raise ValueError(f"Tipo de vetor inválido: {tipo}")
     timestamp_str = parts[1]
@@ -1481,7 +1481,7 @@ def identify_and_parse(payload: str) -> Dict[str, Any]:
         raise ValueError("Formato inválido: menos de 2 partes")
 
     first_part = parts[0]
-    if len(first_part) > 1 and first_part[-1] in ['A', 'B', 'C', 'D']:
+    if len(first_part) == 7 and first_part[-1] in ['A', 'B', 'C', 'D']:
         return parse_vetor_tensao(payload)
 
     is_sw_5flags = (
