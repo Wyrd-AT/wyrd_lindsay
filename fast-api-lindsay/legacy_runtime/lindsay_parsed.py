@@ -793,7 +793,11 @@ def send_whatsapp(msg: str, to: List[str], template_params: Optional[Dict[str, A
 
     return results
 
-def send_voice_call_zapi(to: List[str], call_duration: Optional[int] = None) -> Dict[str, Any]:
+def send_voice_call_zapi(
+    to: List[str],
+    call_duration: Optional[int] = None,
+    retry_context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
     Inicia ligação de voz via Z-API para múltiplos números.
 
@@ -829,7 +833,7 @@ def send_voice_call_zapi(to: List[str], call_duration: Optional[int] = None) -> 
         if i > 0:
             time.sleep(RATE_LIMIT_DELAY)
 
-        phone_clean = re.sub(r"[^\d]", "", phone)
+        phone_clean = normalize_phone(phone)
         payload: Dict[str, Any] = {"phone": phone_clean}
         if call_duration is not None:
             payload["callDuration"] = call_duration
@@ -848,6 +852,22 @@ def send_voice_call_zapi(to: List[str], call_duration: Optional[int] = None) -> 
                         "type": "voice_call_zapi",
                         "attempt": attempt
                     })
+                    if retry_context:
+                        tracking_id = register_voice_call_tracking_doc(
+                            alert_doc_id=retry_context.get("alert_doc_id", ""),
+                            irrigador_id=retry_context.get("irrigador_id", ""),
+                            phone=phone,
+                            phone_clean=phone_clean,
+                            attempt=attempt,
+                            message_id=data.get("messageId"),
+                            zaap_id=data.get("zaapId"),
+                            call_duration=call_duration,
+                            event_type=retry_context.get("event_type"),
+                            monitor=retry_context.get("monitor"),
+                            equipment_name=retry_context.get("equipment_name"),
+                        )
+                        if tracking_id:
+                            results["success"][-1]["tracking_id"] = tracking_id
                     log("ok", f"Ligação Z-API iniciada para {phone} na tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}")
                     break
 
@@ -1230,6 +1250,74 @@ def is_whatsapp_call_enabled_for_irrigador(irrigador_id: str) -> bool:
     except Exception as e:
         log("warn", f"Erro ao verificar config de ligação WhatsApp para {irrigador_id}: {e} - assumindo desativado")
         return False
+
+
+def normalize_phone(phone: str) -> str:
+    return re.sub(r"[^\d]", "", phone or "")
+
+
+def build_voice_tracking_doc_id(alert_doc_id: str, phone_clean: str) -> str:
+    return f"voice_call::{alert_doc_id}::{phone_clean}"
+
+
+def register_voice_call_tracking_doc(
+    *,
+    alert_doc_id: str,
+    irrigador_id: str,
+    phone: str,
+    phone_clean: str,
+    attempt: int,
+    message_id: Optional[str],
+    zaap_id: Optional[str],
+    call_duration: Optional[int],
+    event_type: Optional[str],
+    monitor: Optional[str],
+    equipment_name: Optional[str],
+) -> Optional[str]:
+    if not alert_doc_id or not phone_clean:
+        return None
+
+    doc_id = build_voice_tracking_doc_id(alert_doc_id, phone_clean)
+    now_iso = fmt_ts_iso(datetime.now(BR_TZ))
+    db = get_couch_db()
+    if db is None:
+        return None
+
+    existing = db.get(doc_id) or {"_id": doc_id, "table": "zapi_voice_retry", "history": []}
+    history = existing.setdefault("history", [])
+    history.append(
+        {
+            "timestamp": now_iso,
+            "event": "call_started",
+            "attempt": attempt,
+            "message_id": message_id,
+            "zaap_id": zaap_id,
+        }
+    )
+
+    existing.update(
+        {
+            "table": "zapi_voice_retry",
+            "irrigadorId": irrigador_id,
+            "alert_doc_id": alert_doc_id,
+            "phone": phone,
+            "phone_clean": phone_clean,
+            "call_duration": call_duration,
+            "event_type": event_type,
+            "monitor": monitor,
+            "equipment_name": equipment_name,
+            "attempts_made": attempt,
+            "max_attempts": VOICE_ZAPI_MAX_ATTEMPTS,
+            "last_attempt_at": now_iso,
+            "last_message_id": message_id,
+            "last_zaap_id": zaap_id,
+            "status": "waiting_webhook",
+            "updated_at": now_iso,
+        }
+    )
+    existing.setdefault("created_at", now_iso)
+
+    return upsert_doc(doc_id, existing)
 
 
 def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
@@ -1922,7 +2010,16 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                 log("info", f"Mensagens WhatsApp/SMS desativadas para {irrigador_id} - pulando envio de texto")
 
                             if whatsapp_call_enabled and phones:
-                                voice_results = send_voice_call_zapi(phones)
+                                voice_results = send_voice_call_zapi(
+                                    phones,
+                                    retry_context={
+                                        "alert_doc_id": individual_id,
+                                        "irrigador_id": irrigador_id,
+                                        "event_type": event_type,
+                                        "monitor": monitor,
+                                        "equipment_name": equipamento_nome,
+                                    },
+                                )
                                 send_results["success"].extend(voice_results["success"])
                                 send_results["failed"].extend(voice_results["failed"])
                                 send_results["invalid"].extend(voice_results["invalid"])

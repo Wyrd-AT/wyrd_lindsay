@@ -57,6 +57,21 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
                 "fields": ["invitation_token"],
                 "desc": "Índice para busca por token de convite",
             },
+            {
+                "name": "voice-tracking-phone-status",
+                "fields": ["table", "phone_clean", "status"],
+                "desc": "Índice para tracking de ligações Z-API por telefone/status",
+            },
+            {
+                "name": "voice-tracking-message-id",
+                "fields": ["table", "last_message_id"],
+                "desc": "Índice para tracking de ligações Z-API por messageId",
+            },
+            {
+                "name": "voice-tracking-zaap-id",
+                "fields": ["table", "last_zaap_id"],
+                "desc": "Índice para tracking de ligações Z-API por zaapId",
+            },
         ]
 
         print(f"✅ Conectado ao banco de dados: {database}")

@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # Workers
     WORKER_COUNT: int = int(os.getenv("WORKER_COUNT", "8"))
     QUEUE_MAXSIZE: int = int(os.getenv("QUEUE_MAXSIZE", "5000"))
+    COUCHDB_CHANGES_TIMEOUT_MS: int = int(os.getenv("COUCHDB_CHANGES_TIMEOUT_MS", "30000"))
+    COUCHDB_CHANGES_HTTP_TIMEOUT: int = int(os.getenv("COUCHDB_CHANGES_HTTP_TIMEOUT", "65"))
 
     # Twilio
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
@@ -57,6 +59,10 @@ class Settings(BaseSettings):
     ZAPI_TOKEN: str = os.getenv("ZAPI_TOKEN", "")
     ZAPI_CLIENT_TOKEN: str = os.getenv("ZAPI_CLIENT_TOKEN", "")
     ZAPI_BASE_URL: str = os.getenv("ZAPI_BASE_URL", "https://api.z-api.io")
+    VOICE_ZAPI_MAX_ATTEMPTS: int = int(os.getenv("VOICE_ZAPI_MAX_ATTEMPTS", "5"))
+    API_PUBLIC_BASE_URL: str = os.getenv("API_PUBLIC_BASE_URL", "https://api.lindsay.vpn.ind.br")
+    ZAPI_WEBHOOK_URL: str = os.getenv("ZAPI_WEBHOOK_URL", "")
+    ZAPI_AUTO_CONFIGURE_WEBHOOK: bool = os.getenv("ZAPI_AUTO_CONFIGURE_WEBHOOK", "false").lower() in {"1", "true", "yes", "on"}
 
     # SendGrid
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")

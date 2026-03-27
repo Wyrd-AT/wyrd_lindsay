@@ -30,8 +30,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import get_db, close_db
-from app.api.routes import auth, admins, revendas, clientes, pivos, alerts, commands
+from app.api.routes import auth, admins, revendas, clientes, pivos, alerts, commands, webhooks
 from app.services.setup_indexes import setup_indexes
+from app.services.zapi_voice_retry import (
+    configure_zapi_webhook_if_enabled,
+    resume_scheduled_voice_retries,
+)
 
 
 # ============================================================================
@@ -81,6 +85,13 @@ async def lifespan(app: FastAPI):
         print("⚠️  Command Processor não pôde ser iniciado. API rodando sem bridge de comandos.")
     else:
         print("✅ Background Command Processor iniciado com sucesso!")
+
+    resumed_voice_retries = resume_scheduled_voice_retries()
+    if resumed_voice_retries:
+        print(f"✅ Retries de ligação retomados: {resumed_voice_retries}")
+
+    if configure_zapi_webhook_if_enabled():
+        print("✅ Webhook da Z-API configurado/atualizado")
 
     yield
 
@@ -140,6 +151,7 @@ app.include_router(clientes.router, prefix=settings.API_PREFIX, tags=["clientes"
 app.include_router(pivos.router, prefix=settings.API_PREFIX, tags=["pivos"])
 app.include_router(alerts.router, prefix=settings.API_PREFIX, tags=["alerts"])
 app.include_router(commands.router, prefix=settings.API_PREFIX, tags=["commands"])
+app.include_router(webhooks.router, prefix=settings.API_PREFIX)
 
 
 # ============================================================================

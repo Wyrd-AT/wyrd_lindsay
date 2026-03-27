@@ -29,6 +29,7 @@ from zoneinfo import ZoneInfo
 import couchdb
 from couchdb.http import ResourceNotFound
 import paho.mqtt.client as mqtt
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -47,9 +48,12 @@ MQTT_CLIENT_ID = os.getenv("MQTT_PUBLISHER_CLIENT_ID")
 MQTT_USERNAME = os.getenv("MQTT_USERNAME") or None
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD") or None
 MQTT_KEEPALIVE = 60
+CHANGES_TIMEOUT_MS = int(os.getenv("COUCHDB_CHANGES_TIMEOUT_MS", "30000"))
+CHANGES_HTTP_TIMEOUT = int(os.getenv("COUCHDB_CHANGES_HTTP_TIMEOUT", "65"))
 
 # Dicionário para gerenciar timers ativos: {doc_id: threading.Timer}
 timers: Dict[str, threading.Timer] = {}
+HTTP = requests.Session()
 
 # =========================
 # Logging
@@ -266,6 +270,64 @@ def publish_command(doc: Dict[str, Any]) -> None:
 # =========================
 # Monitor de Mudanças
 # =========================
+def process_pending_backlog() -> None:
+    """Processa comandos pendentes existentes antes de entrar no _changes."""
+    log("info", "Verificando backlog de comandos pendentes...")
+
+    query = {
+        "selector": {
+            "table": "command",
+            "status": {"$nin": ["published", "scheduled", "executed", "cancelled"]},
+        },
+        "limit": 500,
+    }
+
+    try:
+        for doc in db.find(query):
+            try:
+                publish_command(doc)
+            except Exception as e:
+                log("error", f"Erro ao processar backlog {doc.get('_id')}: {e}")
+    except Exception as e:
+        log("error", f"Erro ao consultar backlog de comandos: {e}")
+
+
+def poll_changes_forever() -> None:
+    """
+    Faz long-poll no _changes usando requests.
+
+    Evita os problemas de parsing do cliente couchdb em feeds contínuos com
+    heartbeat no ambiente atual.
+    """
+    since: Any = "now"
+    changes_url = f"{COUCHDB_URL}/{DATABASE_NAME}/_changes"
+
+    while True:
+        params = {
+            "feed": "longpoll",
+            "include_docs": "true",
+            "since": since,
+            "timeout": CHANGES_TIMEOUT_MS,
+        }
+
+        response = HTTP.get(changes_url, params=params, timeout=CHANGES_HTTP_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+
+        for change in data.get("results", []):
+            doc = change.get("doc")
+            if not doc:
+                continue
+
+            if doc.get("table") != "command":
+                continue
+
+            publish_command(doc)
+
+        if "last_seq" in data:
+            since = data["last_seq"]
+
+
 def listen_changes() -> None:
     """
     Escuta o feed contínuo de mudanças do CouchDB.
@@ -279,26 +341,8 @@ def listen_changes() -> None:
     log("info", f"Timers ativos serão gerenciados em memória")
 
     try:
-        # feed='continuous' retorna um gerador de mudanças
-        # include_docs=True inclui o documento completo
-        # heartbeat=1000 evita timeouts
-        changes = db.changes(feed="continuous", include_docs=True, heartbeat=1000)
-
-        for change in changes:
-            try:
-                doc = change.get("doc")
-                if not doc:
-                    continue
-
-                # Filtra apenas comandos
-                if doc.get("table") != "command":
-                    continue
-
-                # Processa o comando (a função já faz as validações internas)
-                publish_command(doc)
-
-            except Exception as e:
-                log("error", f"Erro ao processar mudança: {e}")
+        process_pending_backlog()
+        poll_changes_forever()
 
     except KeyboardInterrupt:
         log("info", "Interrompido pelo usuário")
@@ -363,4 +407,3 @@ if __name__ == "__main__":
 
     # Inicia monitoramento
     listen_changes()
-
