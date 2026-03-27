@@ -241,14 +241,7 @@ export default function HomePageRevenda() {
           <h1 className="text-2xl font-bold">
             {userType === "admin" || userType === "superadmin" ? "Todos os Pivôs" : "Pivôs"}
           </h1>
-          {(userType === "admin" || userType === "superadmin") && (
-            <button
-              onClick={openModal}
-              className="bg-[#08cb7c] p-2 rounded-lg font-bold"
-            >
-              + Adicionar Pivô
-            </button>
-          )}
+          
         </div>
 
         <div

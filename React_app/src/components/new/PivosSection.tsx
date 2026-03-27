@@ -229,7 +229,7 @@ export default function PivosSection({
         <h2 className="text-xl font-bold text-dashboard-text-primary">
           {getTitle()}
         </h2>
-        {showCreateButton && authState.user?.type === "cliente" && (
+        {showCreateButton && ["admin", "superadmin", "revenda"].includes(authState.user?.type || "") && (
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
             className="px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover text-white rounded-lg font-bold transition"
@@ -240,7 +240,7 @@ export default function PivosSection({
       </div>
 
       {/* Formulário de Criação */}
-      {showCreateForm && authState.user?.type === "cliente" && (
+      {showCreateForm && ["admin", "superadmin", "revenda"].includes(authState.user?.type || "") && (
         <form
           onSubmit={handleCreatePivo}
           className="mb-6 p-4 bg-dashboard-bg-tertiary rounded-lg border border-dashboard-border"
@@ -332,7 +332,11 @@ export default function PivosSection({
               {/* Data */}
               <p className="text-xs text-dashboard-text-tertiary mt-2">
                 Criado em:{" "}
-                {new Date(pivo.created_at).toLocaleDateString("pt-BR")}
+                {pivo.updated_at && !isNaN(Date.parse(pivo.updated_at))
+                  ? new Date(pivo.updated_at).toLocaleDateString("pt-BR")
+                  : pivo.created_at && !isNaN(Date.parse(pivo.created_at))
+                    ? new Date(pivo.created_at).toLocaleDateString("pt-BR")
+                    : "—"}
               </p>
               <p className="text-xs text-dashboard-text-tertiary mt-1">
                 Último dado: {pivo.lastAlertDate || "—"}

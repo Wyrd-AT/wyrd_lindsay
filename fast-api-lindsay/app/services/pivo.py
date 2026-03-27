@@ -119,12 +119,16 @@ class PivoService:
         pivo_id = f"irrigador:{uuid.uuid4().hex}"
 
         # Criar documento (formato compatível com dados existentes)
+        now = datetime.utcnow().isoformat()
         doc = {
             "_id": pivo_id,
             "origin": "app",
             "table": "irrigadores",
             "codigo": pivo_model.codigo,
             "irrigador": pivo_model.nome,
+            "nome": pivo_model.nome,
+            "ativo": True,
+            "type": "pivo",
             "equipamentos": ["Painel 1", "Painel 2"] + [e for e in pivo_model.equipamentos if e not in ("Painel 1", "Painel 2")],
             "contacts": {
                 "whatsapp": pivo_data.get("contacts", {}).get("whatsapp"),
@@ -137,6 +141,8 @@ class PivoService:
             "nome_revenda": pivo_model.nome_revenda,
             "cnpj_admin": pivo_model.cnpj_admin,
             "nome_admin": pivo_model.nome_admin,
+            "created_at": now,
+            "updated_at": now,
         }
 
         # Salvar

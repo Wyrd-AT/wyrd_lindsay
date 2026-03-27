@@ -14,6 +14,7 @@ import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import PivosSection from "../../components/new/PivosSection";
+import { ModalIrrigador } from "../../components/new/modalNewIrrigador";
 import { useAdminStats } from "../../hooks/new/useAdminStats";
 import { usePivos } from "../../hooks/new/usePivos";
 import { useDataStoreIrrigadores } from "../../stores/new/dataStoreIrrigadores";
@@ -33,6 +34,7 @@ export function GerenciarPivosPage() {
   const authState = useAuthStore();
   const isActiveUser = selectIsActiveUser(authState);
   const [searchTerm, setSearchTerm] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const {
     stats,
@@ -59,7 +61,7 @@ export function GerenciarPivosPage() {
   }, [isActiveUser, fetchStats]);
 
   return (
-    <PermissionGuard allowedRoles={["admin", "superadmin"]} requireActive>
+    <PermissionGuard allowedRoles={["admin", "superadmin", "revenda"]} requireActive>
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
@@ -72,14 +74,22 @@ export function GerenciarPivosPage() {
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Pivôs</h1>
-            <button
-              onClick={() => {
-                fetchStats();
-              }}
-              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
-            >
-              Atualizar
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
+              >
+                + Criar Pivô
+              </button>
+              <button
+                onClick={() => {
+                  fetchStats();
+                }}
+                className="bg-dashboard-bg-tertiary border border-dashboard-border p-2 rounded-lg font-bold hover:bg-dashboard-border transition"
+              >
+                Atualizar
+              </button>
+            </div>
           </div>
 
           {/* Erros globais */}
@@ -130,6 +140,15 @@ export function GerenciarPivosPage() {
               />
             </div>
           </div>
+          {showCreateModal && (
+            <ModalIrrigador
+              closeModal={() => setShowCreateModal(false)}
+              onSuccess={() => {
+                setShowCreateModal(false);
+                fetchStats();
+              }}
+            />
+          )}
         </BodyContent>
       </div>
     </PermissionGuard>

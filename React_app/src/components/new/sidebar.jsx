@@ -41,8 +41,8 @@ export default function SideBar() {
         <BiHomeAlt size={40} />
       </NavLink>
 
-      {/* Gerenciar Pivôs (Admin only) */}
-      {isAdmin && (
+      {/* Gerenciar Pivôs (Admin + Revenda) */}
+      {(isAdmin || isRevenda) && (
         <NavLink
           to="/gerenciar-pivos"
           className={({ isActive }) =>

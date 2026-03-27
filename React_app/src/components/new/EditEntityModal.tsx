@@ -182,23 +182,14 @@ export function EditEntityModal({
           {entityType === "admin" && isSuperadmin && (
             <div>
               <label className="mb-1 block text-sm text-dashboard-text-secondary">CNPJ Admin</label>
-              <select
+              <input
                 value={form.cnpj_admin || ""}
                 onChange={(e) =>
                   setForm((s) => ({ ...s, cnpj_admin: e.target.value }))
                 }
+                placeholder="Digite o CNPJ do admin"
                 className="w-full rounded border border-dashboard-border bg-dashboard-bg-tertiary px-3 py-2 text-dashboard-text-primary focus:outline-none focus:border-dashboard-accent"
-                disabled={loadingAdmins}
-              >
-                <option value="">
-                  {loadingAdmins ? "Carregando admins..." : "Selecione um admin"}
-                </option>
-                {adminOptions.map((opt) => (
-                  <option key={opt.cnpj} value={opt.cnpj}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           )}
 
@@ -269,16 +260,7 @@ export function EditEntityModal({
               </div>
               {isSuperadmin && (
                 <>
-                  <div>
-                    <label className="mb-1 block text-sm text-dashboard-text-secondary">Revenda ID</label>
-                    <input
-                      value={form.revenda_id || ""}
-                      onChange={(e) =>
-                        setForm((s) => ({ ...s, revenda_id: e.target.value }))
-                      }
-                      className="w-full rounded border border-dashboard-border bg-dashboard-bg-tertiary px-3 py-2 text-dashboard-text-primary focus:outline-none focus:border-dashboard-accent"
-                    />
-                  </div>
+                  
                   <div>
                     <label className="mb-1 block text-sm text-dashboard-text-secondary">CNPJ Revenda</label>
                     <input

@@ -25,7 +25,7 @@ export default function ModalEditIrrigador({
   onSave,
   onClose,
 }: ModalEditIrrigadorProps) {
-  const [nome, setNome] = useState(pivo.nome || "");
+  const [nome, setNome] = useState(pivo.irrigador || "");
   const [codigo, setCodigo] = useState(pivo.codigo || "");
   const [ativo, setAtivo] = useState(pivo.ativo ?? true);
   const [whatsapp, setWhatsapp] = useState(pivo.contacts?.whatsapp || "");
