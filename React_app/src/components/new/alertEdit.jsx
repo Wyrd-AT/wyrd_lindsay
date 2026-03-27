@@ -320,8 +320,8 @@ export default function AlertEdit({
 }) {
   /** ====== Stores ====== */
   const { user } = useAuthStore();
-  const canResolveAlerts = selectCanResolveAlerts(useAuthStore.getState());
-  const canExportReports = selectCanExportReports(useAuthStore.getState());
+  const canResolveAlerts = useAuthStore(selectCanResolveAlerts);
+  const canExportReports = useAuthStore(selectCanExportReports);
   const whatsappConfig = whatsappStoreConfig((s) => s.whatsappConfig);
   const fetchWhatsappConfig = whatsappStoreConfig((s) => s.fetchWhatsappConfig);
   const updateWhatsappStatus = whatsappStoreConfig(
@@ -844,94 +844,96 @@ export default function AlertEdit({
           </div>
         </div>
 
-        {/* Agendar - apenas superusuario/gerente/admin/revenda */}
-        {canResolveAlerts && (
-          <div className="p-4 border-t border-[#444]">
-            <h3 className="text-sm text-gray-300">
-              Ativar alarme novamente em:
-            </h3>
+        {/* Agendar */}
+        <div className="p-4 border-t border-[#444]">
+          {canResolveAlerts && (
+            <>
+              <h3 className="text-sm text-gray-300">
+                Ativar alarme novamente em:
+              </h3>
 
-            <div className="flex items-center gap-2 mt-2">
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={Number.isFinite(minutes) ? minutes : ""}
-                onChange={(e) => {
-                  const v = e.currentTarget.valueAsNumber;
-                  if (Number.isNaN(v)) {
-                    setMinutes(NaN);
-                  } else {
-                    setMinutes(clamp(Math.trunc(v), 1, 10080)); // até 7 dias
-                  }
-                }}
-                className="w-24 px-2 py-1 text-sm bg-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isSavingSchedule || isSavingSolve}
-                inputMode="numeric"
-                aria-label="Minutos até reativação"
-              />
-              <span className="text-sm text-gray-300">MINUTOS</span>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={Number.isFinite(minutes) ? minutes : ""}
+                  onChange={(e) => {
+                    const v = e.currentTarget.valueAsNumber;
+                    if (Number.isNaN(v)) {
+                      setMinutes(NaN);
+                    } else {
+                      setMinutes(clamp(Math.trunc(v), 1, 10080)); // até 7 dias
+                    }
+                  }}
+                  className="w-24 px-2 py-1 text-sm bg-[#444444] rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={isSavingSchedule || isSavingSolve}
+                  inputMode="numeric"
+                  aria-label="Minutos até reativação"
+                />
+                <span className="text-sm text-gray-300">MINUTOS</span>
 
-              <button
-                type="button"
-                className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onClick={handleAgendamentoClick}
-                title={isSavingSchedule ? "Processando..." : "Agendar"}
-                disabled={agendarDisabled}
-                aria-busy={isSavingSchedule}
-              >
-                {isSavingSchedule ? "Agendando..." : "Agendar"}
-              </button>
+                <button
+                  type="button"
+                  className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onClick={handleAgendamentoClick}
+                  title={isSavingSchedule ? "Processando..." : "Agendar"}
+                  disabled={agendarDisabled}
+                  aria-busy={isSavingSchedule}
+                >
+                  {isSavingSchedule ? "Agendando..." : "Agendar"}
+                </button>
+              </div>
+
+              {/* Contagens */}
+              <div className="mt-2 text-xs text-gray-400">
+                {scheduledTargetTs ? (
+                  <p>
+                    Restante até reativar:{" "}
+                    <span className="text-white">{formatMs(remainingMs)}</span>
+                  </p>
+                ) : Number.isFinite(minutes) && minutes > 0 ? (
+                  <p>
+                    Prévia para {minutes} min:{" "}
+                    <span className="text-white">{formatMs(previewMs)}</span>
+                  </p>
+                ) : null}
+              </div>
+            </>
+          )}
+
+          {/* Info do agendamento atual */}
+          <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-gray-400">
+            <div>
+              Último agendamento:{" "}
+              <span className="text-white">
+                {isTimerLoading ? <Dots /> : ultimoAgendamento}
+              </span>
             </div>
-
-            {/* Contagens */}
-            <div className="mt-2 text-xs text-gray-400">
-              {scheduledTargetTs ? (
-                <p>
-                  Restante até reativar:{" "}
-                  <span className="text-white">{formatMs(remainingMs)}</span>
-                </p>
-              ) : Number.isFinite(minutes) && minutes > 0 ? (
-                <p>
-                  Prévia para {minutes} min:{" "}
-                  <span className="text-white">{formatMs(previewMs)}</span>
-                </p>
-              ) : null}
+            <div>
+              Timer agendado para:{" "}
+              <span className="text-white">
+                {isTimerLoading ? <Dots /> : scheduledFor}
+              </span>
             </div>
-
-            {/* Info do agendamento atual */}
-            <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-gray-400">
-              <div>
-                Último agendamento:{" "}
-                <span className="text-white">
-                  {isTimerLoading ? <Dots /> : ultimoAgendamento}
-                </span>
-              </div>
-              <div>
-                Timer agendado para:{" "}
-                <span className="text-white">
-                  {isTimerLoading ? <Dots /> : scheduledFor}
-                </span>
-              </div>
-              <div>
-                Responsável pelo agendamento:{" "}
-                <span className="text-white">
-                  {isTimerLoading ? <Dots /> : responsavelAg}
-                </span>
-              </div>
-              <div>
-                Intervalo configurado:{" "}
-                <span className="text-white">
-                  {isTimerLoading ? <Dots /> : timerValor}
-                </span>
-              </div>
+            <div>
+              Responsável pelo agendamento:{" "}
+              <span className="text-white">
+                {isTimerLoading ? <Dots /> : responsavelAg}
+              </span>
+            </div>
+            <div>
+              Intervalo configurado:{" "}
+              <span className="text-white">
+                {isTimerLoading ? <Dots /> : timerValor}
+              </span>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Solução - apenas superusuario/gerente/admin/revenda */}
-        {canResolveAlerts && (
-          <div className="px-4 pb-4 border-t border-[#444]">
+        {/* Solução */}
+        <div className="px-4 pb-4 border-t border-[#444]">
+          {canResolveAlerts && (
             <button
               type="button"
               className="mt-4 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -942,23 +944,23 @@ export default function AlertEdit({
             >
               {isSavingSolve ? "Solucionando..." : "Solucionar Alarme"}
             </button>
+          )}
 
-            <div className="mt-3 text-sm text-gray-400">
-              <div>
-                Data da solução:{" "}
-                <span className="text-white">
-                  {isTimerLoading ? <Dots /> : dataSolucao}
-                </span>
-              </div>
-              <div>
-                Responsável pela solução do alarme:{" "}
-                <span className="text-white">
-                  {isTimerLoading ? <Dots /> : responsavelSolucao}
-                </span>
-              </div>
+          <div className="mt-3 text-sm text-gray-400">
+            <div>
+              Data da solução:{" "}
+              <span className="text-white">
+                {isTimerLoading ? <Dots /> : dataSolucao}
+              </span>
+            </div>
+            <div>
+              Responsável pela solução do alarme:{" "}
+              <span className="text-white">
+                {isTimerLoading ? <Dots /> : responsavelSolucao}
+              </span>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
