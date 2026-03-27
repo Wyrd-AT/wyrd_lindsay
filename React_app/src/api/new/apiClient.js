@@ -23,7 +23,7 @@ const envPointsToLocalhost =
   /:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(ENV_API_BASE_URL);
 
 const HOST_API_MAP = {
-  "lindsay.vpn.ind.br": "https://api.lindsay.vpn.ind.br/api",
+  "lindsay.vpn.ind.br": import.meta.env.VITE_API_BASE_URL,
 };
 
 const hostBasedApi = HOST_API_MAP[currentHost] || "";
