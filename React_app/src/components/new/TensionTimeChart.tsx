@@ -41,6 +41,13 @@ const COLORS = [
   "#d084b5",
 ];
 
+const EMPTY_STATE_LABELS: Record<Period, string> = {
+  last24h: "Sem dados nas últimas 24 horas",
+  last7d: "Sem dados nos últimos 7 dias",
+  last30d: "Sem dados nos últimos 30 dias",
+  all: "Sem dados no histórico completo",
+};
+
 interface TensionTimeChartProps {
   irrigadorId: string;
   period?: Period;
@@ -220,7 +227,7 @@ export function TensionTimeChart({
   if (!chartData.length) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
-        <p className="text-gray-400">Nenhum dado disponível</p>
+        <p className="text-gray-400">{EMPTY_STATE_LABELS[period]}</p>
       </div>
     );
   }
