@@ -3,7 +3,7 @@ import { IoClose } from "react-icons/io5";
 import { FiShare2 } from "react-icons/fi";
 import PizZip from "pizzip";
 
-import { valueDescriptions } from "../../constants/alertDescriptions";
+import { valueDescriptions, alarmTypeDescriptions } from "../../constants/alertDescriptions";
 import { getBrasiliaTimestamp } from "../../utils/dateUtils";
 
 import {
@@ -317,6 +317,7 @@ export default function AlertEdit({
   alertData = null,
   equipamentos = [],
   machineId,
+  pivoName,
 }) {
   /** ====== Stores ====== */
   const { user } = useAuthStore();
@@ -531,7 +532,14 @@ export default function AlertEdit({
       } catch (_) {}
       const { events } = await fetchTimerHistory(DB_NAME, alertData._id);
 
-      // 2) Normalize events for the PDF table layout
+      // 2) Dados do alarme
+      const tipoDesc = alarmTypeDescriptions[alertData?.alarme] || alertData?.alarme || "—";
+      const statusDesc = valueDescriptions[alertData?.status] ?? alertData?.status ?? "—";
+      const timerDesc = currentDoc?.timer_value ? `${currentDoc.timer_value} min` : "—";
+      const agendadoDesc = currentDoc?.scheduled_for ? fmtBR(currentDoc.scheduled_for) : "—";
+      const responsavelDesc = currentDoc?.by ? xmlSafe(currentDoc.by) : "—";
+
+      // 3) Normalize timer history events
       const rows = (events || []).map((ev) => [
         fmtBR(ev.at),
         ev.type === "solve" ? "solucionado" : "agendado",
@@ -540,13 +548,7 @@ export default function AlertEdit({
         xmlSafe(ev.by || "—"),
       ]);
 
-      const estadoAtual = currentDoc
-        ? `${xmlSafe(currentDoc.status ?? "—")} | agendado p/ ${fmtBR(
-            currentDoc.scheduled_for,
-          )} | intervalo ${xmlSafe(currentDoc.timer_value ?? "—")} min`
-        : "—";
-
-      // 3) Generate PDF Document
+      // 4) Generate PDF Document
       const doc = new jsPDF();
 
       // Add Logo
@@ -559,21 +561,36 @@ export default function AlertEdit({
       // Add Metadata Header
       doc.setFontSize(10);
       doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 40);
-      doc.text(`Monitor: ${xmlSafe(monitorResolved || "")}`, 14, 46);
-      doc.text(`ID de Origem: ${xmlSafe(alertData._id)}`, 14, 52);
-      doc.text(`Estado atual: ${estadoAtual}`, 14, 58);
 
-      // Add Styled Table
+      // Alarm info table
       autoTable(doc, {
-        startY: 65,
-        head: [
-          ["Data/Hora", "Tipo", "Timer (min)", "Agendado para", "Responsável"],
-        ],
-        body: rows,
+        startY: 45,
+        head: [["Pivô", "Monitor", "Data", "Hora", "Tipo", "Status", "Timer"]],
+        body: [[
+          xmlSafe(machineId || "—"),
+          xmlSafe(monitorResolved || "—"),
+          alertData?.date || "—",
+          alertData?.time || "—",
+          tipoDesc,
+          statusDesc,
+          timerDesc,
+        ]],
         theme: "striped",
-        headStyles: { fillColor: [50, 50, 50] }, // Dark gray header to match alertHistory
+        headStyles: { fillColor: [50, 50, 50] },
         styles: { fontSize: 8 },
       });
+
+      // Timer history (if any)
+      if (rows.length > 0) {
+        autoTable(doc, {
+          startY: doc.lastAutoTable.finalY + 8,
+          head: [["Data/Hora", "Tipo", "Timer (min)", "Agendado para", "Responsável"]],
+          body: rows,
+          theme: "striped",
+          headStyles: { fillColor: [50, 50, 50] },
+          styles: { fontSize: 8 },
+        });
+      }
 
       // 4) Download the file
       const filenameSafe = `historico_timer_${String(
