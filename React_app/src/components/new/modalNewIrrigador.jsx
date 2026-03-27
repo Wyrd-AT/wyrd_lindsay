@@ -12,7 +12,6 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const apelidoRef = useRef();
   const whatsappRef = useRef();
   const smsRef = useRef();
-  const emailRef = useRef();
   const { isAuthenticated, user } = useAuthStore();
   const navigate = useNavigate();
   const { createPivo } = usePivos();
@@ -76,7 +75,6 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
     const whatsapp = whatsappRef.current?.value?.trim();
     const sms = smsRef.current?.value?.trim();
-    const email = emailRef.current?.value?.trim();
 
     if (!codigo) {
       setError("Por favor, informe o código do irrigador.");
@@ -100,7 +98,6 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         nome,
         whatsapp,
         sms,
-        email,
         cliente_id: isAdmin && !isOwnPivo ? clienteId : undefined, // cnpj_cliente do cliente selecionado
         equipamentos: equipamentos.filter(Boolean),
       });
@@ -241,17 +238,6 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
               type="text"
               className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
               placeholder="+5511988888888"
-              disabled={isSaving}
-            />
-          </label>
-          <label className="block text-white">
-            <span className="text-sm text-gray-300">E-mail:</span>
-            <input
-              ref={emailRef}
-              name="email"
-              type="email"
-              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              placeholder="email@example.com"
               disabled={isSaving}
             />
           </label>
