@@ -21,6 +21,10 @@ Docs:
 from contextlib import asynccontextmanager
 import sys
 from app.workers.mqtt_listener import start_mqtt_background, stop_mqtt_background
+from app.workers.command_processor import (
+    start_command_background,
+    stop_command_background,
+)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -64,7 +68,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Erro ao conectar CouchDB: {e}")
 
-    print("🚀 Iniciando background MQTT Listener...")
+    print("🚀 Iniciando background MQTT Listener legado...")
     if not start_mqtt_background():
         print("⚠️  MQTT Listener não pôde ser iniciado. API rodando sem MQTT.")
         # TODO: reverter para fatal antes do deploy:
@@ -72,11 +76,18 @@ async def lifespan(app: FastAPI):
     else:
         print("✅ Background MQTT Listener iniciado com sucesso!")
 
+    print("🚀 Iniciando background Command Processor legado...")
+    if not start_command_background():
+        print("⚠️  Command Processor não pôde ser iniciado. API rodando sem bridge de comandos.")
+    else:
+        print("✅ Background Command Processor iniciado com sucesso!")
+
     yield
 
     print("🛑 Desligando serviços...")
 
     stop_mqtt_background()
+    stop_command_background()
 
     # Shutdown
     close_db()

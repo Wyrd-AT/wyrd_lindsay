@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # MQTT
     MQTT_BROKER: str = os.getenv("MQTT_BROKER", "localhost")
     MQTT_PORT: int = int(os.getenv("MQTT_PORT", "1883"))
-    MQTT_TOPIC: str = os.getenv("MQTT_TOPIC", "pivo/+/dados")
+    MQTT_TOPIC: str = os.getenv("MQTT_TOPIC", "lindsay/#")
     MQTT_QOS: int = int(os.getenv("MQTT_QOS", "1"))
     MQTT_CLIENT_ID: str = os.getenv("MQTT_CLIENT_ID", "lindsay-api")
 
