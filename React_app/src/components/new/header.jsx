@@ -6,10 +6,16 @@ import { useNavigate } from "react-router-dom";
 import { BiSearch } from "react-icons/bi";
 import { useAuthStore } from "../../stores/new/authStore";
 
-export default function Header({ page }) {
+export default function Header({
+  page,
+  searchValue = "",
+  onSearchChange,
+  searchPlaceholder = "Pesquise...",
+}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const showSearch = typeof onSearchChange === "function";
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
@@ -41,18 +47,21 @@ export default function Header({ page }) {
               Olá, {user?.name || "Usuário"}!
             </h1>
           </div>
-          <div className="relative w-full max-w-[400px]">
-            <input
-              type="text"
-              placeholder="pesquise por um cliente..."
-              className="w-full py-2 pl-3 pr-10 rounded-md bg-[#444444] text-sm md:text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            {/* Ícone de pesquisa no canto direito do input */}
-            <BiSearch
-              size={20}
-              className="absolute right-3 top-2 md:top-2 text-green-500 cursor-pointer"
-            />
-          </div>
+          {showSearch && (
+            <div className="relative w-full max-w-[400px]">
+              <input
+                type="text"
+                value={searchValue}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder={searchPlaceholder}
+                className="w-full py-2 pl-3 pr-10 rounded-md bg-[#444444] text-sm md:text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <BiSearch
+                size={20}
+                className="absolute right-3 top-2 md:top-2 text-green-500 pointer-events-none"
+              />
+            </div>
+          )}
           {/*
           <button
             className="flex items-center gap-2 bg-[#08cb7c] text-black font-medium px-3 md:px-4 py-2 rounded-full hover:bg-green-600 transition-colors"

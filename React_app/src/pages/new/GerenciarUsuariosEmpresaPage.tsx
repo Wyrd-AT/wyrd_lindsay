@@ -14,6 +14,7 @@ import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import { CreateCompanyUserModal } from "../../components/new/CreateCompanyUserModal";
 import { fetchCompanyUsers } from "../../api/new/fastapi-admin";
+import { matchesSearchTerm } from "../../utils/search";
 
 interface CompanyUser {
   _id: string;
@@ -30,6 +31,7 @@ export function GerenciarUsuariosEmpresaPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -104,6 +106,15 @@ export function GerenciarUsuariosEmpresaPage() {
     }
   };
 
+  const filteredUsers = users.filter((user) =>
+    matchesSearchTerm(searchTerm, [
+      user.name,
+      user.email,
+      user.sub_role,
+      user.status,
+    ]),
+  );
+
   return (
     <PermissionGuard
       allowedRoles={["cliente"]}
@@ -113,7 +124,12 @@ export function GerenciarUsuariosEmpresaPage() {
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="cliente" />
+          <Header
+            page="cliente"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Pesquisar usuário por nome, email ou perfil..."
+          />
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Usuários da Empresa</h1>
@@ -182,13 +198,17 @@ export function GerenciarUsuariosEmpresaPage() {
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent" />
                 </div>
-              ) : users.length === 0 ? (
+              ) : filteredUsers.length === 0 ? (
                 <div className="text-center py-8 text-dashboard-text-secondary">
-                  <p>Nenhum usuário encontrado</p>
+                  <p>
+                    {users.length === 0
+                      ? "Nenhum usuário encontrado"
+                      : "Nenhum usuário encontrado para a busca atual"}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
-                  {users.map((user, idx) => (
+                  {filteredUsers.map((user, idx) => (
                     <div
                       key={user._id ?? user.email ?? `user-${idx}`}
                       className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"

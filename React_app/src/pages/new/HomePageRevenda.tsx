@@ -29,6 +29,7 @@ import { getRecentAll, RecentSWDoc } from "../../hooks/new/getRecent";
 import { getDoc, pingCouch, COUCH_USERS_DB } from "../../api/new/couch";
 import { parseSwVector } from "../../helpers/helperHomePage";
 import { useChangesListener } from "../../hooks/new/useChangesListener";
+import { matchesSearchTerm } from "../../utils/search";
 
 export default function HomePageRevenda() {
   const navigate = useNavigate();
@@ -71,6 +72,7 @@ export default function HomePageRevenda() {
   const userType = user?.type;
 
   const [couchOk, setCouchOk] = useState<boolean | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Cliente: pivôs por cnpj_cliente. Revenda: pivôs por cnpj_revenda. Admin: pivôs por cnpj_admin (mesmo critério da revenda).
   const irrigadores = useIrrigadores(cnpjUser, userType);
@@ -206,11 +208,34 @@ export default function HomePageRevenda() {
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => setIsModalOpen(false);
 
+  const filteredIrrigadores = useMemo(
+    () =>
+      irrigadores.filter((doc) =>
+        matchesSearchTerm(searchTerm, [
+          doc.irrigador,
+          doc.nome,
+          doc.codigo,
+          doc.nome_cliente,
+          doc.nome_revenda,
+          doc.nome_admin,
+          doc.cnpj_cliente,
+          doc.cnpj_revenda,
+          doc.cnpj_admin,
+        ]),
+      ),
+    [irrigadores, searchTerm],
+  );
+
   return (
     <div className="w-full h-full text-white flex bg-[#313131]">
       <Sidebar />
       <BodyContent>
-        <Header page="home" />
+        <Header
+          page="home"
+          searchValue={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder="Pesquisar pivô, cliente, revenda ou código..."
+        />
 
         <div className="flex items-center justify-between px-4 mb-4">
           <h1 className="text-2xl font-bold">
@@ -231,8 +256,8 @@ export default function HomePageRevenda() {
                      overflow-auto scrollbar scrollbar-thin scrollbar-thumb-red-500
                      scrollbar-track-gray-800 py-4 gap-5 px-4"
         >
-          {irrigadores.length > 0 ? (
-            irrigadores.map((doc) => {
+          {filteredIrrigadores.length > 0 ? (
+            filteredIrrigadores.map((doc) => {
               const swDoc = todosSW[doc.codigo];
               const info = swDoc
                 ? parseSwVector(swDoc.data, swDoc.updated_at)
@@ -260,7 +285,11 @@ export default function HomePageRevenda() {
               );
             })
           ) : (
-            <div className="text-gray-400">Nenhum pivô cadastrado.</div>
+            <div className="text-gray-400">
+              {irrigadores.length === 0
+                ? "Nenhum pivô cadastrado."
+                : "Nenhum pivô encontrado para a busca atual."}
+            </div>
           )}
         </div>
 

@@ -18,6 +18,7 @@ import { CreateClienteModal } from "../../components/new/CreateClienteModal";
 import { useRevendaClientes } from "../../hooks/new/useRevendaClientes";
 import { useRevendaStats } from "../../hooks/new/useRevendaStats";
 import type { Cliente } from "../../types/admin";
+import { matchesSearchTerm } from "../../utils/search";
 
 interface StatCard {
   label: string;
@@ -35,6 +36,7 @@ export function GerenciarClientesRevendaPage() {
   const isActiveUser = selectIsActiveUser(authState);
 
   const [showCreateCliente, setShowCreateCliente] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const {
     clientes,
@@ -67,7 +69,12 @@ export function GerenciarClientesRevendaPage() {
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="revenda" />
+          <Header
+            page="revenda"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Pesquisar cliente por nome ou email..."
+          />
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Clientes</h1>
@@ -106,6 +113,7 @@ export function GerenciarClientesRevendaPage() {
             <ClientesSection
               clientes={clientes}
               loading={loadingClientes}
+              searchTerm={searchTerm}
               onRefresh={fetchClientes}
               onCreateClick={() => setShowCreateCliente(true)}
             />
@@ -168,6 +176,7 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
 interface ClientesSectionProps {
   clientes: Cliente[];
   loading: boolean;
+  searchTerm: string;
   onRefresh: () => void;
   onCreateClick: () => void;
 }
@@ -175,14 +184,26 @@ interface ClientesSectionProps {
 function ClientesSection({
   clientes,
   loading,
+  searchTerm,
   onRefresh,
   onCreateClick,
 }: ClientesSectionProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const filteredClientes = clientes.filter((c) =>
-    filterStatus === "all" ? true : c.status === filterStatus,
-  );
+  const filteredClientes = clientes.filter((c) => {
+    const matchesStatus =
+      filterStatus === "all" ? true : c.status === filterStatus;
+
+    return (
+      matchesStatus &&
+      matchesSearchTerm(searchTerm, [
+        c.name,
+        c.email,
+        c.status,
+        c.cnpj_cliente,
+      ])
+    );
+  });
 
   return (
     <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">
@@ -239,8 +260,9 @@ function ClientesSection({
       ) : filteredClientes.length === 0 ? (
         <div className="text-center py-8 text-dashboard-text-secondary">
           <p>
-            Nenhum cliente
-            {filterStatus !== "all" ? ` com status "${filterStatus}"` : ""}
+            {clientes.length === 0
+              ? `Nenhum cliente${filterStatus !== "all" ? ` com status "${filterStatus}"` : ""}`
+              : "Nenhum cliente encontrado para os filtros atuais"}
           </p>
         </div>
       ) : (

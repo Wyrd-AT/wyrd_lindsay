@@ -15,6 +15,7 @@ import PermissionGuard from "../../components/new/PermissionGuard";
 import { CreateAdminModal } from "../../components/new/CreateAdminModal";
 import EditEntityModal from "../../components/new/EditEntityModal";
 import { fetchAdmins, updateAdmin, deleteAdmin } from "../../api/new/fastapi-admin";
+import { matchesSearchTerm } from "../../utils/search";
 
 export function GerenciarAdminsPage() {
   const authState = useAuthStore();
@@ -27,6 +28,7 @@ export function GerenciarAdminsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingAdmin, setEditingAdmin] = useState<any | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadAdmins = async () => {
     setLoading(true);
@@ -46,6 +48,16 @@ export function GerenciarAdminsPage() {
       loadAdmins();
     }
   }, [isActiveUser]);
+
+  const filteredAdmins = admins.filter((admin: any) =>
+    matchesSearchTerm(searchTerm, [
+      admin.name,
+      admin.email,
+      admin.cnpj_admin,
+      admin.type,
+      admin.status,
+    ]),
+  );
 
   const handleEditAdmin = async (admin: any) => {
     setEditingAdmin(admin);
@@ -81,7 +93,12 @@ export function GerenciarAdminsPage() {
       <div className="w-full h-full text-dashboard-text-primary flex bg-dashboard-bg-primary">
         <Sidebar />
         <BodyContent>
-          <Header page="admin" />
+          <Header
+            page="admin"
+            searchValue={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder="Pesquisar admin por nome, email ou CNPJ..."
+          />
 
           <div className="flex items-center justify-between px-4 mb-8">
             <h1 className="text-3xl font-bold">Administradores</h1>
@@ -145,13 +162,17 @@ export function GerenciarAdminsPage() {
                 <div className="flex justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dashboard-accent" />
                 </div>
-              ) : admins.length === 0 ? (
+              ) : filteredAdmins.length === 0 ? (
                 <div className="text-center py-8 text-dashboard-text-secondary">
-                  <p>Nenhum admin encontrado</p>
+                  <p>
+                    {admins.length === 0
+                      ? "Nenhum admin encontrado"
+                      : "Nenhum admin encontrado para a busca atual"}
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
-                  {admins.map((admin: any, idx: number) => (
+                  {filteredAdmins.map((admin: any, idx: number) => (
                     <div
                       key={admin._id ?? admin.email ?? `admin-${idx}`}
                       className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"

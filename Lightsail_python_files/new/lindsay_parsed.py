@@ -1039,7 +1039,8 @@ class Notification(BaseModel):
         extra = "allow"
 
 def query_notification() -> Optional[Notification]:
-    query = {"selector": {"table": {"$regex": "notificacao"}}, "limit": 1}
+    # Exact match avoids a very slow regex scan on the whole database.
+    query = {"selector": {"table": "notificacao"}, "limit": 1}
     result = query_couchdb(query)
     if result is None:
         return None
@@ -2102,4 +2103,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

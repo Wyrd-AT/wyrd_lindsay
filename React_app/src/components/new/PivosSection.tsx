@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import { getRecentAll } from "../../hooks/new/getRecent";
 import { parseSwVector } from "../../helpers/helperHomePage";
+import { matchesSearchTerm } from "../../utils/search";
 
 interface Pivo {
   _id: string;
@@ -53,6 +54,11 @@ export interface PivosSectionProps {
    * Mostrar botão de criar pivô (apenas para cliente)
    */
   showCreateButton?: boolean;
+
+  /**
+   * Texto de busca para filtrar a lista atual.
+   */
+  searchTerm?: string;
 }
 
 /**
@@ -70,6 +76,7 @@ export default function PivosSection({
   onUpdatePivo,
   onDeletePivo,
   showCreateButton = false,
+  searchTerm = "",
 }: PivosSectionProps) {
   const authState = useAuthStore();
   const [pivos, setPivos] = useState<Pivo[]>([]);
@@ -166,6 +173,18 @@ export default function PivosSection({
     !!onUpdatePivo &&
     !!onDeletePivo;
 
+  const filteredPivos = pivos.filter((pivo) =>
+    matchesSearchTerm(searchTerm, [
+      pivo.nome,
+      pivo.codigo,
+      pivo.owner_id,
+      pivo.gerente_id,
+      pivo.location?.lat,
+      pivo.location?.lng,
+      pivo.alarmCount,
+    ]),
+  );
+
   const handleEditPivo = async (pivo: Pivo) => {
     if (!onUpdatePivo) return;
     const nome = window.prompt("Novo nome do pivô:", pivo.nome || "");
@@ -240,15 +259,17 @@ export default function PivosSection({
       {error && <p className="text-red-400">{error}</p>}
 
       {/* Lista de Pivôs */}
-      {!loading && pivos.length === 0 ? (
+      {!loading && filteredPivos.length === 0 ? (
         <p className="text-dashboard-text-secondary text-center py-8">
-          {authState.user?.type === "cliente"
-            ? "Nenhum pivô cadastrado. Crie um novo!"
-            : "Nenhum pivô encontrado"}
+          {pivos.length === 0
+            ? authState.user?.type === "cliente"
+              ? "Nenhum pivô cadastrado. Crie um novo!"
+              : "Nenhum pivô encontrado"
+            : "Nenhum pivô encontrado para a busca atual"}
         </p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pivos.map((pivo) => (
+          {filteredPivos.map((pivo) => (
             <div
               key={pivo._id}
               onClick={() => onSelectPivo?.(pivo)}
