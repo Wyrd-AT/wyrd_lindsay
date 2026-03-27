@@ -31,11 +31,13 @@ import { format } from "date-fns";
 
 type AlertHistoryProps = {
   machineId: string;
+  pivoName?: string;
   equipamentos: (string | { nome?: string; name?: string })[];
 };
 
 export default function AlertHistory({
   machineId,
+  pivoName,
   equipamentos,
 }: AlertHistoryProps) {
   // Novo hook com paginação
@@ -493,6 +495,7 @@ export default function AlertHistory({
         onClose={handleCloseEdit}
         alertData={editingAlert ?? undefined}
         machineId={machineId}
+        pivoName={pivoName}
         equipamentos={equipamentos as any}
       />
     </div>

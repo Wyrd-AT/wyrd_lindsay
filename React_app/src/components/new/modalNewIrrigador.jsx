@@ -58,7 +58,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     };
   }, [isAdmin, isOwnPivo]);
 
-  const { list: equipamentos, add, remove, update } = useEquipamentos(16);
+  const { list: equipamentos, add, remove, update } = useEquipamentos(14);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -271,10 +271,10 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
           <button
             type="button"
             onClick={add}
-            disabled={isSaving || equipamentos.length >= 16}
+            disabled={isSaving || equipamentos.length >= 14}
             className="mt-2 text-sm px-3 py-1 border rounded-md text-white"
           >
-            + Adicionar equipamento ({equipamentos.length}/16)
+            + Adicionar equipamento ({equipamentos.length}/14)
           </button>
         </fieldset>
 

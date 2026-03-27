@@ -143,7 +143,7 @@ export default function MaquinaRevenda() {
           height={400}
           equipmentNames={equipamentos}
         />
-        <AlertHistory machineId={machineId} equipamentos={equipamentos} />
+        <AlertHistory machineId={machineId} pivoName={selectedDoc?.irrigador} equipamentos={equipamentos} />
       </BodyContent>
 
       <MensagemModal

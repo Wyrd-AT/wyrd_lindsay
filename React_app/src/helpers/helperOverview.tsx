@@ -28,6 +28,7 @@ export type DeviceCard = {
 
 export interface Irrigador {
   codigo: string;
+  irrigador?: string;
   equipamentos?: string[];
 }
 

@@ -534,9 +534,22 @@ export default function Overview({
 
         {responseMsg && <div className="mt-2 text-sm">{responseMsg}</div>}
 
-        {swDoc && (
-          <div className="mb-4 text-sm text-gray-300">
-            Última atualização carregada em: {lastUpdate}
+        {(swDoc || tA || tB) && (
+          <div className="mb-4 text-sm text-gray-300 flex flex-wrap gap-x-6 gap-y-1">
+            {swDoc && (
+              <span>
+                <span className="text-gray-400">Status SW:</span> {lastUpdate}
+              </span>
+            )}
+            {(tA || tB) && (
+              <span>
+                <span className="text-gray-400">Tensão:</span>{" "}
+                {new Date((tA ?? tB)!.updated_at).toLocaleString("pt-BR", {
+                  day: "2-digit", month: "2-digit", year: "numeric",
+                  hour: "2-digit", minute: "2-digit", second: "2-digit",
+                })}
+              </span>
+            )}
           </div>
         )}
 
