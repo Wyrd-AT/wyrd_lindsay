@@ -33,7 +33,7 @@ export function useWhatsappPerIrrigador(
   userEmail?: string,
 ) {
   // const [enabled, setEnabled] = useState<boolean>(true); // Default: ativado
-  const [msgEnabled, setMsgEnabled] = useState<boolean>(true); // Padrão msg: ativada
+  const [msgEnabled, setMsgEnabled] = useState<boolean>(false); // Padrão msg: desativada
   const [callEnabled, setCallEnabled] = useState<boolean>(false); // Padrão ligação: desativada
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function useWhatsappPerIrrigador(
   // Busca configuração do irrigador
   const fetchConfig = useCallback(async () => {
     if (!irrigadorId) {
-      setMsgEnabled(true);
+      setMsgEnabled(false);
       setCallEnabled(false);
       return;
     }
@@ -54,21 +54,21 @@ export function useWhatsappPerIrrigador(
       const doc = await getDoc<WhatsappConfig>(DB_NAME, docId);
 
       if (doc) {
-        setMsgEnabled(doc.whatsapp_enabled ?? true);
+        setMsgEnabled(doc.whatsapp_enabled ?? false);
         setCallEnabled(doc.whatsapp_call_enabled ?? false); // Lê a ligação
       } else {
-        setMsgEnabled(true);
+        setMsgEnabled(false);
         setCallEnabled(false);
       }
     } catch (err: any) {
-      // 404 significa que não existe configuração - usa padrão (ativado)
+      // 404 significa que não existe configuração - usa padrão (desativado)
       if (err?.response?.status === 404 || err?.status === 404) {
-        setMsgEnabled(true);
+        setMsgEnabled(false);
         setCallEnabled(false);
       } else {
         console.error("[useWhatsappPerIrrigador] Error fetching config:", err);
         setError(err?.message || "Erro ao buscar configuração");
-        setMsgEnabled(true);
+        setMsgEnabled(false);
         setCallEnabled(false);
       }
     } finally {
