@@ -21,12 +21,16 @@ ANSWERED_EVENTS = {"CALL_VOICE"}
 MISSED_EVENTS = {"CALL_MISSED_VOICE"}
 MESSAGE_STATUS_CALLBACK_TYPES = {"MESSAGESTATUSCALLBACK"}
 CHAT_PRESENCE_CALLBACK_TYPES = {"PRESENCECHATCALLBACK"}
+RECEIVED_CALLBACK_TYPES = {"RECEIVEDCALLBACK"}
+DELIVERY_CALLBACK_TYPES = {"DELIVERYCALLBACK"}
 MESSAGE_STOP_STATUSES = {"READ"}
 MESSAGE_LOG_STATUSES = {"SENT", "RECEIVED", "READ", "READ_BY_ME", "PLAYED"}
 PRESENCE_STOP_STATUSES = {"AVAILABLE"}
 ACTIVE_STATUSES = {"waiting_webhook", "retry_scheduled"}
 FINAL_STATUSES = {"answered", "acknowledged", "cancelled", "failed", "max_attempts_reached"}
 RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
+DEFAULT_CONFIRMATION_OPTION_ID = "ACK_OK_RECEBI"
+DEFAULT_CONFIRMATION_TEXT = "OK, recebi"
 _RETRY_THREADS: dict[str, threading.Thread] = {}
 _WAIT_THREADS: dict[str, threading.Thread] = {}
 _RETRY_LOCK = threading.Lock()
@@ -82,6 +86,25 @@ def _extract_event(payload: Dict[str, Any]) -> Dict[str, Any]:
     message_id = _find_first(payload, {"messageId", "message_id", "id"})
     message_ids = _find_first(payload, {"ids"})
     zaap_id = _find_first(payload, {"zaapId", "zaap_id"})
+    reference_message_id = _find_first(payload, {"referenceMessageId"})
+    from_me_raw = _find_first(payload, {"fromMe"})
+    selected_row_id = _find_first(payload, {"selectedRowId"})
+    button_id = _find_first(payload, {"buttonId"})
+    list_response = payload.get("listResponseMessage") if isinstance(payload, dict) else None
+    buttons_response = payload.get("buttonsResponseMessage") if isinstance(payload, dict) else None
+    text_payload = payload.get("text") if isinstance(payload, dict) else None
+    selected_title = None
+    if isinstance(list_response, dict):
+        selected_title = list_response.get("title")
+    if not selected_title and isinstance(buttons_response, dict):
+        selected_title = buttons_response.get("selectedDisplayText") or buttons_response.get("title")
+    text_message = None
+    if isinstance(text_payload, dict):
+        text_message = text_payload.get("message")
+    if not text_message and isinstance(list_response, dict):
+        text_message = list_response.get("message")
+    if not text_message and isinstance(buttons_response, dict):
+        text_message = buttons_response.get("message")
     normalized_ids = []
     if isinstance(message_ids, list):
         normalized_ids.extend(str(item).strip() for item in message_ids if item not in (None, ""))
@@ -102,6 +125,12 @@ def _extract_event(payload: Dict[str, Any]) -> Dict[str, Any]:
         "message_id": str(message_id or "").strip() or None,
         "message_ids": normalized_ids,
         "zaap_id": str(zaap_id or "").strip() or None,
+        "reference_message_id": str(reference_message_id or "").strip() or None,
+        "from_me": bool(from_me_raw) if isinstance(from_me_raw, bool) else str(from_me_raw).strip().lower() == "true",
+        "text_message": str(text_message or "").strip() or None,
+        "selected_row_id": str(selected_row_id or "").strip() or None,
+        "button_id": str(button_id or "").strip() or None,
+        "selected_title": str(selected_title or "").strip() or None,
     }
 
 
@@ -145,6 +174,9 @@ def _find_tracking_doc(
     event: Dict[str, Any],
 ) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
     selectors: list[tuple[Dict[str, Any], str]] = []
+    if event.get("reference_message_id"):
+        selectors.append(({"table": VOICE_TABLE, "last_text_message_id": event["reference_message_id"]}, "text_reference_message_id"))
+        selectors.append(({"table": VOICE_TABLE, "last_message_id": event["reference_message_id"]}, "call_reference_message_id"))
     for message_id in event.get("message_ids", []):
         selectors.append(({"table": VOICE_TABLE, "last_message_id": message_id}, "call_message_id"))
         selectors.append(({"table": VOICE_TABLE, "last_text_message_id": message_id}, "text_message_id"))
@@ -446,12 +478,48 @@ def _schedule_retry(doc: Dict[str, Any], reason: str) -> float:
     return delay
 
 
+def _doc_confirmation_option_id(doc: Dict[str, Any]) -> str:
+    return _normalize_token(doc.get("confirmation_option_id") or DEFAULT_CONFIRMATION_OPTION_ID)
+
+
+def _doc_confirmation_text(doc: Dict[str, Any]) -> str:
+    return _normalize_token(doc.get("confirmation_text") or DEFAULT_CONFIRMATION_TEXT)
+
+
+def _matches_confirmation_signal(doc: Dict[str, Any], event: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+    option_id = _doc_confirmation_option_id(doc)
+    confirmation_text = _doc_confirmation_text(doc)
+    selected_row_id = _normalize_token(event.get("selected_row_id"))
+    button_id = _normalize_token(event.get("button_id"))
+    selected_title = _normalize_token(event.get("selected_title"))
+    text_message = _normalize_token(event.get("text_message"))
+
+    if selected_row_id and selected_row_id == option_id:
+        return True, "list_option_selected"
+    if button_id and button_id == option_id:
+        return True, "button_selected"
+    if selected_title and selected_title == confirmation_text:
+        return True, "selected_title_matched"
+    if text_message and text_message in {confirmation_text, "OK", "RECEBI"}:
+        return True, "typed_confirmation_text"
+
+    return False, None
+
+
 def _is_message_status_event(event: Dict[str, Any]) -> bool:
     return event.get("callback_type_norm") in MESSAGE_STATUS_CALLBACK_TYPES
 
 
 def _is_chat_presence_event(event: Dict[str, Any]) -> bool:
     return event.get("callback_type_norm") in CHAT_PRESENCE_CALLBACK_TYPES
+
+
+def _is_received_callback_event(event: Dict[str, Any]) -> bool:
+    return event.get("callback_type_norm") in RECEIVED_CALLBACK_TYPES
+
+
+def _is_delivery_callback_event(event: Dict[str, Any]) -> bool:
+    return event.get("callback_type_norm") in DELIVERY_CALLBACK_TYPES
 
 
 def _mark_doc_finished(
@@ -576,7 +644,7 @@ def _process_message_status_webhook(db: couchdb.Database, event: Dict[str, Any],
         _save_doc(db, doc)
         return {"handled": True, "action": "final_status_ignored", "doc_id": doc["_id"], "status": doc.get("status")}
 
-    if event.get("status_norm") in MESSAGE_STOP_STATUSES and match_type in {"call_message_id", "call_zaap_id"}:
+    if event.get("status_norm") in MESSAGE_STOP_STATUSES and match_type in {"call_message_id", "call_zaap_id", "call_reference_message_id"}:
         return _mark_doc_finished(
             db,
             doc,
@@ -586,7 +654,7 @@ def _process_message_status_webhook(db: couchdb.Database, event: Dict[str, Any],
             match_type=match_type,
         )
 
-    if match_type in {"text_message_id", "text_zaap_id"} and event.get("status_norm") == "READ":
+    if match_type in {"text_message_id", "text_zaap_id", "text_reference_message_id"} and event.get("status_norm") == "READ":
         doc["text_message_read_at"] = _now_iso()
         _save_doc(db, doc)
         return {"handled": True, "action": "text_message_read_logged", "doc_id": doc["_id"]}
@@ -641,10 +709,109 @@ def _process_chat_presence_webhook(db: couchdb.Database, event: Dict[str, Any], 
     return {"handled": True, "action": "chat_presence_logged", "doc_id": doc["_id"]}
 
 
+def _process_delivery_callback(db: couchdb.Database, event: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    logger.info(
+        "Webhook Z-API delivery-callback: message_id=%s zaap_id=%s phone=%s",
+        event.get("message_id") or "<vazio>",
+        event.get("zaap_id") or "<vazio>",
+        event.get("phone") or "<vazio>",
+    )
+    doc, match_type = _find_tracking_doc(db, event)
+    if not doc:
+        logger.info("Delivery-callback sem tracking correspondente: %s", payload)
+        return {"handled": True, "action": "delivery_logged_without_tracking"}
+
+    doc["updated_at"] = _now_iso()
+    _append_history(
+        doc,
+        {
+            "timestamp": _now_iso(),
+            "event": "delivery_callback_received",
+            "message_id": event.get("message_id"),
+            "zaap_id": event.get("zaap_id"),
+            "match_type": match_type,
+        },
+    )
+    _save_doc(db, doc)
+    return {"handled": True, "action": "delivery_logged", "doc_id": doc["_id"]}
+
+
+def _process_received_callback(db: couchdb.Database, event: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    logger.info(
+        "Webhook Z-API received-callback: from_me=%s status=%s phone=%s message_ids=%s reference_message_id=%s text=%s selected_row_id=%s",
+        event.get("from_me"),
+        event.get("status_value") or "<vazio>",
+        event.get("phone") or "<vazio>",
+        event.get("message_ids") or [],
+        event.get("reference_message_id") or "<vazio>",
+        event.get("text_message") or "<vazio>",
+        event.get("selected_row_id") or "<vazio>",
+    )
+
+    doc, match_type = _find_tracking_doc(db, event)
+    if not doc:
+        logger.info("Received-callback sem tracking correspondente: %s", payload)
+        return {"handled": True, "action": "received_callback_without_tracking"}
+
+    doc["updated_at"] = _now_iso()
+    _append_history(
+        doc,
+        {
+            "timestamp": _now_iso(),
+            "event": "received_callback",
+            "from_me": event.get("from_me"),
+            "status": event.get("status_value"),
+            "message_ids": event.get("message_ids"),
+            "reference_message_id": event.get("reference_message_id"),
+            "text_message": event.get("text_message"),
+            "selected_row_id": event.get("selected_row_id"),
+            "selected_title": event.get("selected_title"),
+            "match_type": match_type,
+        },
+    )
+
+    if doc.get("status") in FINAL_STATUSES:
+        _save_doc(db, doc)
+        return {"handled": True, "action": "final_status_ignored", "doc_id": doc["_id"], "status": doc.get("status")}
+
+    if event.get("from_me"):
+        doc["last_message_status"] = event.get("status_value")
+        if event.get("status_norm") in MESSAGE_STOP_STATUSES and match_type in {"call_message_id", "call_zaap_id", "call_reference_message_id"}:
+            return _mark_doc_finished(
+                db,
+                doc,
+                status="acknowledged",
+                reason="call_message_read",
+                event=event,
+                match_type=match_type,
+            )
+        if event.get("status_norm") == "READ" and match_type in {"text_message_id", "text_zaap_id", "text_reference_message_id"}:
+            doc["text_message_read_at"] = _now_iso()
+            _save_doc(db, doc)
+            return {"handled": True, "action": "text_message_read_logged", "doc_id": doc["_id"]}
+        _save_doc(db, doc)
+        return {"handled": True, "action": "outbound_received_callback_logged", "doc_id": doc["_id"]}
+
+    matched, source = _matches_confirmation_signal(doc, event)
+    if matched:
+        return _mark_doc_finished(
+            db,
+            doc,
+            status="acknowledged",
+            reason=f"message_confirmation_{source}",
+            event=event,
+            match_type=match_type,
+        )
+
+    doc["last_inbound_message_at"] = _now_iso()
+    _save_doc(db, doc)
+    return {"handled": True, "action": "inbound_message_logged", "doc_id": doc["_id"]}
+
+
 def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
     event = _extract_event(payload)
     logger.info(
-        "Webhook Z-API recebido: notification=%s callback_type=%s status=%s phone=%s message_ids=%s zaap_id=%s call_id=%s",
+        "Webhook Z-API recebido: notification=%s callback_type=%s status=%s phone=%s message_ids=%s zaap_id=%s call_id=%s reference_message_id=%s from_me=%s",
         event.get("notification") or "<vazio>",
         event.get("callback_type") or "<vazio>",
         event.get("status_value") or "<vazio>",
@@ -652,9 +819,17 @@ def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
         event.get("message_ids") or [],
         event.get("zaap_id") or "<vazio>",
         event.get("call_id") or "<vazio>",
+        event.get("reference_message_id") or "<vazio>",
+        event.get("from_me"),
     )
 
     db = get_db()
+
+    if _is_delivery_callback_event(event):
+        return _process_delivery_callback(db, event, payload)
+
+    if _is_received_callback_event(event):
+        return _process_received_callback(db, event, payload)
 
     if _is_message_status_event(event):
         return _process_message_status_webhook(db, event, payload)

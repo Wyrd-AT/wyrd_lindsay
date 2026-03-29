@@ -118,6 +118,13 @@ RATE_LIMIT_DELAY = float(os.getenv("RATE_LIMIT_DELAY"))
 VOICE_ZAPI_MAX_ATTEMPTS = int(os.getenv("VOICE_ZAPI_MAX_ATTEMPTS", "5"))
 VOICE_ZAPI_CALL_DURATION_SECONDS = int(os.getenv("VOICE_ZAPI_CALL_DURATION_SECONDS", "15"))
 VOICE_ZAPI_RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
+ZAPI_CONFIRMATION_OPTION_ID = os.getenv("ZAPI_CONFIRMATION_OPTION_ID", "ACK_OK_RECEBI")
+ZAPI_CONFIRMATION_OPTION_TITLE = os.getenv("ZAPI_CONFIRMATION_OPTION_TITLE", "OK, recebi")
+ZAPI_CONFIRMATION_OPTION_DESCRIPTION = os.getenv(
+    "ZAPI_CONFIRMATION_OPTION_DESCRIPTION",
+    "Toque aqui para confirmar o recebimento deste alerta"
+)
+ZAPI_CONFIRMATION_BUTTON_LABEL = os.getenv("ZAPI_CONFIRMATION_BUTTON_LABEL", "Confirmar recebimento")
 
 # >>> WS ADD: Config WebSocket
 WS_HOST = os.getenv("WS_HOST")
@@ -505,16 +512,90 @@ def send_email(subject: str, body_text: str, body_html: str, to: List[str]) -> D
 
     return results
 
+def _send_zapi_message_request(endpoint: str, payload: Dict[str, Any], *, timeout: int = 30) -> requests.Response:
+    url = f"{ZAPI_BASE_URL}/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/{endpoint}"
+    headers = {
+        "Client-Token": ZAPI_CLIENT_TOKEN,
+        "Content-Type": "application/json"
+    }
+    return requests.post(url, json=payload, headers=headers, timeout=timeout)
+
+
+def _send_whatsapp_zapi_text(phone: str, phone_clean: str, msg: str) -> Dict[str, Any]:
+    payload = {
+        "phone": phone_clean,
+        "message": msg
+    }
+    response = _send_zapi_message_request("send-text", payload)
+    if response.status_code == 200:
+        response_data = response.json()
+        result = {
+            "phone": phone,
+            "zaapId": response_data.get("zaapId"),
+            "messageId": response_data.get("messageId"),
+            "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+            "type": "whatsapp",
+            "confirmation_mode": "text"
+        }
+        log("ok", f"WhatsApp texto enviado via Z-API para {phone} (messageId: {response_data.get('messageId')})")
+        return {"success": True, "data": result}
+
+    error_msg = f"HTTP {response.status_code}: {response.text}"
+    return {"success": False, "error": error_msg}
+
+
+def _send_whatsapp_zapi_confirmation_list(phone: str, phone_clean: str, msg: str) -> Dict[str, Any]:
+    confirmation_message = (
+        f"{msg}\n\n"
+        f"Para confirmar o recebimento, selecione \"{ZAPI_CONFIRMATION_OPTION_TITLE}\" "
+        f"ou responda com esse mesmo texto."
+    )
+    payload = {
+        "phone": phone_clean,
+        "message": confirmation_message,
+        "optionList": {
+            "title": "Confirmação de recebimento",
+            "buttonLabel": ZAPI_CONFIRMATION_BUTTON_LABEL,
+            "options": [
+                {
+                    "id": ZAPI_CONFIRMATION_OPTION_ID,
+                    "title": ZAPI_CONFIRMATION_OPTION_TITLE,
+                    "description": ZAPI_CONFIRMATION_OPTION_DESCRIPTION,
+                }
+            ],
+        },
+    }
+    response = _send_zapi_message_request("send-option-list", payload)
+    if response.status_code == 200:
+        response_data = response.json()
+        result = {
+            "phone": phone,
+            "zaapId": response_data.get("zaapId"),
+            "messageId": response_data.get("messageId"),
+            "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+            "type": "whatsapp_option_list",
+            "confirmation_mode": "option_list",
+            "confirmation_option_id": ZAPI_CONFIRMATION_OPTION_ID,
+            "confirmation_text": ZAPI_CONFIRMATION_OPTION_TITLE,
+        }
+        log(
+            "ok",
+            f"Lista de confirmação enviada via Z-API para {phone} "
+            f"(messageId: {response_data.get('messageId')}, optionId: {ZAPI_CONFIRMATION_OPTION_ID})"
+        )
+        return {"success": True, "data": result}
+
+    error_msg = f"HTTP {response.status_code}: {response.text}"
+    return {"success": False, "error": error_msg}
+
+
 def send_whatsapp_zapi(msg: str, to: List[str]) -> Dict[str, Any]:
     """
     Envia mensagem WhatsApp via Z-API para múltiplos números.
 
-    Args:
-        msg: Corpo da mensagem
-        to: Lista de números no formato internacional (5511999999999 - sem + ou espaços)
-
-    Returns:
-        dict com 'success' (list), 'failed' (list), 'invalid' (list)
+    Fluxo atual:
+    1. tenta enviar lista de confirmação com 1 item;
+    2. se a lista falhar, cai para texto simples com instrução de resposta.
     """
     results = {"success": [], "failed": [], "invalid": []}
 
@@ -526,63 +607,50 @@ def send_whatsapp_zapi(msg: str, to: List[str]) -> Dict[str, Any]:
         log("error", "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)")
         return results
 
-    # Monta URL da API
-    url = f"{ZAPI_BASE_URL}/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-text"
-
-    # Headers
-    headers = {
-        "Client-Token": ZAPI_CLIENT_TOKEN,
-        "Content-Type": "application/json"
-    }
-
     for i, phone in enumerate(to):
-        # Valida formato do número
         if not validate_phone_number(phone):
             results["invalid"].append({"phone": phone, "reason": "Formato inválido"})
             log("warn", f"Número inválido ignorado: {phone}")
             continue
 
-        # Rate limiting
         if i > 0:
             import time
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
-            # Remove caracteres não numéricos (+ - espaços parênteses)
-            phone_clean = re.sub(r'[^\d]', '', phone)
-
-            # Z-API espera números sem o +
-            if phone_clean.startswith('+'):
+            phone_clean = re.sub(r"[^\d]", "", phone)
+            if phone_clean.startswith("+"):
                 phone_clean = phone_clean[1:]
 
-            # Payload da requisição
-            payload = {
-                "phone": phone_clean,
-                "message": msg
-            }
+            list_result = _send_whatsapp_zapi_confirmation_list(phone, phone_clean, msg)
+            if list_result["success"]:
+                results["success"].append(list_result["data"])
+                continue
 
-            # Envia requisição
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            fallback_message = (
+                f"{msg}\n\n"
+                f"Se a lista não abrir, responda com \"{ZAPI_CONFIRMATION_OPTION_TITLE}\"."
+            )
+            log(
+                "warn",
+                f"Falha ao enviar lista de confirmação para {phone}; usando fallback em texto. "
+                f"Motivo: {list_result['error']}"
+            )
+            text_result = _send_whatsapp_zapi_text(phone, phone_clean, fallback_message)
+            if text_result["success"]:
+                text_result["data"]["confirmation_option_id"] = ZAPI_CONFIRMATION_OPTION_ID
+                text_result["data"]["confirmation_text"] = ZAPI_CONFIRMATION_OPTION_TITLE
+                results["success"].append(text_result["data"])
+                continue
 
-            if response.status_code == 200:
-                response_data = response.json()
-                results["success"].append({
-                    "phone": phone,
-                    "zaapId": response_data.get("zaapId"),
-                    "messageId": response_data.get("messageId"),
-                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                    "type": "whatsapp"
-                })
-                log("ok", f"WhatsApp enviado via Z-API para {phone} (messageId: {response_data.get('messageId')})")
-            else:
-                error_msg = f"HTTP {response.status_code}: {response.text}"
-                results["failed"].append({
-                    "phone": phone,
-                    "error": error_msg,
-                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                    "type": "whatsapp"
-                })
-                log("error", f"Falha ao enviar WhatsApp via Z-API para {phone}: {error_msg}")
+            results["failed"].append({
+                "phone": phone,
+                "error": text_result["error"],
+                "fallback_error": list_result["error"],
+                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                "type": "whatsapp"
+            })
+            log("error", f"Falha ao enviar WhatsApp via Z-API para {phone}: {text_result['error']}")
 
         except requests.exceptions.Timeout:
             results["failed"].append({
@@ -1270,6 +1338,69 @@ def build_voice_tracking_doc_id(alert_doc_id: str, phone_clean: str) -> str:
     return f"voice_call::{alert_doc_id}::{phone_clean}"
 
 
+def register_message_tracking_docs(
+    *,
+    alert_doc_id: str,
+    irrigador_id: str,
+    send_results: Dict[str, Any],
+    event_type: Optional[str],
+    monitor: Optional[str],
+    equipment_name: Optional[str],
+) -> None:
+    if not alert_doc_id:
+        return
+
+    db = get_couch_db()
+    if db is None:
+        return
+
+    now_iso = fmt_ts_iso(datetime.now(BR_TZ))
+    for item in send_results.get("success", []):
+        phone = str(item.get("phone") or "")
+        phone_clean = normalize_phone(phone)
+        message_id = item.get("messageId") or item.get("message_id")
+        if not phone_clean or not message_id:
+            continue
+
+        doc_id = build_voice_tracking_doc_id(alert_doc_id, phone_clean)
+        existing = db.get(doc_id) or {"_id": doc_id, "table": "zapi_voice_retry", "history": []}
+        history = existing.setdefault("history", [])
+        history.append(
+            {
+                "timestamp": now_iso,
+                "event": "message_sent",
+                "message_id": message_id,
+                "zaap_id": item.get("zaapId") or item.get("zaap_id"),
+                "mode": item.get("confirmation_mode") or item.get("type"),
+                "confirmation_option_id": item.get("confirmation_option_id") or ZAPI_CONFIRMATION_OPTION_ID,
+                "confirmation_text": item.get("confirmation_text") or ZAPI_CONFIRMATION_OPTION_TITLE,
+            }
+        )
+
+        existing.update(
+            {
+                "table": "zapi_voice_retry",
+                "irrigadorId": irrigador_id,
+                "alert_doc_id": alert_doc_id,
+                "phone": phone,
+                "phone_clean": phone_clean,
+                "event_type": event_type,
+                "monitor": monitor,
+                "equipment_name": equipment_name,
+                "last_text_message_id": str(message_id),
+                "last_text_zaap_id": item.get("zaapId") or item.get("zaap_id"),
+                "confirmation_option_id": item.get("confirmation_option_id") or ZAPI_CONFIRMATION_OPTION_ID,
+                "confirmation_text": item.get("confirmation_text") or ZAPI_CONFIRMATION_OPTION_TITLE,
+                "message_confirmation_mode": item.get("confirmation_mode") or item.get("type"),
+                "updated_at": now_iso,
+            }
+        )
+        if existing.get("status") not in {"waiting_webhook", "retry_scheduled", "answered", "acknowledged"}:
+            existing["status"] = "message_waiting_confirmation"
+        existing.setdefault("created_at", now_iso)
+        upsert_doc(doc_id, existing)
+
+
 def register_voice_call_tracking_doc(
     *,
     alert_doc_id: str,
@@ -1327,6 +1458,8 @@ def register_voice_call_tracking_doc(
             "last_zaap_id": zaap_id,
             "last_text_message_id": text_message_id or existing.get("last_text_message_id"),
             "last_text_zaap_id": text_zaap_id or existing.get("last_text_zaap_id"),
+            "confirmation_option_id": existing.get("confirmation_option_id") or ZAPI_CONFIRMATION_OPTION_ID,
+            "confirmation_text": existing.get("confirmation_text") or ZAPI_CONFIRMATION_OPTION_TITLE,
             "status": "waiting_webhook",
             "updated_at": now_iso,
         }
@@ -2042,6 +2175,14 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                 send_results["failed"].extend(message_results["failed"])
                                 send_results["invalid"].extend(message_results["invalid"])
                                 send_results["modes_used"].extend(message_results.get("modes_used", []))
+                                register_message_tracking_docs(
+                                    alert_doc_id=individual_id,
+                                    irrigador_id=irrigador_id,
+                                    send_results=message_results,
+                                    event_type=event_type,
+                                    monitor=monitor,
+                                    equipment_name=equipamento_nome,
+                                )
                                 text_message_ids_by_phone, text_zaap_ids_by_phone = build_zapi_message_tracking_maps(message_results)
                                 if text_message_ids_by_phone:
                                     log(
