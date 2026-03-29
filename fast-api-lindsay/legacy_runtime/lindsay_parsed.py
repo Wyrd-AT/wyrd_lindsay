@@ -1294,8 +1294,9 @@ def is_whatsapp_enabled_for_irrigador(irrigador_id: str) -> bool:
             # Não existe configuração - padrão é ativado
             return True
 
-        # Retorna o valor configurado (padrão True se campo não existir)
-        return config_doc.get("whatsapp_enabled", True)
+        whatsapp_enabled = bool(config_doc.get("whatsapp_enabled", True))
+        whatsapp_call_enabled = bool(config_doc.get("whatsapp_call_enabled", False))
+        return whatsapp_enabled or whatsapp_call_enabled
 
     except Exception as e:
         log("warn", f"Erro ao verificar config WhatsApp para {irrigador_id}: {e} - assumindo ativado")
@@ -1487,24 +1488,6 @@ def build_zapi_message_tracking_maps(send_results: Dict[str, Any]) -> Tuple[Dict
             zaap_ids_by_phone[phone_clean] = str(zaap_id)
 
     return message_ids_by_phone, zaap_ids_by_phone
-
-
-def build_voice_ack_message(
-    *,
-    irrigador_id: str,
-    equipment_name: str,
-    event_type: str,
-    monitor: str,
-    timestamp: str,
-) -> str:
-    return (
-        "Ligação de alerta enviada.\n\n"
-        f"Irrigador: {irrigador_id}\n"
-        f"Equipamento: {equipment_name}\n"
-        f"Evento: {event_type}{monitor}\n"
-        f"Horário: {timestamp}\n\n"
-        "Esta mensagem serve apenas para confirmar o recebimento da ligação."
-    )
 
 
 def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
@@ -2210,45 +2193,6 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                     )
                                 else:
                                     log("info", f"Nenhum messageId Z-API disponível para tracking de mensagem em {irrigador_id}")
-                            elif whatsapp_call_enabled and phones:
-                                ack_only_message = build_voice_ack_message(
-                                    irrigador_id=irrigador_id,
-                                    equipment_name=equipamento_nome,
-                                    event_type=event_type,
-                                    monitor=monitor,
-                                    timestamp=timestamp,
-                                )
-                                log(
-                                    "info",
-                                    f"Fluxo somente ligação ativo para {irrigador_id}; enviando mensagem curta de confirmação via Z-API"
-                                )
-                                message_results = send_whatsapp_zapi(ack_only_message, phones)
-                                send_results["success"].extend(message_results["success"])
-                                send_results["failed"].extend(message_results["failed"])
-                                send_results["invalid"].extend(message_results["invalid"])
-                                if (
-                                    message_results["success"]
-                                    or message_results["failed"]
-                                    or message_results["invalid"]
-                                ):
-                                    send_results["modes_used"].append("whatsapp_confirmation")
-                                register_message_tracking_docs(
-                                    alert_doc_id=individual_id,
-                                    irrigador_id=irrigador_id,
-                                    send_results=message_results,
-                                    event_type=event_type,
-                                    monitor=monitor,
-                                    equipment_name=equipamento_nome,
-                                )
-                                text_message_ids_by_phone, text_zaap_ids_by_phone = build_zapi_message_tracking_maps(message_results)
-                                if text_message_ids_by_phone:
-                                    log(
-                                        "info",
-                                        f"Tracking de ACK da ligação preparado para {irrigador_id}: "
-                                        f"{list(text_message_ids_by_phone.items())}"
-                                    )
-                                else:
-                                    log("warn", f"Sem messageId de ACK para fluxo somente ligação em {irrigador_id}")
                             else:
                                 text_message_ids_by_phone, text_zaap_ids_by_phone = {}, {}
                                 log("info", f"Mensagens WhatsApp/SMS desativadas para {irrigador_id} - pulando envio de texto")

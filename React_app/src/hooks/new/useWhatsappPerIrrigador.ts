@@ -28,6 +28,16 @@ interface WhatsappConfig {
   updated_by: string;
 }
 
+function normalizeNotificationState(msg: boolean, call: boolean) {
+  if (call) {
+    return { msg: true, call: true };
+  }
+  if (!msg) {
+    return { msg: false, call: false };
+  }
+  return { msg: true, call: false };
+}
+
 export function useWhatsappPerIrrigador(
   irrigadorId: string | null,
   userEmail?: string,
@@ -54,8 +64,12 @@ export function useWhatsappPerIrrigador(
       const doc = await getDoc<WhatsappConfig>(DB_NAME, docId);
 
       if (doc) {
-        setMsgEnabled(doc.whatsapp_enabled ?? false);
-        setCallEnabled(doc.whatsapp_call_enabled ?? false); // Lê a ligação
+        const normalized = normalizeNotificationState(
+          doc.whatsapp_enabled ?? false,
+          doc.whatsapp_call_enabled ?? false,
+        );
+        setMsgEnabled(normalized.msg);
+        setCallEnabled(normalized.call);
       } else {
         setMsgEnabled(false);
         setCallEnabled(false);
@@ -84,9 +98,12 @@ export function useWhatsappPerIrrigador(
       setLoading(true);
       setError(null);
 
-      const newMsgState = updates.msg !== undefined ? updates.msg : msgEnabled;
-      const newCallState =
-        updates.call !== undefined ? updates.call : callEnabled;
+      const normalizedState = normalizeNotificationState(
+        updates.msg !== undefined ? updates.msg : msgEnabled,
+        updates.call !== undefined ? updates.call : callEnabled,
+      );
+      const newMsgState = normalizedState.msg;
+      const newCallState = normalizedState.call;
 
       try {
         const docId = `whatsapp_config:${irrigadorId}`;
@@ -136,7 +153,7 @@ export function useWhatsappPerIrrigador(
     [msgEnabled, updateConfig],
   );
   const toggleCall = useCallback(
-    () => updateConfig({ call: !callEnabled }),
+    () => updateConfig(callEnabled ? { call: false } : { msg: true, call: true }),
     [callEnabled, updateConfig],
   );
 

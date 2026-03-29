@@ -415,10 +415,12 @@ class AlertService:
                         config_doc = None
 
                 if config_doc:
-                    whatsapp_enabled = config_doc.get("whatsapp_enabled", True)
-                    whatsapp_call_enabled = config_doc.get(
-                        "whatsapp_call_enabled", False
+                    whatsapp_enabled = bool(config_doc.get("whatsapp_enabled", True))
+                    whatsapp_call_enabled = bool(
+                        config_doc.get("whatsapp_call_enabled", False)
                     )
+                    if whatsapp_call_enabled:
+                        whatsapp_enabled = True
             except Exception as e:
                 logger.warning(
                     f"⚠️ Erro ao buscar whatsapp_config para {codigo_irrigador}: {e}"

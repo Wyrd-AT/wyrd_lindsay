@@ -475,7 +475,9 @@ export default function Overview({
                   notificationLoading
                     ? "Atualizando..."
                     : msgEnabled
-                      ? "Notificações ATIVADAS - Clique para desativar"
+                      ? callEnabled
+                        ? "Mensagem + ligação ATIVADAS - Clique para desativar tudo"
+                        : "Mensagens ATIVADAS - Clique para desativar"
                       : "Notificações DESATIVADAS - Clique para ativar"
                 }
               >
@@ -519,8 +521,8 @@ export default function Overview({
                   notificationLoading
                     ? "Atualizando..."
                     : callEnabled
-                      ? "Notificações ATIVADAS - Clique para desativar"
-                      : "Notificações DESATIVADAS - Clique para ativar"
+                      ? "Ligação ATIVADA - Clique para voltar a mensagem apenas"
+                      : "Ativa ligação junto com a mensagem"
                 }
               >
                 <span
