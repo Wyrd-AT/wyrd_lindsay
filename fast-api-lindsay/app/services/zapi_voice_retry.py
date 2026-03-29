@@ -19,8 +19,13 @@ BR_TZ = ZoneInfo(settings.TIMEZONE)
 VOICE_TABLE = "zapi_voice_retry"
 ANSWERED_EVENTS = {"CALL_VOICE"}
 MISSED_EVENTS = {"CALL_MISSED_VOICE"}
+MESSAGE_STATUS_CALLBACK_TYPES = {"MESSAGESTATUSCALLBACK"}
+CHAT_PRESENCE_CALLBACK_TYPES = {"PRESENCECHATCALLBACK"}
+MESSAGE_STOP_STATUSES = {"READ"}
+MESSAGE_LOG_STATUSES = {"SENT", "RECEIVED", "READ", "READ_BY_ME", "PLAYED"}
+PRESENCE_STOP_STATUSES = {"AVAILABLE"}
 ACTIVE_STATUSES = {"waiting_webhook", "retry_scheduled"}
-FINAL_STATUSES = {"answered", "cancelled", "failed", "max_attempts_reached"}
+FINAL_STATUSES = {"answered", "acknowledged", "cancelled", "failed", "max_attempts_reached"}
 RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
 _RETRY_THREADS: dict[str, threading.Thread] = {}
 _WAIT_THREADS: dict[str, threading.Thread] = {}
@@ -40,6 +45,10 @@ def _now_iso() -> str:
 
 def normalize_phone(phone: Optional[str]) -> str:
     return re.sub(r"\D", "", phone or "")
+
+
+def _normalize_token(value: Optional[Any]) -> str:
+    return re.sub(r"[^A-Z0-9_]+", "", str(value or "").upper())
 
 
 def _find_first(payload: Any, key_names: Iterable[str]) -> Optional[Any]:
@@ -65,17 +74,33 @@ def _find_first(payload: Any, key_names: Iterable[str]) -> Optional[Any]:
 
 
 def _extract_event(payload: Dict[str, Any]) -> Dict[str, Any]:
-    notification = _find_first(payload, {"notification", "event", "type"})
+    notification = _find_first(payload, {"notification", "event"})
+    callback_type = _find_first(payload, {"type"})
+    status_value = _find_first(payload, {"status"})
     phone = _find_first(payload, {"phone"})
     call_id = _find_first(payload, {"callId"})
     message_id = _find_first(payload, {"messageId", "message_id", "id"})
+    message_ids = _find_first(payload, {"ids"})
     zaap_id = _find_first(payload, {"zaapId", "zaap_id"})
+    normalized_ids = []
+    if isinstance(message_ids, list):
+        normalized_ids.extend(str(item).strip() for item in message_ids if item not in (None, ""))
+    elif message_ids not in (None, ""):
+        normalized_ids.append(str(message_ids).strip())
+    if message_id and message_id not in normalized_ids:
+        normalized_ids.append(message_id)
     return {
         "notification": str(notification or "").strip(),
+        "notification_norm": _normalize_token(notification),
+        "callback_type": str(callback_type or "").strip(),
+        "callback_type_norm": _normalize_token(callback_type),
+        "status_value": str(status_value or "").strip(),
+        "status_norm": _normalize_token(status_value),
         "phone": str(phone or "").strip(),
         "phone_clean": normalize_phone(phone),
         "call_id": str(call_id or "").strip() or None,
         "message_id": str(message_id or "").strip() or None,
+        "message_ids": normalized_ids,
         "zaap_id": str(zaap_id or "").strip() or None,
     }
 
@@ -105,34 +130,44 @@ def _sort_key(doc: Dict[str, Any]) -> str:
     return str(doc.get("updated_at") or doc.get("created_at") or "")
 
 
-def _find_tracking_doc(db: couchdb.Database, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    selectors = []
-    if event.get("message_id"):
-        selectors.append({"table": VOICE_TABLE, "last_message_id": event["message_id"]})
-    if event.get("zaap_id"):
-        selectors.append({"table": VOICE_TABLE, "last_zaap_id": event["zaap_id"]})
-    if event.get("call_id"):
-        selectors.append({"table": VOICE_TABLE, "call_id": event["call_id"]})
-    if event.get("phone_clean"):
-        selectors.append({"table": VOICE_TABLE, "phone_clean": event["phone_clean"]})
+def _pick_tracking_doc(results: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not results:
+        return None
+    results.sort(key=_sort_key, reverse=True)
+    for doc in results:
+        if doc.get("status") in ACTIVE_STATUSES:
+            return doc
+    return results[0]
 
-    for selector in selectors:
+
+def _find_tracking_doc(
+    db: couchdb.Database,
+    event: Dict[str, Any],
+) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    selectors: list[tuple[Dict[str, Any], str]] = []
+    for message_id in event.get("message_ids", []):
+        selectors.append(({"table": VOICE_TABLE, "last_message_id": message_id}, "call_message_id"))
+        selectors.append(({"table": VOICE_TABLE, "last_text_message_id": message_id}, "text_message_id"))
+    if event.get("zaap_id"):
+        selectors.append(({"table": VOICE_TABLE, "last_zaap_id": event["zaap_id"]}, "call_zaap_id"))
+        selectors.append(({"table": VOICE_TABLE, "last_text_zaap_id": event["zaap_id"]}, "text_zaap_id"))
+    if event.get("call_id"):
+        selectors.append(({"table": VOICE_TABLE, "call_id": event["call_id"]}, "call_id"))
+    if event.get("phone_clean"):
+        selectors.append(({"table": VOICE_TABLE, "phone_clean": event["phone_clean"]}, "phone"))
+
+    for selector, match_type in selectors:
         try:
             result = list(db.find({"selector": selector, "limit": 10}))
         except Exception as exc:
             logger.warning("Falha ao buscar tracking doc %s: %s", selector, exc)
             continue
 
-        if not result:
-            continue
+        doc = _pick_tracking_doc(result)
+        if doc:
+            return doc, match_type
 
-        result.sort(key=_sort_key, reverse=True)
-        for doc in result:
-            if doc.get("status") in ACTIVE_STATUSES:
-                return doc
-        return result[0]
-
-    return None
+    return None, None
 
 
 def _append_history(doc: Dict[str, Any], entry: Dict[str, Any]) -> None:
@@ -411,30 +446,55 @@ def _schedule_retry(doc: Dict[str, Any], reason: str) -> float:
     return delay
 
 
-def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
-    event = _extract_event(payload)
-    notification = event["notification"]
-    logger.info(
-        "Webhook Z-API recebido: notification=%s phone=%s message_id=%s zaap_id=%s call_id=%s",
-        notification or "<vazio>",
-        event.get("phone") or "<vazio>",
-        event.get("message_id") or "<vazio>",
-        event.get("zaap_id") or "<vazio>",
-        event.get("call_id") or "<vazio>",
+def _is_message_status_event(event: Dict[str, Any]) -> bool:
+    return event.get("callback_type_norm") in MESSAGE_STATUS_CALLBACK_TYPES
+
+
+def _is_chat_presence_event(event: Dict[str, Any]) -> bool:
+    return event.get("callback_type_norm") in CHAT_PRESENCE_CALLBACK_TYPES
+
+
+def _mark_doc_finished(
+    db: couchdb.Database,
+    doc: Dict[str, Any],
+    *,
+    status: str,
+    reason: str,
+    event: Dict[str, Any],
+    match_type: Optional[str],
+) -> Dict[str, Any]:
+    now_iso = _now_iso()
+    doc["status"] = status
+    doc["updated_at"] = now_iso
+    doc["completion_reason"] = reason
+    if status == "answered":
+        doc["answered_at"] = now_iso
+    else:
+        doc["acknowledged_at"] = now_iso
+    _append_history(
+        doc,
+        {
+            "timestamp": now_iso,
+            "event": "completion_signal",
+            "reason": reason,
+            "match_type": match_type,
+            "notification": event.get("notification"),
+            "callback_type": event.get("callback_type"),
+            "status_value": event.get("status_value"),
+            "message_ids": event.get("message_ids"),
+            "phone": event.get("phone"),
+            "call_id": event.get("call_id"),
+        },
     )
-    if not notification:
-        logger.warning("Webhook Z-API sem notification reconhecivel: %s", payload)
-        return {"handled": False, "reason": "notification_missing"}
+    _save_doc(db, doc)
+    return {"handled": True, "action": reason, "doc_id": doc["_id"], "status": doc.get("status")}
 
-    if notification not in ANSWERED_EVENTS | MISSED_EVENTS:
-        logger.info("Webhook Z-API ignorado: notification=%s payload=%s", notification, payload)
-        return {"handled": False, "reason": "notification_ignored", "notification": notification}
 
-    db = get_db()
-    doc = _find_tracking_doc(db, event)
+def _process_call_webhook(db: couchdb.Database, event: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    doc, match_type = _find_tracking_doc(db, event)
     if not doc:
-        logger.warning("Webhook Z-API sem tracking correspondente: notification=%s payload=%s", notification, payload)
-        return {"handled": False, "reason": "tracking_not_found", "notification": notification}
+        logger.warning("Webhook de chamada sem tracking correspondente: %s", payload)
+        return {"handled": False, "reason": "tracking_not_found", "notification": event.get("notification")}
 
     doc["updated_at"] = _now_iso()
     if event.get("call_id"):
@@ -449,10 +509,11 @@ def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
         {
             "timestamp": _now_iso(),
             "event": "webhook_received",
-            "notification": notification,
+            "notification": event.get("notification"),
             "call_id": event.get("call_id"),
             "message_id": event.get("message_id"),
             "zaap_id": event.get("zaap_id"),
+            "match_type": match_type,
         },
     )
 
@@ -460,21 +521,156 @@ def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
         _save_doc(db, doc)
         return {"handled": True, "action": "final_status_ignored", "doc_id": doc["_id"], "status": doc.get("status")}
 
-    if notification in ANSWERED_EVENTS:
-        doc["status"] = "answered"
-        doc["answered_at"] = _now_iso()
-        _save_doc(db, doc)
-        return {"handled": True, "action": "answered", "doc_id": doc["_id"]}
+    if event.get("notification_norm") in ANSWERED_EVENTS:
+        return _mark_doc_finished(
+            db,
+            doc,
+            status="answered",
+            reason="call_answered",
+            event=event,
+            match_type=match_type,
+        )
 
     if doc.get("status") == "retry_scheduled":
         _save_doc(db, doc)
         return {"handled": True, "action": "already_scheduled", "doc_id": doc["_id"]}
 
-    delay = _schedule_retry(doc, notification)
+    delay = _schedule_retry(doc, event.get("notification") or "call_missed")
     if delay <= 0:
         _save_doc(db, doc)
         return {"handled": True, "action": "max_attempts_reached", "doc_id": doc["_id"]}
     return {"handled": True, "action": "retry_scheduled", "delay_seconds": delay, "doc_id": doc["_id"]}
+
+
+def _process_message_status_webhook(db: couchdb.Database, event: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    logger.info(
+        "Webhook Z-API message-status: status=%s ids=%s phone=%s",
+        event.get("status_value") or "<vazio>",
+        event.get("message_ids") or [],
+        event.get("phone") or "<vazio>",
+    )
+
+    doc, match_type = _find_tracking_doc(db, event)
+    if not doc:
+        logger.info("Message-status sem tracking de voz correspondente: %s", payload)
+        return {
+            "handled": True,
+            "action": "message_status_logged_without_tracking",
+            "status": event.get("status_value"),
+        }
+
+    doc["updated_at"] = _now_iso()
+    doc["last_message_status"] = event.get("status_value")
+    _append_history(
+        doc,
+        {
+            "timestamp": _now_iso(),
+            "event": "message_status_received",
+            "status": event.get("status_value"),
+            "message_ids": event.get("message_ids"),
+            "match_type": match_type,
+        },
+    )
+
+    if doc.get("status") in FINAL_STATUSES:
+        _save_doc(db, doc)
+        return {"handled": True, "action": "final_status_ignored", "doc_id": doc["_id"], "status": doc.get("status")}
+
+    if event.get("status_norm") in MESSAGE_STOP_STATUSES and match_type in {"call_message_id", "call_zaap_id"}:
+        return _mark_doc_finished(
+            db,
+            doc,
+            status="acknowledged",
+            reason="call_message_read",
+            event=event,
+            match_type=match_type,
+        )
+
+    if match_type in {"text_message_id", "text_zaap_id"} and event.get("status_norm") == "READ":
+        doc["text_message_read_at"] = _now_iso()
+        _save_doc(db, doc)
+        return {"handled": True, "action": "text_message_read_logged", "doc_id": doc["_id"]}
+
+    _save_doc(db, doc)
+    return {"handled": True, "action": "message_status_logged", "doc_id": doc["_id"]}
+
+
+def _process_chat_presence_webhook(db: couchdb.Database, event: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
+    logger.info(
+        "Webhook Z-API chat-presence: status=%s phone=%s",
+        event.get("status_value") or "<vazio>",
+        event.get("phone") or "<vazio>",
+    )
+
+    doc, match_type = _find_tracking_doc(db, event)
+    if not doc:
+        logger.info("Chat-presence sem tracking de voz correspondente: %s", payload)
+        return {
+            "handled": True,
+            "action": "chat_presence_logged_without_tracking",
+            "status": event.get("status_value"),
+        }
+
+    doc["updated_at"] = _now_iso()
+    doc["last_chat_presence"] = event.get("status_value")
+    _append_history(
+        doc,
+        {
+            "timestamp": _now_iso(),
+            "event": "chat_presence_received",
+            "status": event.get("status_value"),
+            "match_type": match_type,
+        },
+    )
+
+    if doc.get("status") in FINAL_STATUSES:
+        _save_doc(db, doc)
+        return {"handled": True, "action": "final_status_ignored", "doc_id": doc["_id"], "status": doc.get("status")}
+
+    if event.get("status_norm") in PRESENCE_STOP_STATUSES:
+        return _mark_doc_finished(
+            db,
+            doc,
+            status="acknowledged",
+            reason="chat_available",
+            event=event,
+            match_type=match_type,
+        )
+
+    _save_doc(db, doc)
+    return {"handled": True, "action": "chat_presence_logged", "doc_id": doc["_id"]}
+
+
+def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
+    event = _extract_event(payload)
+    logger.info(
+        "Webhook Z-API recebido: notification=%s callback_type=%s status=%s phone=%s message_ids=%s zaap_id=%s call_id=%s",
+        event.get("notification") or "<vazio>",
+        event.get("callback_type") or "<vazio>",
+        event.get("status_value") or "<vazio>",
+        event.get("phone") or "<vazio>",
+        event.get("message_ids") or [],
+        event.get("zaap_id") or "<vazio>",
+        event.get("call_id") or "<vazio>",
+    )
+
+    db = get_db()
+
+    if _is_message_status_event(event):
+        return _process_message_status_webhook(db, event, payload)
+
+    if _is_chat_presence_event(event):
+        return _process_chat_presence_webhook(db, event, payload)
+
+    if not event.get("notification"):
+        logger.warning("Webhook Z-API sem notification reconhecivel: %s", payload)
+        return {"handled": False, "reason": "notification_missing"}
+
+    if event.get("notification_norm") not in ANSWERED_EVENTS | MISSED_EVENTS:
+        logger.info("Webhook Z-API ignorado: notification=%s payload=%s", event.get("notification"), payload)
+        return {"handled": False, "reason": "notification_ignored", "notification": event.get("notification")}
+
+    return _process_call_webhook(db, event, payload)
 
 
 def resume_scheduled_voice_retries() -> int:

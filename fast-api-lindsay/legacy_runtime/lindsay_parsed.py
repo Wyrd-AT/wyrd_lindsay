@@ -116,6 +116,7 @@ NOTIFICATION_MODE = os.getenv("NOTIFICATION_MODE")
 # Rate limiting
 RATE_LIMIT_DELAY = float(os.getenv("RATE_LIMIT_DELAY"))
 VOICE_ZAPI_MAX_ATTEMPTS = int(os.getenv("VOICE_ZAPI_MAX_ATTEMPTS", "5"))
+VOICE_ZAPI_CALL_DURATION_SECONDS = int(os.getenv("VOICE_ZAPI_CALL_DURATION_SECONDS", "15"))
 VOICE_ZAPI_RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
 
 # >>> WS ADD: Config WebSocket
@@ -814,6 +815,9 @@ def send_voice_call_zapi(
         log("warn", "Nenhum número para iniciar ligação via Z-API")
         return results
 
+    if call_duration is None:
+        call_duration = VOICE_ZAPI_CALL_DURATION_SECONDS
+
     if not ZAPI_INSTANCE or not ZAPI_TOKEN or not ZAPI_CLIENT_TOKEN:
         log("error", "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)")
         return results
@@ -865,10 +869,16 @@ def send_voice_call_zapi(
                             event_type=retry_context.get("event_type"),
                             monitor=retry_context.get("monitor"),
                             equipment_name=retry_context.get("equipment_name"),
+                            text_message_id=(retry_context.get("text_message_ids_by_phone") or {}).get(phone_clean),
+                            text_zaap_id=(retry_context.get("text_zaap_ids_by_phone") or {}).get(phone_clean),
                         )
                         if tracking_id:
                             results["success"][-1]["tracking_id"] = tracking_id
-                    log("ok", f"Ligação Z-API iniciada para {phone} na tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}")
+                    log(
+                        "ok",
+                        f"Ligação Z-API iniciada para {phone} na tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS} "
+                        f"(callDuration={call_duration}s)"
+                    )
                     break
 
                 retryable = response.status_code in {408, 409, 429} or response.status_code >= 500
@@ -1273,6 +1283,8 @@ def register_voice_call_tracking_doc(
     event_type: Optional[str],
     monitor: Optional[str],
     equipment_name: Optional[str],
+    text_message_id: Optional[str] = None,
+    text_zaap_id: Optional[str] = None,
 ) -> Optional[str]:
     if not alert_doc_id or not phone_clean:
         return None
@@ -1292,6 +1304,8 @@ def register_voice_call_tracking_doc(
             "attempt": attempt,
             "message_id": message_id,
             "zaap_id": zaap_id,
+            "text_message_id": text_message_id,
+            "text_zaap_id": text_zaap_id,
         }
     )
 
@@ -1311,6 +1325,8 @@ def register_voice_call_tracking_doc(
             "last_attempt_at": now_iso,
             "last_message_id": message_id,
             "last_zaap_id": zaap_id,
+            "last_text_message_id": text_message_id or existing.get("last_text_message_id"),
+            "last_text_zaap_id": text_zaap_id or existing.get("last_text_zaap_id"),
             "status": "waiting_webhook",
             "updated_at": now_iso,
         }
@@ -1318,6 +1334,26 @@ def register_voice_call_tracking_doc(
     existing.setdefault("created_at", now_iso)
 
     return upsert_doc(doc_id, existing)
+
+
+def build_zapi_message_tracking_maps(send_results: Dict[str, Any]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    message_ids_by_phone: Dict[str, str] = {}
+    zaap_ids_by_phone: Dict[str, str] = {}
+
+    for item in send_results.get("success", []):
+        message_id = item.get("messageId") or item.get("message_id")
+        zaap_id = item.get("zaapId") or item.get("zaap_id")
+        phone_value = item.get("phone")
+        if not phone_value or not message_id:
+            continue
+        phone_clean = normalize_phone(str(phone_value))
+        if not phone_clean:
+            continue
+        message_ids_by_phone[phone_clean] = str(message_id)
+        if zaap_id:
+            zaap_ids_by_phone[phone_clean] = str(zaap_id)
+
+    return message_ids_by_phone, zaap_ids_by_phone
 
 
 def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
@@ -2006,18 +2042,31 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                 send_results["failed"].extend(message_results["failed"])
                                 send_results["invalid"].extend(message_results["invalid"])
                                 send_results["modes_used"].extend(message_results.get("modes_used", []))
+                                text_message_ids_by_phone, text_zaap_ids_by_phone = build_zapi_message_tracking_maps(message_results)
+                                if text_message_ids_by_phone:
+                                    log(
+                                        "info",
+                                        f"Tracking de mensagem Z-API preparado para {irrigador_id}: "
+                                        f"{list(text_message_ids_by_phone.items())}"
+                                    )
+                                else:
+                                    log("info", f"Nenhum messageId Z-API disponível para tracking de mensagem em {irrigador_id}")
                             else:
+                                text_message_ids_by_phone, text_zaap_ids_by_phone = {}, {}
                                 log("info", f"Mensagens WhatsApp/SMS desativadas para {irrigador_id} - pulando envio de texto")
 
                             if whatsapp_call_enabled and phones:
                                 voice_results = send_voice_call_zapi(
                                     phones,
+                                    call_duration=VOICE_ZAPI_CALL_DURATION_SECONDS,
                                     retry_context={
                                         "alert_doc_id": individual_id,
                                         "irrigador_id": irrigador_id,
                                         "event_type": event_type,
                                         "monitor": monitor,
                                         "equipment_name": equipamento_nome,
+                                        "text_message_ids_by_phone": text_message_ids_by_phone,
+                                        "text_zaap_ids_by_phone": text_zaap_ids_by_phone,
                                     },
                                 )
                                 send_results["success"].extend(voice_results["success"])
