@@ -23,7 +23,11 @@ ACTIVE_STATUSES = {"waiting_webhook", "retry_scheduled"}
 FINAL_STATUSES = {"answered", "cancelled", "failed", "max_attempts_reached"}
 RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
 _RETRY_THREADS: dict[str, threading.Thread] = {}
+_WAIT_THREADS: dict[str, threading.Thread] = {}
 _RETRY_LOCK = threading.Lock()
+_WAIT_LOCK = threading.Lock()
+_RECONCILER_THREAD: Optional[threading.Thread] = None
+_RECONCILER_LOCK = threading.Lock()
 
 
 def _now() -> datetime:
@@ -138,6 +142,57 @@ def _append_history(doc: Dict[str, Any], entry: Dict[str, Any]) -> None:
 def _save_doc(db: couchdb.Database, doc: Dict[str, Any]) -> Dict[str, Any]:
     db.save(doc)
     return doc
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=BR_TZ)
+    return parsed.astimezone(BR_TZ)
+
+
+def _waiting_webhook_timeout_seconds(doc: Dict[str, Any]) -> float:
+    base_timeout = max(5, int(getattr(settings, "ZAPI_WEBHOOK_WAIT_TIMEOUT_SECONDS", 45)))
+    try:
+        call_duration = int(doc.get("call_duration") or 0)
+    except (TypeError, ValueError):
+        call_duration = 0
+    return float(max(base_timeout, call_duration + 15 if call_duration > 0 else base_timeout))
+
+
+def _tracking_reference_time(doc: Dict[str, Any]) -> datetime:
+    return (
+        _parse_iso_datetime(doc.get("last_attempt_at"))
+        or _parse_iso_datetime(doc.get("updated_at"))
+        or _parse_iso_datetime(doc.get("created_at"))
+        or _now()
+    )
+
+
+def _tracking_is_stale(doc: Dict[str, Any]) -> bool:
+    max_age = max(60, int(getattr(settings, "ZAPI_RETRY_TRACKING_MAX_AGE_SECONDS", 300)))
+    age_seconds = (_now() - _tracking_reference_time(doc)).total_seconds()
+    return age_seconds > max_age
+
+
+def _cancel_stale_tracking_doc(db: couchdb.Database, doc: Dict[str, Any], reason: str) -> None:
+    doc["status"] = "cancelled"
+    doc["cancel_reason"] = reason
+    doc["updated_at"] = _now_iso()
+    _append_history(
+        doc,
+        {
+            "timestamp": _now_iso(),
+            "event": "cancelled",
+            "reason": reason,
+        },
+    )
+    _save_doc(db, doc)
 
 
 def _call_zapi(phone_clean: str, call_duration: Optional[int], max_attempts: int) -> Dict[str, Any]:
@@ -256,6 +311,63 @@ def _retry_worker(doc_id: str, delay_seconds: float) -> None:
             _RETRY_THREADS.pop(doc_id, None)
 
 
+def _waiting_webhook_worker(doc_id: str, delay_seconds: float) -> None:
+    try:
+        if delay_seconds > 0:
+            time.sleep(delay_seconds)
+
+        db = get_db()
+        doc = db.get(doc_id)
+        if not doc or doc.get("status") != "waiting_webhook":
+            return
+
+        now_iso = _now_iso()
+        doc["updated_at"] = now_iso
+        _append_history(
+            doc,
+            {
+                "timestamp": now_iso,
+                "event": "webhook_timeout",
+                "attempt": int(doc.get("attempts_made", 1)),
+                "timeout_seconds": _waiting_webhook_timeout_seconds(doc),
+            },
+        )
+
+        delay = _schedule_retry(doc, "webhook_timeout")
+        if delay <= 0:
+            _save_doc(db, doc)
+    except Exception as exc:
+        logger.exception("Erro no timeout de waiting_webhook para %s: %s", doc_id, exc)
+    finally:
+        with _WAIT_LOCK:
+            _WAIT_THREADS.pop(doc_id, None)
+
+
+def _ensure_waiting_webhook_timeout(doc: Dict[str, Any]) -> float:
+    if not doc.get("_id") or doc.get("status") != "waiting_webhook":
+        return 0.0
+
+    timeout_seconds = _waiting_webhook_timeout_seconds(doc)
+    reference = _tracking_reference_time(doc)
+    remaining = max(0.0, timeout_seconds - max(0.0, (_now() - reference).total_seconds()))
+
+    with _WAIT_LOCK:
+        existing = _WAIT_THREADS.get(doc["_id"])
+        if existing and existing.is_alive():
+            return remaining
+
+        thread = threading.Thread(
+            target=_waiting_webhook_worker,
+            args=(doc["_id"], remaining),
+            daemon=True,
+            name=f"voice-wait-{doc['_id'][-12:]}",
+        )
+        _WAIT_THREADS[doc["_id"]] = thread
+        thread.start()
+
+    return remaining
+
+
 def _schedule_retry(doc: Dict[str, Any], reason: str) -> float:
     attempts_made = int(doc.get("attempts_made", 1))
     max_attempts = int(doc.get("max_attempts", settings.VOICE_ZAPI_MAX_ATTEMPTS))
@@ -302,15 +414,26 @@ def _schedule_retry(doc: Dict[str, Any], reason: str) -> float:
 def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
     event = _extract_event(payload)
     notification = event["notification"]
+    logger.info(
+        "Webhook Z-API recebido: notification=%s phone=%s message_id=%s zaap_id=%s call_id=%s",
+        notification or "<vazio>",
+        event.get("phone") or "<vazio>",
+        event.get("message_id") or "<vazio>",
+        event.get("zaap_id") or "<vazio>",
+        event.get("call_id") or "<vazio>",
+    )
     if not notification:
+        logger.warning("Webhook Z-API sem notification reconhecivel: %s", payload)
         return {"handled": False, "reason": "notification_missing"}
 
     if notification not in ANSWERED_EVENTS | MISSED_EVENTS:
+        logger.info("Webhook Z-API ignorado: notification=%s payload=%s", notification, payload)
         return {"handled": False, "reason": "notification_ignored", "notification": notification}
 
     db = get_db()
     doc = _find_tracking_doc(db, event)
     if not doc:
+        logger.warning("Webhook Z-API sem tracking correspondente: notification=%s payload=%s", notification, payload)
         return {"handled": False, "reason": "tracking_not_found", "notification": notification}
 
     doc["updated_at"] = _now_iso()
@@ -357,14 +480,18 @@ def process_zapi_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
 def resume_scheduled_voice_retries() -> int:
     try:
         db = get_db()
-        result = db.find({"selector": {"table": VOICE_TABLE, "status": "retry_scheduled"}, "limit": 100})
+        retry_docs = list(db.find({"selector": {"table": VOICE_TABLE, "status": "retry_scheduled"}, "limit": 100}))
+        waiting_docs = list(db.find({"selector": {"table": VOICE_TABLE, "status": "waiting_webhook"}, "limit": 100}))
     except Exception as exc:
         logger.warning("Falha ao consultar retries agendados de voz: %s", exc)
         return 0
 
     resumed = 0
     now = _now()
-    for doc in result:
+    for doc in retry_docs:
+        if _tracking_is_stale(doc):
+            _cancel_stale_tracking_doc(db, doc, "stale_retry_tracking")
+            continue
         next_retry_at = doc.get("next_retry_at")
         delay = 0.0
         if next_retry_at:
@@ -386,7 +513,38 @@ def resume_scheduled_voice_retries() -> int:
             _RETRY_THREADS[doc["_id"]] = thread
             thread.start()
             resumed += 1
+    for doc in waiting_docs:
+        if _tracking_is_stale(doc):
+            _cancel_stale_tracking_doc(db, doc, "stale_waiting_webhook")
+            continue
+        if _ensure_waiting_webhook_timeout(doc) >= 0:
+            resumed += 1
     return resumed
+
+
+def _voice_retry_reconciler_worker(interval_seconds: float) -> None:
+    while True:
+        try:
+            resume_scheduled_voice_retries()
+        except Exception as exc:
+            logger.exception("Erro no reconciliador de voice retry: %s", exc)
+        time.sleep(interval_seconds)
+
+
+def start_voice_retry_reconciler() -> bool:
+    interval_seconds = max(5.0, float(getattr(settings, "VOICE_RETRY_RECONCILE_SECONDS", 10)))
+    with _RECONCILER_LOCK:
+        global _RECONCILER_THREAD
+        if _RECONCILER_THREAD and _RECONCILER_THREAD.is_alive():
+            return False
+        _RECONCILER_THREAD = threading.Thread(
+            target=_voice_retry_reconciler_worker,
+            args=(interval_seconds,),
+            daemon=True,
+            name="voice-retry-reconciler",
+        )
+        _RECONCILER_THREAD.start()
+        return True
 
 
 def configure_zapi_webhook_if_enabled() -> bool:

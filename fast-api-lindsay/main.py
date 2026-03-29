@@ -35,6 +35,7 @@ from app.services.setup_indexes import setup_indexes
 from app.services.zapi_voice_retry import (
     configure_zapi_webhook_if_enabled,
     resume_scheduled_voice_retries,
+    start_voice_retry_reconciler,
 )
 
 
@@ -89,6 +90,9 @@ async def lifespan(app: FastAPI):
     resumed_voice_retries = resume_scheduled_voice_retries()
     if resumed_voice_retries:
         print(f"✅ Retries de ligação retomados: {resumed_voice_retries}")
+
+    if start_voice_retry_reconciler():
+        print("✅ Reconciliador de retries de ligação iniciado")
 
     if configure_zapi_webhook_if_enabled():
         print("✅ Webhook da Z-API configurado/atualizado")

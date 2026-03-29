@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     ZAPI_CLIENT_TOKEN: str = os.getenv("ZAPI_CLIENT_TOKEN", "")
     ZAPI_BASE_URL: str = os.getenv("ZAPI_BASE_URL", "https://api.z-api.io")
     VOICE_ZAPI_MAX_ATTEMPTS: int = int(os.getenv("VOICE_ZAPI_MAX_ATTEMPTS", "5"))
+    ZAPI_WEBHOOK_WAIT_TIMEOUT_SECONDS: int = int(os.getenv("ZAPI_WEBHOOK_WAIT_TIMEOUT_SECONDS", "45"))
+    VOICE_RETRY_RECONCILE_SECONDS: int = int(os.getenv("VOICE_RETRY_RECONCILE_SECONDS", "10"))
+    ZAPI_RETRY_TRACKING_MAX_AGE_SECONDS: int = int(os.getenv("ZAPI_RETRY_TRACKING_MAX_AGE_SECONDS", "300"))
     API_PUBLIC_BASE_URL: str = os.getenv("API_PUBLIC_BASE_URL", "https://api.lindsay.vpn.ind.br")
     ZAPI_WEBHOOK_URL: str = os.getenv("ZAPI_WEBHOOK_URL", "")
     ZAPI_AUTO_CONFIGURE_WEBHOOK: bool = os.getenv("ZAPI_AUTO_CONFIGURE_WEBHOOK", "false").lower() in {"1", "true", "yes", "on"}
