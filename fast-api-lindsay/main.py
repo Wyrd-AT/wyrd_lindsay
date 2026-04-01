@@ -73,19 +73,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"❌ Erro ao conectar CouchDB: {e}")
 
-    print("🚀 Iniciando background MQTT Listener legado...")
-    if not start_mqtt_background():
-        print("⚠️  MQTT Listener não pôde ser iniciado. API rodando sem MQTT.")
-        # TODO: reverter para fatal antes do deploy:
-        # raise RuntimeError("ERRO FATAL: O listener MQTT não pôde ser iniciado.")
+    if settings.START_PARSED_WORKER_IN_API:
+        print("🚀 Iniciando background MQTT Listener legado...")
+        if not start_mqtt_background():
+            print("⚠️  MQTT Listener não pôde ser iniciado. API rodando sem MQTT.")
+            # TODO: reverter para fatal antes do deploy:
+            # raise RuntimeError("ERRO FATAL: O listener MQTT não pôde ser iniciado.")
+        else:
+            print("✅ Background MQTT Listener iniciado com sucesso!")
     else:
-        print("✅ Background MQTT Listener iniciado com sucesso!")
+        print("ℹ️  Background MQTT Listener desabilitado na API (service dedicado esperado).")
 
-    print("🚀 Iniciando background Command Processor legado...")
-    if not start_command_background():
-        print("⚠️  Command Processor não pôde ser iniciado. API rodando sem bridge de comandos.")
+    if settings.START_COMMAND_WORKER_IN_API:
+        print("🚀 Iniciando background Command Processor legado...")
+        if not start_command_background():
+            print("⚠️  Command Processor não pôde ser iniciado. API rodando sem bridge de comandos.")
+        else:
+            print("✅ Background Command Processor iniciado com sucesso!")
     else:
-        print("✅ Background Command Processor iniciado com sucesso!")
+        print("ℹ️  Background Command Processor desabilitado na API (service dedicado esperado).")
 
     resumed_voice_retries = resume_scheduled_voice_retries()
     if resumed_voice_retries:
@@ -101,8 +107,10 @@ async def lifespan(app: FastAPI):
 
     print("🛑 Desligando serviços...")
 
-    stop_mqtt_background()
-    stop_command_background()
+    if settings.START_PARSED_WORKER_IN_API:
+        stop_mqtt_background()
+    if settings.START_COMMAND_WORKER_IN_API:
+        stop_command_background()
 
     # Shutdown
     close_db()

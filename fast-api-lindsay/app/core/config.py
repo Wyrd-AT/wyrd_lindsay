@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     QUEUE_MAXSIZE: int = int(os.getenv("QUEUE_MAXSIZE", "5000"))
     COUCHDB_CHANGES_TIMEOUT_MS: int = int(os.getenv("COUCHDB_CHANGES_TIMEOUT_MS", "30000"))
     COUCHDB_CHANGES_HTTP_TIMEOUT: int = int(os.getenv("COUCHDB_CHANGES_HTTP_TIMEOUT", "65"))
+    START_PARSED_WORKER_IN_API: bool = os.getenv("START_PARSED_WORKER_IN_API", "true").lower() in {"1", "true", "yes", "on"}
+    START_COMMAND_WORKER_IN_API: bool = os.getenv("START_COMMAND_WORKER_IN_API", "true").lower() in {"1", "true", "yes", "on"}
 
     # Twilio
     TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")

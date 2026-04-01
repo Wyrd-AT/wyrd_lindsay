@@ -1,0 +1,21 @@
+[Unit]
+Description=Uvicorn instance to serve FastAPI Lindsay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/lindsay-fastapi/fast-api-lindsay
+EnvironmentFile=/home/ubuntu/lindsay-fastapi/fast-api-lindsay/.env
+Environment="PATH=/home/ubuntu/.cargo/bin:/home/ubuntu/.local/bin:/usr/bin:/bin"
+Environment="START_PARSED_WORKER_IN_API=false"
+Environment="START_COMMAND_WORKER_IN_API=false"
+ExecStart=/home/ubuntu/.local/bin/uv run uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
