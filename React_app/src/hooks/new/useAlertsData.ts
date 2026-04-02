@@ -16,7 +16,8 @@ export interface AlertItem {
   time: string;
   monitor: string | number;
   alarme: string;
-  status: number;
+  status: string | number;
+  estado: string;
   timestamp: Date;
   description?: string;
   responsible?: string;
@@ -50,10 +51,6 @@ export function convertEventToAlert(doc: EventDoc): AlertItem | null {
     //console.log(" EventType:", doc);
     const monitor = doc.monitor || "";
 
-    // Extrair status do description ou usar padrão
-    const statusMatch = doc.description?.match(/status:(\d+)/i);
-    const status = statusMatch ? parseInt(statusMatch[1]) : 1;
-
     return {
       _id: doc._id,
       irrigadorId: doc.irrigadorId,
@@ -69,7 +66,8 @@ export function convertEventToAlert(doc: EventDoc): AlertItem | null {
       }),
       monitor,
       alarme,
-      status,
+      estado: doc.estado ?? "",
+      status: doc.status ?? "",
       timestamp,
       description: doc.description,
       responsible: doc.responsible,

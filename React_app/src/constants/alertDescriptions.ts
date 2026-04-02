@@ -1,9 +1,9 @@
-export const valueDescriptions: Record<number, string> = {
-  0: "Normal",
-  1: "Alarmado",
-  2: "Reconhecido",
-  3: "Alarme OFF",
-  9: "Ausente",
+export const valueDescriptions: Record<string, string> = {
+  "0": "Normal",
+  "1": "Alarmado",
+  "2": "Reconhecido",
+  "3": "Alarme OFF",
+  "9": "Ausente",
 };
 
 export const alarmTypeDescriptions: Record<string, string> = {

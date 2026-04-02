@@ -130,7 +130,7 @@ export default function AlertHistory({
       const tableBody = fullData.map((item) => {
         const monitorDesc = getMonitorNameForPdf(item.monitor);
         const tipoDesc = alarmTypeDescriptions[item.alarme] || item.alarme;
-        const statusDesc = valueDescriptions[item.status] ?? item.status;
+        const statusDesc = valueDescriptions[item.estado] ?? item.estado;
 
         return [
           item.date,
@@ -308,6 +308,8 @@ export default function AlertHistory({
     setEditingAlert(null);
   };
 
+  
+
   return (
     <div className="overflow-x-auto bg-[#222222] mt-4 p-4 rounded">
       <div className="min-w-full flex justify-between align-middle items-center mb-2">
@@ -354,6 +356,8 @@ export default function AlertHistory({
               (item) => resolveMonitorName(item.monitor) !== "Ausente",
             );
 
+            console.log(itensVisiveis);
+
             // se não houver nada visível nessa data, nem mostra a seção
             if (itensVisiveis.length === 0) return null;
 
@@ -395,7 +399,7 @@ export default function AlertHistory({
                         {alarmTypeDescriptions[item.alarme] || item.alarme}
                       </td>
                       <td className="px-4 py-2 text-white">
-                        {valueDescriptions[item.status] ?? item.status}
+                        {valueDescriptions[item.estado] ?? item.estado}
                       </td>
                     </tr>
                   ))}

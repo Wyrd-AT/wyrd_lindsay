@@ -18,7 +18,7 @@ const isLocalRuntime =
   isBrowser &&
   (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1");
-const currentHost = isBrowser ? window.location.hostname : "";
+const currentHost = isBrowser ? window.location.hostname : "";  
 const envPointsToLocalhost =
   /:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(ENV_API_BASE_URL);
 
