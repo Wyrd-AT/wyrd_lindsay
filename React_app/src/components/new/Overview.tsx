@@ -1,7 +1,7 @@
 // app/(pivo)/[pivoId]/overview.tsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
-import { FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiChevronDown, FiChevronUp, FiEdit2 } from "react-icons/fi";
 import {
   getRecentAll,
   RecentSWDoc,
@@ -24,6 +24,43 @@ import {
   useAuthStore,
   selectCanResolveAlerts,
 } from "../../stores/new/authStore";
+
+// Força o + e limita a 3 números (padrão de DDI internacional)
+const formatCountryCode = (value: string) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers.length === 0) return "+";
+  return `+${numbers.slice(0, 3)}`;
+};
+
+// Máscara inteligente: aplica formato BR se for +55, senão deixa livre
+const formatLocalPhoneMask = (value: string, isBrazil: boolean) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers.length === 0) return "";
+
+  if (isBrazil) {
+    let masked = "";
+    if (numbers.length > 0) masked += `(${numbers.slice(0, 2)}`;
+    if (numbers.length > 2) masked += `) ${numbers.slice(2, 7)}`;
+    if (numbers.length > 7) masked += `-${numbers.slice(7, 11)}`;
+    return masked;
+  }
+
+  return numbers; // Sem máscara para outros países
+};
+
+// Gera a máscara parcial (Ex: +55 (••) •••••-8383)
+const maskSavedPhone = (phone: string) => {
+  if (!phone || phone.length < 8) return "";
+
+  // Pega o DDI (Assume os 3 primeiros caracteres se não for +55)
+  const isBR = phone.startsWith("+55");
+  const country = isBR ? "+55" : phone.substring(0, 3);
+
+  // Pega os últimos 4 dígitos reais
+  const last4 = phone.slice(-4);
+
+  return `${country} (••) •••••-${last4}`;
+};
 
 export default function Overview({
   pivoId,
@@ -55,13 +92,69 @@ export default function Overview({
   //   toggle: toggleWhatsapp,
   // } = useWhatsappPerIrrigador(pivoId, email);
 
+  /* ----------------- WhatsApp por irrigador ----------------- */
   const {
     msgEnabled,
     callEnabled,
-    toggleMsg,
-    toggleCall,
+    savedPhone, // <- Novo estado que o hook retorna
+    updateConfig, // <- Usaremos o update direto em vez dos toggles avulsos
     loading: notificationLoading,
   } = useWhatsappPerIrrigador(pivoId, email);
+
+  // Estados para o Modal de Telefone (Captura Contextual)
+  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [countryCode, setCountryCode] = useState("+55");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [pendingAction, setPendingAction] = useState<{
+    msg?: boolean;
+    call?: boolean;
+  } | null>(null);
+
+  // Função que intercepta o clique nas chavinhas
+  const handleToggleIntercept = (action: { msg?: boolean; call?: boolean }) => {
+    // Se a pessoa quer LIGAR alguma notificação E não temos o telefone dela salvo...
+    const wantsToEnable = action.msg === true || action.call === true;
+    if (wantsToEnable && !savedPhone) {
+      setPendingAction(action);
+      setIsPhoneModalOpen(true);
+    } else {
+      // Se ela quer desligar ou já tem telefone, vai direto
+      updateConfig(action);
+    }
+  };
+
+  // Função para abrir o modal no modo de edição (pré-preenchendo os campos)
+  const handleEditPhone = () => {
+    if (savedPhone) {
+      const isBR = savedPhone.startsWith("+55");
+      const cCode = isBR ? "+55" : savedPhone.substring(0, 3);
+      const num = savedPhone.substring(cCode.length);
+
+      setCountryCode(cCode);
+      setPhoneNumber(formatLocalPhoneMask(num, isBR));
+
+      // Como não estamos ligando/desligando nada, a pendingAction fica nula.
+      // O handleSavePhone vai apenas atualizar o número no CouchDB.
+      setPendingAction(null);
+      setIsPhoneModalOpen(true);
+    }
+  };
+  const handleSavePhone = () => {
+    const cleanCountry = countryCode.replace(/\D/g, "");
+    const cleanNumber = phoneNumber.replace(/\D/g, "");
+
+    if (!cleanCountry || cleanNumber.length < 8) {
+      alert("Por favor, insira um código de país e telefone válidos.");
+      return;
+    }
+
+    // Junta tudo. Ex: +5511999999999
+    const finalPhone = `+${cleanCountry}${cleanNumber}`;
+
+    updateConfig({ ...pendingAction, phone: finalPhone });
+    setIsPhoneModalOpen(false);
+    setPendingAction(null);
+  };
 
   /* ----------------- Carregar snapshots via getRecentAll ----------------- */
   const [swDoc, setSwDoc] = useState<RecentSWDoc | null>(null);
@@ -454,14 +547,14 @@ export default function Overview({
             )}
 
             {/* Toggle WhatsApp para este irrigador */}
-            <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4">
+            <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4 flex-nowrap text-nowrap">
               <span className="text-sm text-gray-300">WhatsApp/SMS:</span>
               <button
                 type="button"
                 role="switch"
                 aria-checked={msgEnabled}
                 aria-label="Alternar notificações WhatsApp/SMS"
-                onClick={toggleMsg}
+                onClick={() => handleToggleIntercept({ msg: !msgEnabled })}
                 disabled={notificationLoading}
                 className={clsx(
                   "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
@@ -507,7 +600,11 @@ export default function Overview({
                 role="switch"
                 aria-checked={callEnabled}
                 aria-label="Alternar notificações WhatsApp/SMS"
-                onClick={toggleCall}
+                onClick={() =>
+                  handleToggleIntercept(
+                    callEnabled ? { call: false } : { msg: true, call: true },
+                  )
+                }
                 disabled={notificationLoading}
                 className={clsx(
                   "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
@@ -546,6 +643,26 @@ export default function Overview({
                     : "Inativo"}
               </span>
             </div>
+
+            {/* --- NOVO: Contato Salvo (Máscara Parcial + Editar) --- */}
+            {savedPhone && (
+              <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4 text-nowrap">
+                <span
+                  className="text-sm text-gray-300 font-mono tracking-wide"
+                  title="Número cadastrado"
+                >
+                  {maskSavedPhone(savedPhone)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleEditPhone}
+                  className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                  title="Editar telefone de notificação"
+                >
+                  <FiEdit2 size={15} />
+                </button>
+              </div>
+            )}
           </div>
         </summary>
 
@@ -562,8 +679,12 @@ export default function Overview({
               <span>
                 <span className="text-gray-400">Tensão:</span>{" "}
                 {new Date((tA ?? tB)!.updated_at).toLocaleString("pt-BR", {
-                  day: "2-digit", month: "2-digit", year: "numeric",
-                  hour: "2-digit", minute: "2-digit", second: "2-digit",
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
                 })}
               </span>
             )}
@@ -589,6 +710,65 @@ export default function Overview({
           selectedMachine={pivoId}
           card={activeCard}
         />
+      )}
+
+      {/* --- MODAL CAPTURA DE TELEFONE --- */}
+      {isPhoneModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
+          <div className="bg-[#313131] border border-gray-600 p-6 rounded-lg w-96 max-w-[90%] text-white shadow-xl">
+            <h3 className="text-lg font-semibold mb-2">
+              {pendingAction ? "Telefone Necessário" : "Editar Telefone"}
+            </h3>
+            <p className="text-sm text-gray-300 mb-4">
+              {pendingAction
+                ? "Para enviarmos alertas deste equipamento, precisamos do seu número de WhatsApp com DDD."
+                : "Atualize o seu número de WhatsApp para recebimento de alertas."}
+            </p>
+            <div className="flex gap-2 mb-4">
+              {/* Input DDI (País) */}
+              <input
+                type="text"
+                value={countryCode}
+                onChange={(e) =>
+                  setCountryCode(formatCountryCode(e.target.value))
+                }
+                placeholder="+55"
+                className="w-1/4 p-2 bg-[#222] border border-gray-600 rounded text-white text-center focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+
+              {/* Input Telefone Local */}
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) =>
+                  setPhoneNumber(
+                    formatLocalPhoneMask(e.target.value, countryCode === "+55"),
+                  )
+                }
+                maxLength={countryCode === "+55" ? 15 : 16}
+                placeholder="(11) 99999-9999"
+                className="w-3/4 p-2 bg-[#222] border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setIsPhoneModalOpen(false);
+                  setPendingAction(null);
+                }}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-sm transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSavePhone}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-semibold transition-colors"
+              >
+                {pendingAction ? "Salvar e Ativar" : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

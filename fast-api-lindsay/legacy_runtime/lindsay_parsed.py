@@ -1,12 +1,13 @@
+import logging
 import os
 import re
-import sys
 import signal
+import sys
 import threading
 import time
-from queue import Queue, Full, Empty
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Tuple, Set  # >>> WS ADD: Set
+from queue import Empty, Full, Queue
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple  # >>> WS ADD: Set
 from zoneinfo import ZoneInfo
 
 import couchdb
@@ -14,24 +15,24 @@ import paho.mqtt.client as mqtt
 import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
-from twilio.rest import Client
-from twilio.base.exceptions import TwilioException
 
 # Retry logic with tenacity (NOVA: Phase 1 - Retry Logic)
 from tenacity import (
+    before_sleep_log,
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
-    wait_fixed
+    wait_fixed,
 )
-import logging
+from twilio.base.exceptions import TwilioException
+from twilio.rest import Client
 
 # Importações para e-mail via SendGrid (Twilio)
 try:
     from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail, Email, To, Content
+    from sendgrid.helpers.mail import Content, Email, Mail, To
+
     SENDGRID_AVAILABLE = True
 except ImportError:
     SENDGRID_AVAILABLE = False
@@ -40,18 +41,19 @@ except ImportError:
 # >>> WS ADD: imports WebSocket/asyncio/util
 import asyncio
 import json
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
+
 import websockets
-from websockets.server import WebSocketServerProtocol
 
 # Importa módulo de push notifications
 from push_notifications import (
     ensure_device_tokens_index,
     get_device_tokens,
-    send_expo_push_notification,
     save_notification_log,
+    send_expo_push_notification,
     should_notify,
 )
+from websockets.server import WebSocketServerProtocol
 
 # =============================================================================
 # Config & Constantes
@@ -67,7 +69,7 @@ BR_TZ = ZoneInfo("America/Sao_Paulo")
 COUCHDB_URL = os.getenv("COUCHDB_URL")
 DATABASE = os.getenv("COUCHDB_DB")
 
-MQTT_BROKER = os.getenv("MQTT_BROKER" )
+MQTT_BROKER = os.getenv("MQTT_BROKER")
 MQTT_PORT = int(os.getenv("MQTT_PORT"))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC")
 MQTT_QOS = int(os.getenv("MQTT_QOS"))  # 0/1/2
@@ -77,9 +79,13 @@ MQTT_PASSWORD = os.getenv("MQTT_PASSWORD") or None
 
 # Fila/worker
 # FASE 1 - Performance optimization: aumentar workers e queue size
-WORKER_COUNT = int(os.getenv("WORKER_COUNT", "8"))  # Aumentado de 2 para 8 (recomendado)
+WORKER_COUNT = int(
+    os.getenv("WORKER_COUNT", "8")
+)  # Aumentado de 2 para 8 (recomendado)
 QUEUE_MAXSIZE = int(os.getenv("QUEUE_MAXSIZE", "5000"))  # Aumentado de 1000 para 5000
-QUEUE_PUT_TIMEOUT = float(os.getenv("QUEUE_PUT_TIMEOUT", "0.01"))  # seg; 0.0 ~ try-nowait
+QUEUE_PUT_TIMEOUT = float(
+    os.getenv("QUEUE_PUT_TIMEOUT", "0.01")
+)  # seg; 0.0 ~ try-nowait
 ON_QUEUE_FULL = os.getenv("ON_QUEUE_FULL", "drop")  # "drop" | "block"
 
 FILENAME_PHONES = os.getenv("WHATSAPP_NUMBERS_FILE", "numbers.txt")
@@ -116,15 +122,21 @@ NOTIFICATION_MODE = os.getenv("NOTIFICATION_MODE")
 # Rate limiting
 RATE_LIMIT_DELAY = float(os.getenv("RATE_LIMIT_DELAY"))
 VOICE_ZAPI_MAX_ATTEMPTS = int(os.getenv("VOICE_ZAPI_MAX_ATTEMPTS", "5"))
-VOICE_ZAPI_CALL_DURATION_SECONDS = int(os.getenv("VOICE_ZAPI_CALL_DURATION_SECONDS", "15"))
+VOICE_ZAPI_CALL_DURATION_SECONDS = int(
+    os.getenv("VOICE_ZAPI_CALL_DURATION_SECONDS", "15")
+)
 VOICE_ZAPI_RETRY_DELAYS = [5.0, 10.0, 20.0, 30.0]
 ZAPI_CONFIRMATION_OPTION_ID = os.getenv("ZAPI_CONFIRMATION_OPTION_ID", "ACK_OK_RECEBI")
-ZAPI_CONFIRMATION_OPTION_TITLE = os.getenv("ZAPI_CONFIRMATION_OPTION_TITLE", "OK, recebi")
+ZAPI_CONFIRMATION_OPTION_TITLE = os.getenv(
+    "ZAPI_CONFIRMATION_OPTION_TITLE", "OK, recebi"
+)
 ZAPI_CONFIRMATION_OPTION_DESCRIPTION = os.getenv(
     "ZAPI_CONFIRMATION_OPTION_DESCRIPTION",
-    "Toque aqui para confirmar o recebimento deste alerta"
+    "Toque aqui para confirmar o recebimento deste alerta",
 )
-ZAPI_CONFIRMATION_BUTTON_LABEL = os.getenv("ZAPI_CONFIRMATION_BUTTON_LABEL", "Confirmar recebimento")
+ZAPI_CONFIRMATION_BUTTON_LABEL = os.getenv(
+    "ZAPI_CONFIRMATION_BUTTON_LABEL", "Confirmar recebimento"
+)
 
 # >>> WS ADD: Config WebSocket
 WS_HOST = os.getenv("WS_HOST")
@@ -132,12 +144,14 @@ WS_PORT = int(os.getenv("WS_PORT"))
 WS_PATH = os.getenv("WS_PATH")
 WS_PING_INTERVAL = int(os.getenv("WS_PING_INTERVAL"))
 
+
 # =============================================================================
 # Logging simples
 # =============================================================================
 def log(level: str, msg: str):
     ts = datetime.now(BR_TZ).strftime("%Y-%m-%d %H:%M:%S")
     print(f"{ts} [{level.upper()}] {msg}", flush=True)
+
 
 # =============================================================================
 # Twilio (opcional)
@@ -161,11 +175,24 @@ STATUS_MAP = {
     "9": "Ausente",
 }
 MONITOR_TENSAO = {
-    "01": "MT01", "02": "MT02", "03": "MT03", "04": "MT04",
-    "05": "MT05", "06": "MT06", "07": "MT07", "08": "MT08",
-    "09": "MT09", "10": "MT10", "11": "MT11", "12": "MT12",
-    "13": "MT13", "14": "MT14", "17": "Painel 1", "18": "Painel 2",
+    "01": "MT01",
+    "02": "MT02",
+    "03": "MT03",
+    "04": "MT04",
+    "05": "MT05",
+    "06": "MT06",
+    "07": "MT07",
+    "08": "MT08",
+    "09": "MT09",
+    "10": "MT10",
+    "11": "MT11",
+    "12": "MT12",
+    "13": "MT13",
+    "14": "MT14",
+    "17": "Painel 1",
+    "18": "Painel 2",
 }
+
 
 # =============================================================================
 # Helpers de tempo / formatação
@@ -177,6 +204,7 @@ def fmt_ts(dt: datetime) -> str:
         dt = dt.astimezone(BR_TZ)
     return dt.strftime("%H:%M:%S %d/%m/%Y")
 
+
 def fmt_ts_iso(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=BR_TZ)
@@ -184,8 +212,10 @@ def fmt_ts_iso(dt: datetime) -> str:
         dt = dt.astimezone(BR_TZ)
     return dt.isoformat()
 
+
 def get_month_key() -> str:
     return datetime.now(BR_TZ).strftime("%Y-%m")
+
 
 def read_file(filename: str) -> List[str]:
     try:
@@ -197,6 +227,7 @@ def read_file(filename: str) -> List[str]:
         log("error", f"Falha ao ler '{filename}': {e}")
         return []
 
+
 # =============================================================================
 # Validação de contatos
 # =============================================================================
@@ -205,19 +236,29 @@ def validate_phone_number(phone: str) -> bool:
     Valida formato de número de telefone.
     Aceita formatos: +5511999999999, 5511999999999, +11999999999
     """
-    cleaned = phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-    pattern = r'^\+?\d{10,15}$'
+    cleaned = (
+        phone.strip()
+        .replace(" ", "")
+        .replace("-", "")
+        .replace("(", "")
+        .replace(")", "")
+    )
+    pattern = r"^\+?\d{10,15}$"
     return bool(re.match(pattern, cleaned))
+
 
 def validate_email(email: str) -> bool:
     """Valida formato de e-mail."""
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     return bool(re.match(pattern, email.strip()))
+
 
 # =============================================================================
 # Funções de envio de notificações (SMS, WhatsApp, Email)
 # =============================================================================
-def send_sms(msg: str, to: List[str], irrigador_nome: Optional[str] = None) -> Dict[str, Any]:
+def send_sms(
+    msg: str, to: List[str], irrigador_nome: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Envia SMS via Twilio para múltiplos números.
 
@@ -273,6 +314,7 @@ def send_sms(msg: str, to: List[str], irrigador_nome: Optional[str] = None) -> D
         # Rate limiting
         if i > 0:
             import time
+
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
@@ -286,39 +328,57 @@ def send_sms(msg: str, to: List[str], irrigador_nome: Optional[str] = None) -> D
                 to=phone_formatted,
             )
 
-            results["success"].append({
-                "phone": phone,
-                "message_sid": message.sid,
-                "status": message.status,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "sms"
-            })
+            results["success"].append(
+                {
+                    "phone": phone,
+                    "message_sid": message.sid,
+                    "status": message.status,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "sms",
+                }
+            )
             log("ok", f"SMS enviado para {phone} (SID: {message.sid})")
 
         except TwilioException as e:
-            error_code = getattr(e, 'code', None)
-            results["failed"].append({
-                "phone": phone,
-                "error": str(e),
-                "error_code": error_code,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "sms"
-            })
-            log("error", f"Falha ao enviar SMS para {phone} [Code: {error_code}]: {str(e)}")
+            error_code = getattr(e, "code", None)
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": str(e),
+                    "error_code": error_code,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "sms",
+                }
+            )
+            log(
+                "error",
+                f"Falha ao enviar SMS para {phone} [Code: {error_code}]: {str(e)}",
+            )
 
         except Exception as e:
-            results["failed"].append({
-                "phone": phone,
-                "error": f"Erro inesperado: {str(e)}",
-                "error_code": None,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "sms"
-            })
-            log("error", f"Erro inesperado ao enviar SMS para {phone}: {type(e).__name__} - {str(e)}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": f"Erro inesperado: {str(e)}",
+                    "error_code": None,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "sms",
+                }
+            )
+            log(
+                "error",
+                f"Erro inesperado ao enviar SMS para {phone}: {type(e).__name__} - {str(e)}",
+            )
 
     return results
 
-def send_voice_call(msg: str, to: List[str], irrigador_nome: Optional[str] = None, twiml_url: Optional[str] = None) -> Dict[str, Any]:
+
+def send_voice_call(
+    msg: str,
+    to: List[str],
+    irrigador_nome: Optional[str] = None,
+    twiml_url: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Envia chamada de voz via Twilio para múltiplos números.
 
@@ -338,10 +398,16 @@ def send_voice_call(msg: str, to: List[str], irrigador_nome: Optional[str] = Non
         return results
 
     equipamento_info = f" ({irrigador_nome})" if irrigador_nome else ""
-    log("info", f"Iniciando envio de chamadas de voz{equipamento_info} para {len(to)} número(s)")
+    log(
+        "info",
+        f"Iniciando envio de chamadas de voz{equipamento_info} para {len(to)} número(s)",
+    )
 
     if not TWILIO_VOICE_FROM:
-        log("error", "TWILIO_VOICE_FROM não configurado. Não é possível enviar chamadas de voz.")
+        log(
+            "error",
+            "TWILIO_VOICE_FROM não configurado. Não é possível enviar chamadas de voz.",
+        )
         return results
     else:
         log("info", f"Usando remetente de voz: {TWILIO_VOICE_FROM}")
@@ -381,6 +447,7 @@ def send_voice_call(msg: str, to: List[str], irrigador_nome: Optional[str] = Non
         # Rate limiting
         if i > 0:
             import time
+
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
@@ -391,9 +458,7 @@ def send_voice_call(msg: str, to: List[str], irrigador_nome: Optional[str] = Non
             if twiml_url:
                 log("debug", f"Usando TwiML URL customizado: {twiml_url}")
                 call = twilio_client.calls.create(
-                    from_=TWILIO_VOICE_FROM,
-                    to=phone_formatted,
-                    url=twiml_url
+                    from_=TWILIO_VOICE_FROM, to=phone_formatted, url=twiml_url
                 )
             else:
                 # Cria TwiML com síntese de voz (texto-para-fala)
@@ -401,46 +466,59 @@ def send_voice_call(msg: str, to: List[str], irrigador_nome: Optional[str] = Non
 
                 log("debug", f"Enviando chamada com síntese de voz para {phone}")
                 call = twilio_client.calls.create(
-                    from_=TWILIO_VOICE_FROM,
-                    to=phone_formatted,
-                    twiml=twiml_body
+                    from_=TWILIO_VOICE_FROM, to=phone_formatted, twiml=twiml_body
                 )
 
-            results["success"].append({
-                "phone": phone,
-                "call_sid": call.sid,
-                "status": call.status,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "voice_call",
-                "direction": call.direction,
-                "duration": call.duration
-            })
+            results["success"].append(
+                {
+                    "phone": phone,
+                    "call_sid": call.sid,
+                    "status": call.status,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "voice_call",
+                    "direction": call.direction,
+                    "duration": call.duration,
+                }
+            )
             log("ok", f"Chamada de voz enviada para {phone} (SID: {call.sid})")
 
         except TwilioException as e:
-            error_code = getattr(e, 'code', None)
-            results["failed"].append({
-                "phone": phone,
-                "error": str(e),
-                "error_code": error_code,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "voice_call"
-            })
-            log("error", f"Falha ao enviar chamada de voz para {phone} [Code: {error_code}]: {str(e)}")
+            error_code = getattr(e, "code", None)
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": str(e),
+                    "error_code": error_code,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "voice_call",
+                }
+            )
+            log(
+                "error",
+                f"Falha ao enviar chamada de voz para {phone} [Code: {error_code}]: {str(e)}",
+            )
 
         except Exception as e:
-            results["failed"].append({
-                "phone": phone,
-                "error": f"Erro inesperado: {str(e)}",
-                "error_code": None,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "voice_call"
-            })
-            log("error", f"Erro inesperado ao enviar chamada de voz para {phone}: {type(e).__name__} - {str(e)}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": f"Erro inesperado: {str(e)}",
+                    "error_code": None,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "voice_call",
+                }
+            )
+            log(
+                "error",
+                f"Erro inesperado ao enviar chamada de voz para {phone}: {type(e).__name__} - {str(e)}",
+            )
 
     return results
 
-def send_email(subject: str, body_text: str, body_html: str, to: List[str]) -> Dict[str, Any]:
+
+def send_email(
+    subject: str, body_text: str, body_html: str, to: List[str]
+) -> Dict[str, Any]:
     """
     Envia e-mail via SendGrid para múltiplos destinatários.
 
@@ -470,13 +548,16 @@ def send_email(subject: str, body_text: str, body_html: str, to: List[str]) -> D
     for i, email_addr in enumerate(to):
         # Valida formato do e-mail
         if not validate_email(email_addr):
-            results["invalid"].append({"email": email_addr, "reason": "Formato inválido"})
+            results["invalid"].append(
+                {"email": email_addr, "reason": "Formato inválido"}
+            )
             log("warn", f"E-mail inválido ignorado: {email_addr}")
             continue
 
         # Rate limiting
         if i > 0:
             import time
+
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
@@ -486,46 +567,50 @@ def send_email(subject: str, body_text: str, body_html: str, to: List[str]) -> D
                 to_emails=To(email_addr),
                 subject=subject,
                 plain_text_content=Content("text/plain", body_text),
-                html_content=Content("text/html", body_html)
+                html_content=Content("text/html", body_html),
             )
 
             # Envia via SendGrid
             sg = SendGridAPIClient(SENDGRID_API_KEY)
             response = sg.send(message)
 
-            results["success"].append({
-                "email": email_addr,
-                "status_code": response.status_code,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "email"
-            })
-            log("ok", f"E-mail enviado para {email_addr} (Status: {response.status_code})")
+            results["success"].append(
+                {
+                    "email": email_addr,
+                    "status_code": response.status_code,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "email",
+                }
+            )
+            log(
+                "ok",
+                f"E-mail enviado para {email_addr} (Status: {response.status_code})",
+            )
 
         except Exception as e:
-            results["failed"].append({
-                "email": email_addr,
-                "error": str(e),
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "email"
-            })
+            results["failed"].append(
+                {
+                    "email": email_addr,
+                    "error": str(e),
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "email",
+                }
+            )
             log("error", f"Falha ao enviar e-mail para {email_addr}: {str(e)}")
 
     return results
 
-def _send_zapi_message_request(endpoint: str, payload: Dict[str, Any], *, timeout: int = 30) -> requests.Response:
+
+def _send_zapi_message_request(
+    endpoint: str, payload: Dict[str, Any], *, timeout: int = 30
+) -> requests.Response:
     url = f"{ZAPI_BASE_URL}/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/{endpoint}"
-    headers = {
-        "Client-Token": ZAPI_CLIENT_TOKEN,
-        "Content-Type": "application/json"
-    }
+    headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
     return requests.post(url, json=payload, headers=headers, timeout=timeout)
 
 
 def _send_whatsapp_zapi_text(phone: str, phone_clean: str, msg: str) -> Dict[str, Any]:
-    payload = {
-        "phone": phone_clean,
-        "message": msg
-    }
+    payload = {"phone": phone_clean, "message": msg}
     response = _send_zapi_message_request("send-text", payload)
     if response.status_code == 200:
         response_data = response.json()
@@ -535,19 +620,24 @@ def _send_whatsapp_zapi_text(phone: str, phone_clean: str, msg: str) -> Dict[str
             "messageId": response_data.get("messageId"),
             "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
             "type": "whatsapp",
-            "confirmation_mode": "text"
+            "confirmation_mode": "text",
         }
-        log("ok", f"WhatsApp texto enviado via Z-API para {phone} (messageId: {response_data.get('messageId')})")
+        log(
+            "ok",
+            f"WhatsApp texto enviado via Z-API para {phone} (messageId: {response_data.get('messageId')})",
+        )
         return {"success": True, "data": result}
 
     error_msg = f"HTTP {response.status_code}: {response.text}"
     return {"success": False, "error": error_msg}
 
 
-def _send_whatsapp_zapi_confirmation_list(phone: str, phone_clean: str, msg: str) -> Dict[str, Any]:
+def _send_whatsapp_zapi_confirmation_list(
+    phone: str, phone_clean: str, msg: str
+) -> Dict[str, Any]:
     confirmation_message = (
         f"{msg}\n\n"
-        f"Para confirmar o recebimento, selecione \"{ZAPI_CONFIRMATION_OPTION_TITLE}\" "
+        f'Para confirmar o recebimento, selecione "{ZAPI_CONFIRMATION_OPTION_TITLE}" '
         f"ou responda com esse mesmo texto."
     )
     payload = {
@@ -581,7 +671,7 @@ def _send_whatsapp_zapi_confirmation_list(phone: str, phone_clean: str, msg: str
         log(
             "ok",
             f"Lista de confirmação enviada via Z-API para {phone} "
-            f"(messageId: {response_data.get('messageId')}, optionId: {ZAPI_CONFIRMATION_OPTION_ID})"
+            f"(messageId: {response_data.get('messageId')}, optionId: {ZAPI_CONFIRMATION_OPTION_ID})",
         )
         return {"success": True, "data": result}
 
@@ -604,7 +694,10 @@ def send_whatsapp_zapi(msg: str, to: List[str]) -> Dict[str, Any]:
         return results
 
     if not ZAPI_INSTANCE or not ZAPI_TOKEN or not ZAPI_CLIENT_TOKEN:
-        log("error", "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)")
+        log(
+            "error",
+            "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)",
+        )
         return results
 
     for i, phone in enumerate(to):
@@ -615,6 +708,7 @@ def send_whatsapp_zapi(msg: str, to: List[str]) -> Dict[str, Any]:
 
         if i > 0:
             import time
+
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
@@ -629,59 +723,83 @@ def send_whatsapp_zapi(msg: str, to: List[str]) -> Dict[str, Any]:
 
             fallback_message = (
                 f"{msg}\n\n"
-                f"Se a lista não abrir, responda com \"{ZAPI_CONFIRMATION_OPTION_TITLE}\"."
+                f'Se a lista não abrir, responda com "{ZAPI_CONFIRMATION_OPTION_TITLE}".'
             )
             log(
                 "warn",
                 f"Falha ao enviar lista de confirmação para {phone}; usando fallback em texto. "
-                f"Motivo: {list_result['error']}"
+                f"Motivo: {list_result['error']}",
             )
             text_result = _send_whatsapp_zapi_text(phone, phone_clean, fallback_message)
             if text_result["success"]:
-                text_result["data"]["confirmation_option_id"] = ZAPI_CONFIRMATION_OPTION_ID
-                text_result["data"]["confirmation_text"] = ZAPI_CONFIRMATION_OPTION_TITLE
+                text_result["data"]["confirmation_option_id"] = (
+                    ZAPI_CONFIRMATION_OPTION_ID
+                )
+                text_result["data"]["confirmation_text"] = (
+                    ZAPI_CONFIRMATION_OPTION_TITLE
+                )
                 results["success"].append(text_result["data"])
                 continue
 
-            results["failed"].append({
-                "phone": phone,
-                "error": text_result["error"],
-                "fallback_error": list_result["error"],
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
-            log("error", f"Falha ao enviar WhatsApp via Z-API para {phone}: {text_result['error']}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": text_result["error"],
+                    "fallback_error": list_result["error"],
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
+            log(
+                "error",
+                f"Falha ao enviar WhatsApp via Z-API para {phone}: {text_result['error']}",
+            )
 
         except requests.exceptions.Timeout:
-            results["failed"].append({
-                "phone": phone,
-                "error": "Timeout na requisição (30s)",
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": "Timeout na requisição (30s)",
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
             log("error", f"Timeout ao enviar WhatsApp via Z-API para {phone}")
 
         except requests.exceptions.RequestException as e:
-            results["failed"].append({
-                "phone": phone,
-                "error": f"Erro de conexão: {str(e)}",
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
-            log("error", f"Erro de conexão ao enviar WhatsApp via Z-API para {phone}: {str(e)}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": f"Erro de conexão: {str(e)}",
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
+            log(
+                "error",
+                f"Erro de conexão ao enviar WhatsApp via Z-API para {phone}: {str(e)}",
+            )
 
         except Exception as e:
-            results["failed"].append({
-                "phone": phone,
-                "error": f"Erro inesperado: {str(e)}",
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
-            log("error", f"Erro inesperado ao enviar WhatsApp via Z-API para {phone}: {type(e).__name__} - {str(e)}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": f"Erro inesperado: {str(e)}",
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
+            log(
+                "error",
+                f"Erro inesperado ao enviar WhatsApp via Z-API para {phone}: {type(e).__name__} - {str(e)}",
+            )
 
     return results
 
-def send_whatsapp_twilio_template(to: List[str], irrigador_nome: Optional[str] = None) -> Dict[str, Any]:
+
+def send_whatsapp_twilio_template(
+    to: List[str], irrigador_nome: Optional[str] = None
+) -> Dict[str, Any]:
     """
     Envia mensagem WhatsApp via Twilio usando template aprovado pela Meta.
     Template: "Olá, O pivô apresentou falhas. Por gentileza abra seu aplicativo ou site e confira."
@@ -704,14 +822,19 @@ def send_whatsapp_twilio_template(to: List[str], irrigador_nome: Optional[str] =
         return results
 
     if not TWILIO_TEMPLATE_SID:
-        log("error", "TWILIO_TEMPLATE_SID não configurado - necessário para template aprovado")
+        log(
+            "error",
+            "TWILIO_TEMPLATE_SID não configurado - necessário para template aprovado",
+        )
         return results
 
     # Template aprovado pela Meta (mensagem fixa)
     template_message = "Olá,\nO pivô apresentou falhas.\nPor gentileza abra seu aplicativo ou site e confira."
 
     equipamento_info = f" ({irrigador_nome})" if irrigador_nome else ""
-    log("info", f"Enviando WhatsApp template{equipamento_info} para {len(to)} número(s)")
+    log(
+        "info", f"Enviando WhatsApp template{equipamento_info} para {len(to)} número(s)"
+    )
 
     for i, phone in enumerate(to):
         # Valida formato do número
@@ -723,6 +846,7 @@ def send_whatsapp_twilio_template(to: List[str], irrigador_nome: Optional[str] =
         # Rate limiting
         if i > 0:
             import time
+
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
@@ -733,44 +857,62 @@ def send_whatsapp_twilio_template(to: List[str], irrigador_nome: Optional[str] =
             message = twilio_client.messages.create(
                 from_=TWILIO_WHATSAPP_FROM,
                 content_sid=TWILIO_TEMPLATE_SID,
-                to=f"whatsapp:{phone_formatted}"
+                to=f"whatsapp:{phone_formatted}",
             )
 
-            results["success"].append({
-                "phone": phone,
-                "message_sid": message.sid,
-                "status": message.status,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp_template",
-                "template_used": TWILIO_TEMPLATE_SID,
-                "irrigador_nome": irrigador_nome
-            })
-            log("ok", f"WhatsApp (template Meta){equipamento_info} enviado para {phone} (SID: {message.sid})")
+            results["success"].append(
+                {
+                    "phone": phone,
+                    "message_sid": message.sid,
+                    "status": message.status,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp_template",
+                    "template_used": TWILIO_TEMPLATE_SID,
+                    "irrigador_nome": irrigador_nome,
+                }
+            )
+            log(
+                "ok",
+                f"WhatsApp (template Meta){equipamento_info} enviado para {phone} (SID: {message.sid})",
+            )
 
         except TwilioException as e:
-            error_code = getattr(e, 'code', None)
-            results["failed"].append({
-                "phone": phone,
-                "error": str(e),
-                "error_code": error_code,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp_template"
-            })
-            log("error", f"Falha ao enviar WhatsApp template{equipamento_info} para {phone} [Code: {error_code}]: {str(e)}")
+            error_code = getattr(e, "code", None)
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": str(e),
+                    "error_code": error_code,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp_template",
+                }
+            )
+            log(
+                "error",
+                f"Falha ao enviar WhatsApp template{equipamento_info} para {phone} [Code: {error_code}]: {str(e)}",
+            )
 
         except Exception as e:
-            results["failed"].append({
-                "phone": phone,
-                "error": f"Erro inesperado: {str(e)}",
-                "error_code": None,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp_template"
-            })
-            log("error", f"Erro inesperado ao enviar WhatsApp template{equipamento_info} para {phone}: {type(e).__name__} - {str(e)}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": f"Erro inesperado: {str(e)}",
+                    "error_code": None,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp_template",
+                }
+            )
+            log(
+                "error",
+                f"Erro inesperado ao enviar WhatsApp template{equipamento_info} para {phone}: {type(e).__name__} - {str(e)}",
+            )
 
     return results
 
-def send_whatsapp(msg: str, to: List[str], template_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+
+def send_whatsapp(
+    msg: str, to: List[str], template_params: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     """
     Envia mensagem WhatsApp via Twilio para múltiplos números.
 
@@ -802,6 +944,7 @@ def send_whatsapp(msg: str, to: List[str], template_params: Optional[Dict[str, A
         # Rate limiting
         if i > 0:
             import time
+
             time.sleep(RATE_LIMIT_DELAY)
 
         try:
@@ -816,7 +959,12 @@ def send_whatsapp(msg: str, to: List[str], template_params: Optional[Dict[str, A
                 cleaned_params = {}
                 for key, value in template_params.items():
                     if value is not None:
-                        cleaned_value = str(value).replace("\n", " ").replace("\t", " ").replace("\r", " ")
+                        cleaned_value = (
+                            str(value)
+                            .replace("\n", " ")
+                            .replace("\t", " ")
+                            .replace("\r", " ")
+                        )
                         cleaned_value = " ".join(cleaned_value.split())
                         cleaned_params[key] = cleaned_value
                     else:
@@ -830,37 +978,50 @@ def send_whatsapp(msg: str, to: List[str], template_params: Optional[Dict[str, A
             # Envia mensagem
             message = twilio_client.messages.create(**message_params)
 
-            results["success"].append({
-                "phone": phone,
-                "message_sid": message.sid,
-                "status": message.status,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
+            results["success"].append(
+                {
+                    "phone": phone,
+                    "message_sid": message.sid,
+                    "status": message.status,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
             log("ok", f"WhatsApp enviado para {phone} (SID: {message.sid})")
 
         except TwilioException as e:
-            error_code = getattr(e, 'code', None)
-            results["failed"].append({
-                "phone": phone,
-                "error": str(e),
-                "error_code": error_code,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
-            log("error", f"Falha ao enviar WhatsApp para {phone} [Code: {error_code}]: {str(e)}")
+            error_code = getattr(e, "code", None)
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": str(e),
+                    "error_code": error_code,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
+            log(
+                "error",
+                f"Falha ao enviar WhatsApp para {phone} [Code: {error_code}]: {str(e)}",
+            )
 
         except Exception as e:
-            results["failed"].append({
-                "phone": phone,
-                "error": f"Erro inesperado: {str(e)}",
-                "error_code": None,
-                "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                "type": "whatsapp"
-            })
-            log("error", f"Erro inesperado ao enviar WhatsApp para {phone}: {type(e).__name__} - {str(e)}")
+            results["failed"].append(
+                {
+                    "phone": phone,
+                    "error": f"Erro inesperado: {str(e)}",
+                    "error_code": None,
+                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                    "type": "whatsapp",
+                }
+            )
+            log(
+                "error",
+                f"Erro inesperado ao enviar WhatsApp para {phone}: {type(e).__name__} - {str(e)}",
+            )
 
     return results
+
 
 def send_voice_call_zapi(
     to: List[str],
@@ -887,14 +1048,14 @@ def send_voice_call_zapi(
         call_duration = VOICE_ZAPI_CALL_DURATION_SECONDS
 
     if not ZAPI_INSTANCE or not ZAPI_TOKEN or not ZAPI_CLIENT_TOKEN:
-        log("error", "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)")
+        log(
+            "error",
+            "Z-API não configurado (ZAPI_INSTANCE, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN)",
+        )
         return results
 
     url = f"{ZAPI_BASE_URL}/instances/{ZAPI_INSTANCE}/token/{ZAPI_TOKEN}/send-call"
-    headers = {
-        "Client-Token": ZAPI_CLIENT_TOKEN,
-        "Content-Type": "application/json"
-    }
+    headers = {"Client-Token": ZAPI_CLIENT_TOKEN, "Content-Type": "application/json"}
 
     for i, phone in enumerate(to):
         if not validate_phone_number(phone):
@@ -915,15 +1076,17 @@ def send_voice_call_zapi(
                 response = requests.post(url, json=payload, headers=headers, timeout=10)
                 if 200 <= response.status_code < 300:
                     data = response.json() if response.content else {}
-                    results["success"].append({
-                        "phone": phone,
-                        "message_id": data.get("messageId"),
-                        "zaap_id": data.get("zaapId"),
-                        "status": "initiated",
-                        "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                        "type": "voice_call_zapi",
-                        "attempt": attempt
-                    })
+                    results["success"].append(
+                        {
+                            "phone": phone,
+                            "message_id": data.get("messageId"),
+                            "zaap_id": data.get("zaapId"),
+                            "status": "initiated",
+                            "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                            "type": "voice_call_zapi",
+                            "attempt": attempt,
+                        }
+                    )
                     if retry_context:
                         tracking_id = register_voice_call_tracking_doc(
                             alert_doc_id=retry_context.get("alert_doc_id", ""),
@@ -937,80 +1100,112 @@ def send_voice_call_zapi(
                             event_type=retry_context.get("event_type"),
                             monitor=retry_context.get("monitor"),
                             equipment_name=retry_context.get("equipment_name"),
-                            text_message_id=(retry_context.get("text_message_ids_by_phone") or {}).get(phone_clean),
-                            text_zaap_id=(retry_context.get("text_zaap_ids_by_phone") or {}).get(phone_clean),
+                            text_message_id=(
+                                retry_context.get("text_message_ids_by_phone") or {}
+                            ).get(phone_clean),
+                            text_zaap_id=(
+                                retry_context.get("text_zaap_ids_by_phone") or {}
+                            ).get(phone_clean),
                         )
                         if tracking_id:
                             results["success"][-1]["tracking_id"] = tracking_id
                     log(
                         "ok",
                         f"Ligação Z-API iniciada para {phone} na tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS} "
-                        f"(callDuration={call_duration}s)"
+                        f"(callDuration={call_duration}s)",
                     )
                     break
 
-                retryable = response.status_code in {408, 409, 429} or response.status_code >= 500
+                retryable = (
+                    response.status_code in {408, 409, 429}
+                    or response.status_code >= 500
+                )
                 error_message = f"HTTP {response.status_code}: {response.text}"
 
                 if retryable and attempt < VOICE_ZAPI_MAX_ATTEMPTS:
-                    delay = VOICE_ZAPI_RETRY_DELAYS[min(attempt - 1, len(VOICE_ZAPI_RETRY_DELAYS) - 1)]
+                    delay = VOICE_ZAPI_RETRY_DELAYS[
+                        min(attempt - 1, len(VOICE_ZAPI_RETRY_DELAYS) - 1)
+                    ]
                     log(
                         "warn",
                         f"Falha temporária ao iniciar ligação Z-API para {phone} "
                         f"(tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}): {error_message}. "
-                        f"Nova tentativa em {delay:.0f}s"
+                        f"Nova tentativa em {delay:.0f}s",
                     )
                     time.sleep(delay)
                     continue
 
-                results["failed"].append({
-                    "phone": phone,
-                    "error": error_message,
-                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                    "type": "voice_call_zapi",
-                    "attempts": attempt
-                })
-                log("error", f"Falha ao iniciar ligação Z-API para {phone} após {attempt} tentativa(s): {error_message}")
+                results["failed"].append(
+                    {
+                        "phone": phone,
+                        "error": error_message,
+                        "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                        "type": "voice_call_zapi",
+                        "attempts": attempt,
+                    }
+                )
+                log(
+                    "error",
+                    f"Falha ao iniciar ligação Z-API para {phone} após {attempt} tentativa(s): {error_message}",
+                )
                 break
 
             except requests.RequestException as e:
                 if attempt < VOICE_ZAPI_MAX_ATTEMPTS:
-                    delay = VOICE_ZAPI_RETRY_DELAYS[min(attempt - 1, len(VOICE_ZAPI_RETRY_DELAYS) - 1)]
+                    delay = VOICE_ZAPI_RETRY_DELAYS[
+                        min(attempt - 1, len(VOICE_ZAPI_RETRY_DELAYS) - 1)
+                    ]
                     log(
                         "warn",
                         f"Erro transitório ao iniciar ligação Z-API para {phone} "
                         f"(tentativa {attempt}/{VOICE_ZAPI_MAX_ATTEMPTS}): {type(e).__name__} - {str(e)}. "
-                        f"Nova tentativa em {delay:.0f}s"
+                        f"Nova tentativa em {delay:.0f}s",
                     )
                     time.sleep(delay)
                     continue
 
-                results["failed"].append({
-                    "phone": phone,
-                    "error": str(e),
-                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                    "type": "voice_call_zapi",
-                    "attempts": attempt
-                })
-                log("error", f"Erro ao iniciar ligação Z-API para {phone} após {attempt} tentativa(s): {type(e).__name__} - {str(e)}")
+                results["failed"].append(
+                    {
+                        "phone": phone,
+                        "error": str(e),
+                        "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                        "type": "voice_call_zapi",
+                        "attempts": attempt,
+                    }
+                )
+                log(
+                    "error",
+                    f"Erro ao iniciar ligação Z-API para {phone} após {attempt} tentativa(s): {type(e).__name__} - {str(e)}",
+                )
                 break
 
             except Exception as e:
-                results["failed"].append({
-                    "phone": phone,
-                    "error": str(e),
-                    "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
-                    "type": "voice_call_zapi",
-                    "attempts": attempt
-                })
-                log("error", f"Erro inesperado ao iniciar ligação Z-API para {phone}: {type(e).__name__} - {str(e)}")
+                results["failed"].append(
+                    {
+                        "phone": phone,
+                        "error": str(e),
+                        "timestamp": fmt_ts_iso(datetime.now(BR_TZ)),
+                        "type": "voice_call_zapi",
+                        "attempts": attempt,
+                    }
+                )
+                log(
+                    "error",
+                    f"Erro inesperado ao iniciar ligação Z-API para {phone}: {type(e).__name__} - {str(e)}",
+                )
                 break
 
     return results
 
-def send_notification(msg: str, contacts: Dict[str, List[str]], template_params: Optional[Dict[str, Any]] = None,
-                     email_subject: Optional[str] = None, email_html: Optional[str] = None,
-                     irrigador_nome: Optional[str] = None) -> Dict[str, Any]:
+
+def send_notification(
+    msg: str,
+    contacts: Dict[str, List[str]],
+    template_params: Optional[Dict[str, Any]] = None,
+    email_subject: Optional[str] = None,
+    email_html: Optional[str] = None,
+    irrigador_nome: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Envia notificação via WhatsApp, SMS e/ou E-mail.
 
@@ -1024,12 +1219,7 @@ def send_notification(msg: str, contacts: Dict[str, List[str]], template_params:
     Returns:
         dict agregado com resultados de todos os envios
     """
-    all_results = {
-        "success": [],
-        "failed": [],
-        "invalid": [],
-        "modes_used": []
-    }
+    all_results = {"success": [], "failed": [], "invalid": [], "modes_used": []}
 
     phones = contacts.get("phones", [])
     emails = contacts.get("emails", [])
@@ -1043,11 +1233,17 @@ def send_notification(msg: str, contacts: Dict[str, List[str]], template_params:
         if ZAPI_INSTANCE and ZAPI_TOKEN and ZAPI_CLIENT_TOKEN:
             log("info", "Usando Z-API para WhatsApp (auto)")
             # Remove + dos números para Z-API (formato: 5511999999999)
-            phones_cleaned = [phone.lstrip('+') if phone.startswith('+') else phone for phone in phones]
+            phones_cleaned = [
+                phone.lstrip("+") if phone.startswith("+") else phone
+                for phone in phones
+            ]
             log("debug", f"Números formatados para Z-API: {phones_cleaned}")
             whatsapp_results = send_whatsapp_zapi(msg, phones_cleaned)
         else:
-            log("info", "Usando Twilio para WhatsApp com template aprovado pela Meta (auto)")
+            log(
+                "info",
+                "Usando Twilio para WhatsApp com template aprovado pela Meta (auto)",
+            )
             # Usa template aprovado pela Meta (mensagem fixa)
             whatsapp_results = send_whatsapp_twilio_template(phones, irrigador_nome)
         all_results["success"].extend(whatsapp_results["success"])
@@ -1074,7 +1270,10 @@ def send_notification(msg: str, contacts: Dict[str, List[str]], template_params:
             log("error", "Z-API não configurado - pulando whatsapp_zapi")
         else:
             # Remove + dos números para Z-API (formato: 5511999999999)
-            phones_cleaned = [phone.lstrip('+') if phone.startswith('+') else phone for phone in phones]
+            phones_cleaned = [
+                phone.lstrip("+") if phone.startswith("+") else phone
+                for phone in phones
+            ]
             log("debug", f"Números formatados para Z-API: {phones_cleaned}")
             whatsapp_results = send_whatsapp_zapi(msg, phones_cleaned)
             all_results["success"].extend(whatsapp_results["success"])
@@ -1104,7 +1303,7 @@ def send_notification(msg: str, contacts: Dict[str, List[str]], template_params:
             subject=email_subject or "Alarme Acionado",
             body_text=msg,
             body_html=email_html or f"<pre>{msg}</pre>",
-            to=emails
+            to=emails,
         )
         all_results["success"].extend(email_results["success"])
         all_results["failed"].extend(email_results["failed"])
@@ -1112,6 +1311,7 @@ def send_notification(msg: str, contacts: Dict[str, List[str]], template_params:
         all_results["modes_used"].append("email")
 
     return all_results
+
 
 # =============================================================================
 # CouchDB (lib couchdb)
@@ -1122,6 +1322,7 @@ def get_couch_server() -> Optional[couchdb.Server]:
     except Exception as e:
         log("error", f"Erro ao conectar ao CouchDB: {e}")
         return None
+
 
 def ensure_db(server: couchdb.Server, dbname: str):
     try:
@@ -1138,11 +1339,13 @@ def ensure_db(server: couchdb.Server, dbname: str):
         log("error", f"Falha ao acessar DB '{dbname}': {e}")
         return None
 
+
 def get_couch_db():
     server = get_couch_server()
     if not server:
         return None
     return ensure_db(server, DATABASE)
+
 
 def query_couchdb(query: Dict[str, Any]):
     db = get_couch_db()
@@ -1154,11 +1357,12 @@ def query_couchdb(query: Dict[str, Any]):
         log("error", f"Erro ao executar query: {e}")
         return None
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=5),
     retry=retry_if_exception_type((couchdb.http.ResourceConflict, Exception)),
-    before_sleep=before_sleep_log(logger, logging.WARNING)
+    before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 def upsert_doc(doc_id: str, doc_data: Dict[str, Any]) -> Optional[str]:
     db = get_couch_db()
@@ -1195,12 +1399,13 @@ def upsert_doc(doc_id: str, doc_data: Dict[str, Any]) -> Optional[str]:
         log("error", f"Falha no upsert de {doc_id}: {e}")
         return None
 
+
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=1, max=10),
     retry=retry_if_exception_type((requests.exceptions.RequestException, Exception)),
     before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=True
+    reraise=True,
 )
 def insert_doc(doc_data: Dict[str, Any]) -> Optional[str]:
     db = get_couch_db()
@@ -1210,16 +1415,20 @@ def insert_doc(doc_data: Dict[str, Any]) -> Optional[str]:
         _id, _rev = db.save(doc_data)
         return _id
     except couchdb.http.ResourceConflict:
-        log("error", "Insert conflitou (id duplicado). Use upsert_doc se precisar id fixo.")
+        log(
+            "error",
+            "Insert conflitou (id duplicado). Use upsert_doc se precisar id fixo.",
+        )
         return None
     except Exception as e:
         log("error", f"Falha no insert: {e}")
         return None
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=5),
-    before_sleep=before_sleep_log(logger, logging.WARNING)
+    before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 def update_monthly_history(irrigador_id: str, data_type: str, doc_id: str) -> None:
     db = get_couch_db()
@@ -1240,12 +1449,15 @@ def update_monthly_history(irrigador_id: str, data_type: str, doc_id: str) -> No
                 "created_at": now_iso,
                 "records": [],
             }
-        history_doc.setdefault("records", []).append({"doc_id": doc_id, "timestamp": now_iso})
+        history_doc.setdefault("records", []).append(
+            {"doc_id": doc_id, "timestamp": now_iso}
+        )
         history_doc["updated_at"] = now_iso
         history_doc["count"] = len(history_doc["records"])
         upsert_doc(history_id, history_doc)
     except Exception as e:
         log("error", f"Falha ao atualizar histórico: {e}")
+
 
 # =============================================================================
 # Modelo e config de notificação
@@ -1253,8 +1465,10 @@ def update_monthly_history(irrigador_id: str, data_type: str, doc_id: str) -> No
 class Notification(BaseModel):
     table: Literal["notificacao"]
     status: bool
+
     class Config:
         extra = "allow"
+
 
 def query_notification() -> Optional[Notification]:
     # Exact match avoids a very slow regex scan on the whole database.
@@ -1270,6 +1484,51 @@ def query_notification() -> Optional[Notification]:
     except ValidationError as e:
         log("error", f"Validação Notification: {e}")
         return None
+
+
+def get_subscribers_for_irrigador(irrigador_id: str) -> Dict[str, List[str]]:
+    """
+    Busca a tabela central de notificações (Pub/Sub) e separa os números
+    que devem receber mensagem e os que devem receber ligação.
+    """
+    result = {"msg_phones": [], "call_phones": []}
+    try:
+        db = get_couch_db()
+        if db is None:
+            return result
+
+        doc_id = f"notificacoes:{irrigador_id}"
+        doc = db.get(doc_id)
+
+        if not doc or not doc.get("assinantes"):
+            log(
+                "info",
+                f"Nenhuma assinatura de notificação encontrada para {irrigador_id}",
+            )
+            return result
+
+        for assinante in doc.get("assinantes", []):
+            numero = assinante.get("numero")
+
+            # Valida se tem número preenchido corretamente
+            if not numero or not validate_phone_number(numero):
+                continue
+
+            # Se ativou mensagem, adiciona na lista (sem duplicar)
+            if assinante.get("msg_enabled"):
+                if numero not in result["msg_phones"]:
+                    result["msg_phones"].append(numero)
+
+            # Se ativou ligação, adiciona na lista (sem duplicar)
+            if assinante.get("call_enabled"):
+                if numero not in result["call_phones"]:
+                    result["call_phones"].append(numero)
+
+    except Exception as e:
+        log("error", f"Erro ao buscar assinantes para {irrigador_id}: {e}")
+
+    return result
+
 
 def is_whatsapp_enabled_for_irrigador(irrigador_id: str) -> bool:
     """
@@ -1299,8 +1558,12 @@ def is_whatsapp_enabled_for_irrigador(irrigador_id: str) -> bool:
         return whatsapp_enabled or whatsapp_call_enabled
 
     except Exception as e:
-        log("warn", f"Erro ao verificar config WhatsApp para {irrigador_id}: {e} - assumindo ativado")
+        log(
+            "warn",
+            f"Erro ao verificar config WhatsApp para {irrigador_id}: {e} - assumindo ativado",
+        )
         return True
+
 
 def is_whatsapp_call_enabled_for_irrigador(irrigador_id: str) -> bool:
     """
@@ -1327,7 +1590,10 @@ def is_whatsapp_call_enabled_for_irrigador(irrigador_id: str) -> bool:
         return config_doc.get("whatsapp_call_enabled", False)
 
     except Exception as e:
-        log("warn", f"Erro ao verificar config de ligação WhatsApp para {irrigador_id}: {e} - assumindo desativado")
+        log(
+            "warn",
+            f"Erro ao verificar config de ligação WhatsApp para {irrigador_id}: {e} - assumindo desativado",
+        )
         return False
 
 
@@ -1364,7 +1630,11 @@ def register_message_tracking_docs(
             continue
 
         doc_id = build_voice_tracking_doc_id(alert_doc_id, phone_clean)
-        existing = db.get(doc_id) or {"_id": doc_id, "table": "zapi_voice_retry", "history": []}
+        existing = db.get(doc_id) or {
+            "_id": doc_id,
+            "table": "zapi_voice_retry",
+            "history": [],
+        }
         history = existing.setdefault("history", [])
         history.append(
             {
@@ -1373,8 +1643,10 @@ def register_message_tracking_docs(
                 "message_id": message_id,
                 "zaap_id": item.get("zaapId") or item.get("zaap_id"),
                 "mode": item.get("confirmation_mode") or item.get("type"),
-                "confirmation_option_id": item.get("confirmation_option_id") or ZAPI_CONFIRMATION_OPTION_ID,
-                "confirmation_text": item.get("confirmation_text") or ZAPI_CONFIRMATION_OPTION_TITLE,
+                "confirmation_option_id": item.get("confirmation_option_id")
+                or ZAPI_CONFIRMATION_OPTION_ID,
+                "confirmation_text": item.get("confirmation_text")
+                or ZAPI_CONFIRMATION_OPTION_TITLE,
             }
         )
 
@@ -1390,13 +1662,21 @@ def register_message_tracking_docs(
                 "equipment_name": equipment_name,
                 "last_text_message_id": str(message_id),
                 "last_text_zaap_id": item.get("zaapId") or item.get("zaap_id"),
-                "confirmation_option_id": item.get("confirmation_option_id") or ZAPI_CONFIRMATION_OPTION_ID,
-                "confirmation_text": item.get("confirmation_text") or ZAPI_CONFIRMATION_OPTION_TITLE,
-                "message_confirmation_mode": item.get("confirmation_mode") or item.get("type"),
+                "confirmation_option_id": item.get("confirmation_option_id")
+                or ZAPI_CONFIRMATION_OPTION_ID,
+                "confirmation_text": item.get("confirmation_text")
+                or ZAPI_CONFIRMATION_OPTION_TITLE,
+                "message_confirmation_mode": item.get("confirmation_mode")
+                or item.get("type"),
                 "updated_at": now_iso,
             }
         )
-        if existing.get("status") not in {"waiting_webhook", "retry_scheduled", "answered", "acknowledged"}:
+        if existing.get("status") not in {
+            "waiting_webhook",
+            "retry_scheduled",
+            "answered",
+            "acknowledged",
+        }:
             existing["status"] = "message_waiting_confirmation"
         existing.setdefault("created_at", now_iso)
         upsert_doc(doc_id, existing)
@@ -1427,7 +1707,11 @@ def register_voice_call_tracking_doc(
     if db is None:
         return None
 
-    existing = db.get(doc_id) or {"_id": doc_id, "table": "zapi_voice_retry", "history": []}
+    existing = db.get(doc_id) or {
+        "_id": doc_id,
+        "table": "zapi_voice_retry",
+        "history": [],
+    }
     history = existing.setdefault("history", [])
     history.append(
         {
@@ -1457,10 +1741,13 @@ def register_voice_call_tracking_doc(
             "last_attempt_at": now_iso,
             "last_message_id": message_id,
             "last_zaap_id": zaap_id,
-            "last_text_message_id": text_message_id or existing.get("last_text_message_id"),
+            "last_text_message_id": text_message_id
+            or existing.get("last_text_message_id"),
             "last_text_zaap_id": text_zaap_id or existing.get("last_text_zaap_id"),
-            "confirmation_option_id": existing.get("confirmation_option_id") or ZAPI_CONFIRMATION_OPTION_ID,
-            "confirmation_text": existing.get("confirmation_text") or ZAPI_CONFIRMATION_OPTION_TITLE,
+            "confirmation_option_id": existing.get("confirmation_option_id")
+            or ZAPI_CONFIRMATION_OPTION_ID,
+            "confirmation_text": existing.get("confirmation_text")
+            or ZAPI_CONFIRMATION_OPTION_TITLE,
             "status": "waiting_webhook",
             "updated_at": now_iso,
         }
@@ -1470,7 +1757,9 @@ def register_voice_call_tracking_doc(
     return upsert_doc(doc_id, existing)
 
 
-def build_zapi_message_tracking_maps(send_results: Dict[str, Any]) -> Tuple[Dict[str, str], Dict[str, str]]:
+def build_zapi_message_tracking_maps(
+    send_results: Dict[str, Any],
+) -> Tuple[Dict[str, str], Dict[str, str]]:
     message_ids_by_phone: Dict[str, str] = {}
     zaap_ids_by_phone: Dict[str, str] = {}
 
@@ -1500,15 +1789,18 @@ def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
     Returns:
         Dict com 'nome', 'phones', 'emails', 'equipamentos' (array de nomes) e outros dados do irrigador
     """
-    info = {"nome": None, "phones": [], "emails": [], "codigo": irrigador_id, "equipamentos": []}
+    info = {
+        "nome": None,
+        "phones": [],
+        "emails": [],
+        "codigo": irrigador_id,
+        "equipamentos": [],
+    }
 
     try:
         query = {
-            "selector": {
-                "table": "irrigadores",
-                "codigo": irrigador_id
-            },
-            "limit": 1
+            "selector": {"table": "irrigadores", "codigo": irrigador_id},
+            "limit": 1,
         }
 
         result = query_couchdb(query)
@@ -1522,7 +1814,9 @@ def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
             return info
 
         # Extrai nome do irrigador
-        info["nome"] = irrigador_doc.get("nome") or irrigador_doc.get("name") or irrigador_id
+        info["nome"] = (
+            irrigador_doc.get("nome") or irrigador_doc.get("name") or irrigador_id
+        )
 
         # Extrai array de nomes dos equipamentos/monitores
         equipamentos = irrigador_doc.get("equipamentos", [])
@@ -1555,12 +1849,16 @@ def get_irrigador_info(irrigador_id: str) -> Dict[str, Any]:
         elif email:
             log("warn", f"Email inválido para {irrigador_id}: {email}")
 
-        log("info", f"Info do irrigador {irrigador_id} ('{info['nome']}'): {len(info['equipamentos'])} equipamento(s), {len(info['phones'])} telefone(s), {len(info['emails'])} email(s)")
+        log(
+            "info",
+            f"Info do irrigador {irrigador_id} ('{info['nome']}'): {len(info['equipamentos'])} equipamento(s), {len(info['phones'])} telefone(s), {len(info['emails'])} email(s)",
+        )
 
     except Exception as e:
         log("error", f"Erro ao buscar info do irrigador {irrigador_id}: {e}")
 
     return info
+
 
 def get_irrigador_contacts(irrigador_id: str) -> Dict[str, List[str]]:
     """
@@ -1574,6 +1872,7 @@ def get_irrigador_contacts(irrigador_id: str) -> Dict[str, List[str]]:
     """
     info = get_irrigador_info(irrigador_id)
     return {"phones": info["phones"], "emails": info["emails"]}
+
 
 def get_equipment_name_from_monitor(monitor: str, equipamentos: List[str]) -> str:
     """
@@ -1614,7 +1913,11 @@ def get_equipment_name_from_monitor(monitor: str, equipamentos: List[str]) -> st
 
         # Se equipamento é dict, extrai nome
         if isinstance(equipamento, dict):
-            return equipamento.get("nome") or equipamento.get("name") or f"Monitor {monitor}"
+            return (
+                equipamento.get("nome")
+                or equipamento.get("name")
+                or f"Monitor {monitor}"
+            )
 
         # Se equipamento é string, retorna diretamente
         if isinstance(equipamento, str):
@@ -1626,6 +1929,7 @@ def get_equipment_name_from_monitor(monitor: str, equipamentos: List[str]) -> st
         log("warn", f"Erro ao mapear monitor {monitor}: {e}")
         return f"Monitor {monitor}"
 
+
 # =============================================================================
 # Parsers
 # =============================================================================
@@ -1635,10 +1939,12 @@ def parse_vetor_tensao(payload: str) -> Dict[str, Any]:
         raise ValueError("Vetor tensão inválido: menos de 3 partes")
     pivo_tipo = parts[0]
     if len(pivo_tipo) != 7:
-        raise ValueError(f"Identificação de vetor tensão inválida: {pivo_tipo} (esperado ID de 6 chars + tipo)")
+        raise ValueError(
+            f"Identificação de vetor tensão inválida: {pivo_tipo} (esperado ID de 6 chars + tipo)"
+        )
     irrigador_id = pivo_tipo[:6]
     tipo = pivo_tipo[6]
-    if tipo not in ['A', 'B', 'C', 'D']:
+    if tipo not in ["A", "B", "C", "D"]:
         raise ValueError(f"Tipo de vetor inválido: {tipo}")
     timestamp_str = parts[1]
     try:
@@ -1646,9 +1952,9 @@ def parse_vetor_tensao(payload: str) -> Dict[str, Any]:
     except ValueError:
         raise ValueError(f"Timestamp inválido: {timestamp_str}")
 
-    monitor_ranges = {'A': (1, 7), 'B': (8, 14), 'C': (15, 21), 'D': (22, 28)}
+    monitor_ranges = {"A": (1, 7), "B": (8, 14), "C": (15, 21), "D": (22, 28)}
     start, end = monitor_ranges[tipo]
-    base_offset = {'A': 0, 'B': 7, 'C': 14, 'D': 21}
+    base_offset = {"A": 0, "B": 7, "C": 14, "D": 21}
 
     monitores: Dict[str, Any] = {}
     readings = parts[2:]
@@ -1663,7 +1969,10 @@ def parse_vetor_tensao(payload: str) -> Dict[str, Any]:
             status = int(status_char)
             monitor_num = base_offset[tipo] + idx
             if start <= monitor_num <= end:
-                monitores[f"monitor_{monitor_num:02d}"] = {"voltage": voltage, "status": status}
+                monitores[f"monitor_{monitor_num:02d}"] = {
+                    "voltage": voltage,
+                    "status": status,
+                }
         except (ValueError, IndexError) as e:
             log("warn", f"Falha ao parsear leitura '{reading}': {e}")
             continue
@@ -1676,8 +1985,9 @@ def parse_vetor_tensao(payload: str) -> Dict[str, Any]:
         "timestamp_formatted": fmt_ts(dt),
         "monitores": monitores,
         "monitor_range": f"{start:02d}-{end:02d}",
-        "payload": payload
+        "payload": payload,
     }
+
 
 def parse_vetor_sw(payload: str) -> Dict[str, Any]:
     parts = [p.strip() for p in payload.strip().split(";") if p.strip() != ""]
@@ -1690,22 +2000,38 @@ def parse_vetor_sw(payload: str) -> Dict[str, Any]:
     except ValueError:
         raise ValueError(f"Timestamp inválido no vetor SW: {timestamp_str}")
 
-    if len(parts) >= 7 and all(len(f) == 1 and f.isdigit() and int(f) in (0, 1) for f in parts[2:7]):
-        painel_1 = int(parts[2]); painel_2 = int(parts[3])
-        lampada = int(parts[4]); sirene = int(parts[5]); manutencao = int(parts[6])
+    if len(parts) >= 7 and all(
+        len(f) == 1 and f.isdigit() and int(f) in (0, 1) for f in parts[2:7]
+    ):
+        painel_1 = int(parts[2])
+        painel_2 = int(parts[3])
+        lampada = int(parts[4])
+        sirene = int(parts[5])
+        manutencao = int(parts[6])
         monitor_tokens = parts[7:]
     elif (
         len(parts) >= 5
-        and len(parts[2]) == 1 and parts[2].isdigit() and int(parts[2]) in (0, 1)
-        and len(parts[3]) == 1 and parts[3].isdigit() and int(parts[3]) in (0, 1)
-        and len(parts[4]) == 3 and parts[4].isdigit() and set(parts[4]).issubset({"0", "1"})
+        and len(parts[2]) == 1
+        and parts[2].isdigit()
+        and int(parts[2]) in (0, 1)
+        and len(parts[3]) == 1
+        and parts[3].isdigit()
+        and int(parts[3]) in (0, 1)
+        and len(parts[4]) == 3
+        and parts[4].isdigit()
+        and set(parts[4]).issubset({"0", "1"})
     ):
-        painel_1 = int(parts[2]); painel_2 = int(parts[3])
+        painel_1 = int(parts[2])
+        painel_2 = int(parts[3])
         lsm = parts[4]
-        lampada = int(lsm[0]); sirene = int(lsm[1]); manutencao = int(lsm[2])
+        lampada = int(lsm[0])
+        sirene = int(lsm[1])
+        manutencao = int(lsm[2])
         monitor_tokens = parts[5:]
     else:
-        raise ValueError("Flags inválidas no vetor SW (nem 5 flags 0/1, nem formato compacto LSM).")
+        raise ValueError(
+            "Flags inválidas no vetor SW (nem 5 flags 0/1, nem formato compacto LSM)."
+        )
 
     monitores: Dict[str, Any] = {}
     for idx, token in enumerate(monitor_tokens, start=1):
@@ -1730,8 +2056,9 @@ def parse_vetor_sw(payload: str) -> Dict[str, Any]:
         "sirene": sirene,
         "manutencao": manutencao,
         "monitores": monitores,
-        "payload": payload
+        "payload": payload,
     }
+
 
 def identify_and_parse(payload: str) -> Dict[str, Any]:
     parts = [p.strip() for p in payload.strip().split(";")]
@@ -1739,7 +2066,7 @@ def identify_and_parse(payload: str) -> Dict[str, Any]:
         raise ValueError("Formato inválido: menos de 2 partes")
 
     first_part = parts[0]
-    if len(first_part) == 7 and first_part[-1] in ['A', 'B', 'C', 'D']:
+    if len(first_part) == 7 and first_part[-1] in ["A", "B", "C", "D"]:
         return parse_vetor_tensao(payload)
 
     is_sw_5flags = (
@@ -1749,9 +2076,15 @@ def identify_and_parse(payload: str) -> Dict[str, Any]:
     )
     is_sw_compacto = (
         len(parts) >= 5
-        and len(parts[2]) == 1 and parts[2].isdigit() and int(parts[2]) in (0, 1)
-        and len(parts[3]) == 1 and parts[3].isdigit() and int(parts[3]) in (0, 1)
-        and len(parts[4]) == 3 and parts[4].isdigit() and set(parts[4]).issubset({"0", "1"})
+        and len(parts[2]) == 1
+        and parts[2].isdigit()
+        and int(parts[2]) in (0, 1)
+        and len(parts[3]) == 1
+        and parts[3].isdigit()
+        and int(parts[3]) in (0, 1)
+        and len(parts[4]) == 3
+        and parts[4].isdigit()
+        and set(parts[4]).issubset({"0", "1"})
         and any(len(tok) == 4 and tok.isdigit() for tok in parts[5:])
     )
     if is_sw_5flags or is_sw_compacto:
@@ -1765,7 +2098,10 @@ def identify_and_parse(payload: str) -> Dict[str, Any]:
         estado = evento[3] if len(evento) > 3 else ""
         armadilha = evento[4] if len(evento) > 4 else ""
         timestamp_str = parts[1]
-        log("debug", f"Parseando evento: irrigador={parts[0]}, tipo={tipo}, monitor={monitor}, estado={estado}, armadilha={armadilha}, ts={timestamp_str}")
+        log(
+            "debug",
+            f"Parseando evento: irrigador={parts[0]}, tipo={tipo}, monitor={monitor}, estado={estado}, armadilha={armadilha}, ts={timestamp_str}",
+        )
         try:
             dt = datetime.fromisoformat(timestamp_str)
         except ValueError:
@@ -1782,34 +2118,45 @@ def identify_and_parse(payload: str) -> Dict[str, Any]:
             "status": "Não resolvido",
             "description": "Sem descrição",
             "responsible": "A definir",
-            "payload": payload
+            "payload": payload,
         }
 
     raise ValueError(f"Formato não reconhecido: {payload}")
+
 
 # =============================================================================
 # >>> WS ADD: Hub WebSocket (conexões + broadcast)
 # =============================================================================
 class WSClient:
-    def __init__(self, ws: WebSocketServerProtocol, company_id: Optional[str], ids: Optional[Set[str]]):
+    def __init__(
+        self,
+        ws: WebSocketServerProtocol,
+        company_id: Optional[str],
+        ids: Optional[Set[str]],
+    ):
         self.ws = ws
         self.company_id = company_id
         self.ids = ids or set()
+
 
 _ws_clients: "set[WSClient]" = set()
 _ws_queue: "asyncio.Queue[dict]" = asyncio.Queue()
 _ws_loop: Optional[asyncio.AbstractEventLoop] = None
 _ws_clients_lock = threading.Lock()
 
+
 def _extract_filters_from_path(path: str) -> Tuple[Optional[str], Optional[Set[str]]]:
     try:
         qs = parse_qs(urlparse(path).query)
         company_id = qs.get("companyId", [None])[0]
         ids = qs.get("ids", [None])[0]
-        id_set: Optional[Set[str]] = set(i.strip() for i in ids.split(",")) if ids else None
+        id_set: Optional[Set[str]] = (
+            set(i.strip() for i in ids.split(",")) if ids else None
+        )
         return company_id, id_set
     except Exception:
         return None, None
+
 
 async def _ws_handler(websocket: WebSocketServerProtocol):
     if not websocket.path.startswith(WS_PATH):
@@ -1821,7 +2168,10 @@ async def _ws_handler(websocket: WebSocketServerProtocol):
 
     with _ws_clients_lock:
         _ws_clients.add(client)
-    log("info", f"WS conectado (company={company_id}, ids={ids}) - total={len(_ws_clients)}")
+    log(
+        "info",
+        f"WS conectado (company={company_id}, ids={ids}) - total={len(_ws_clients)}",
+    )
 
     try:
         async for _ in websocket:
@@ -1834,6 +2184,7 @@ async def _ws_handler(websocket: WebSocketServerProtocol):
             _ws_clients.discard(client)
         log("info", f"WS desconectado - total={len(_ws_clients)}")
 
+
 async def _ws_broadcast_loop():
     while True:
         msg = await _ws_queue.get()
@@ -1843,7 +2194,9 @@ async def _ws_broadcast_loop():
             targets = list(_ws_clients)
         for c in targets:
             try:
-                ok_company = (c.company_id is None) or (msg.get("companyId") == c.company_id)
+                ok_company = (c.company_id is None) or (
+                    msg.get("companyId") == c.company_id
+                )
                 msg_id = str(msg.get("irrigadorId") or "")
                 ok_ids = (not c.ids) or (msg_id in c.ids)
                 if ok_company and ok_ids:
@@ -1855,6 +2208,7 @@ async def _ws_broadcast_loop():
                 for s in stale:
                     _ws_clients.discard(s)
         _ws_queue.task_done()
+
 
 async def _ws_keepalive_loop():
     while True:
@@ -1871,11 +2225,17 @@ async def _ws_keepalive_loop():
                 except Exception:
                     pass
 
+
 def start_ws_server_in_thread():
     async def _async_runner():
         """Função assíncrona que roda o servidor WebSocket"""
         async with websockets.serve(
-            _ws_handler, WS_HOST, WS_PORT, ping_interval=None, ping_timeout=None, max_queue=32
+            _ws_handler,
+            WS_HOST,
+            WS_PORT,
+            ping_interval=None,
+            ping_timeout=None,
+            max_queue=32,
         ):
             log("ok", f"WebSocket em ws://{WS_HOST}:{WS_PORT}{WS_PATH}")
 
@@ -1905,6 +2265,7 @@ def start_ws_server_in_thread():
     t = threading.Thread(target=_runner, daemon=True, name="WS-Server")
     t.start()
 
+
 def ws_publish(message: dict):
     """Chame de QUALQUER thread para publicar no WS."""
     if _ws_loop is None:
@@ -1913,6 +2274,7 @@ def ws_publish(message: dict):
         _ws_loop.call_soon_threadsafe(_ws_queue.put_nowait, message)
     except Exception as e:
         log("warn", f"WS publish falhou: {e}")
+
 
 # =============================================================================
 # Processamento e armazenamento (para workers)
@@ -1942,6 +2304,7 @@ def process_vetor_tensao(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
         "data": {"timestamp": parsed["timestamp"], "monitores": parsed["monitores"]},
     }
     return [doc_individual, doc_recente]
+
 
 def process_vetor_sw(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     irrigador_id = parsed["irrigadorId"]
@@ -1979,6 +2342,7 @@ def process_vetor_sw(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     }
     return [doc_individual, doc_recente]
 
+
 def process_event(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
     doc = {
         "table": "events",
@@ -1994,6 +2358,7 @@ def process_event(parsed: Dict[str, Any]) -> List[Dict[str, Any]]:
         "responsible": parsed["responsible"],
     }
     return [doc]
+
 
 def process_payload(topic: str, payload_str: str):
     """
@@ -2050,63 +2415,76 @@ def process_payload(topic: str, payload_str: str):
                     # 1. Publica no MQTT para apps conectados em tempo real
                     mqtt_published = publish_alert_to_mqtt(irrigador_id, alert_data)
                     if mqtt_published:
-                        log("ok", f"Alerta publicado no MQTT: lindsay/{irrigador_id}/alerts")
+                        log(
+                            "ok",
+                            f"Alerta publicado no MQTT: lindsay/{irrigador_id}/alerts",
+                        )
 
                     # 2. Envia push notifications (fallback para apps em background)
                     tokens = get_device_tokens(irrigador_id)
                     if tokens:
                         success = send_expo_push_notification(tokens, alert_data)
                         save_notification_log(
-                            individual_id, tokens, success, None if success else "Falha ao enviar"
+                            individual_id,
+                            tokens,
+                            success,
+                            None if success else "Falha ao enviar",
                         )
                         if success:
                             log("ok", f"Push enviado para {len(tokens)} dispositivo(s)")
                         else:
                             log("error", "Falha ao enviar push")
                     else:
-                        log("info", f"Nenhum dispositivo registrado para notificações locais do {irrigador_id}")
+                        log(
+                            "info",
+                            f"Nenhum dispositivo registrado para notificações locais do {irrigador_id}",
+                        )
 
                     # 3. Envia notificações SMS/WhatsApp/Email (se notify estiver ativo)
-                    # Verifica se WhatsApp está ativado para este irrigador
-                    whatsapp_enabled = is_whatsapp_enabled_for_irrigador(irrigador_id)
-                    whatsapp_call_enabled = is_whatsapp_call_enabled_for_irrigador(irrigador_id)
-                    log("info", f"WhatsApp/SMS para {irrigador_id}: {'ATIVADO' if whatsapp_enabled else 'DESATIVADO'}")
-                    log("info", f"Ligação WhatsApp/Z-API para {irrigador_id}: {'ATIVADA' if whatsapp_call_enabled else 'DESATIVADA'}")
+                    subscribers = get_subscribers_for_irrigador(irrigador_id)
+                    msg_phones = subscribers["msg_phones"]
+                    call_phones = subscribers["call_phones"]
 
-                    # Busca informações completas do irrigador (nome + contatos + equipamentos)
+                    log(
+                        "info",
+                        f"Assinantes {irrigador_id}: Mensagem ({len(msg_phones)}), Ligação ({len(call_phones)})",
+                    )
+
+                    # Busca informações do irrigador (para pegar o nome, equipamentos e emails)
                     irrigador_info = get_irrigador_info(irrigador_id)
                     irrigador_nome = irrigador_info.get("nome") or irrigador_id
                     equipamentos = irrigador_info.get("equipamentos", [])
 
                     # Mapeia monitor para nome do equipamento
                     monitor = parsed.get("monitor", "00")
-                    equipamento_nome = get_equipment_name_from_monitor(monitor, equipamentos)
+                    equipamento_nome = get_equipment_name_from_monitor(
+                        monitor, equipamentos
+                    )
 
                     log("info", f"Irrigador: {irrigador_id} - Nome: '{irrigador_nome}'")
-                    log("info", f"Monitor: {monitor} → Equipamento: '{equipamento_nome}'")
+                    log(
+                        "info",
+                        f"Monitor: {monitor} → Equipamento: '{equipamento_nome}'",
+                    )
 
-                    phones = irrigador_info.get("phones", [])
                     emails = irrigador_info.get("emails", [])
-                    log("info", f"Contatos específicos para {irrigador_id}: phones={len(phones)}, emails={len(emails)}")
 
-                    # Se não houver contatos específicos, usa os globais como fallback
-                    if not phones and global_phones:
-                        phones = global_phones
-                        log("info", f"Usando contatos globais (fallback) para {irrigador_id}")
-                    else:
-                        log("info", f"Usando contatos específicos para para telefone {irrigador_id}")
+                    # Fallback de segurança (Opcional): Se não houver ninguém inscrito, tenta usar os contatos globais do txt
+                    if not msg_phones and not call_phones and global_phones:
+                        msg_phones = global_phones
+                        log(
+                            "info",
+                            f"Usando contatos globais (fallback de telefone) para {irrigador_id}",
+                        )
                     if not emails and global_emails:
                         emails = global_emails
-                    else:
-                        log("info", f"Usando contatos específicos para email{irrigador_id}")
+                        log(
+                            "info",
+                            f"Usando contatos globais (fallback de email) para {irrigador_id}",
+                        )
 
-                    # Mensagens e ligação usam toggles separados, mas ambos respeitam o notify global.
-                    log(
-                        "notfy",
-                        f"notify={notify}, whatsapp_enabled={whatsapp_enabled}, "
-                        f"whatsapp_call_enabled={whatsapp_call_enabled}, phones={phones}, emails={emails}"
-                    )
-                    if notify and (whatsapp_enabled or whatsapp_call_enabled) and (phones or emails):
+                    # Só prossegue se tiver alguém para notificar
+                    if notify and (msg_phones or call_phones or emails):
                         event_type = parsed.get("eventType", "A")
                         monitor = parsed.get("monitor", "00")
                         timestamp = parsed.get("timestamp_formatted", "")
@@ -2118,8 +2496,10 @@ def process_payload(topic: str, payload_str: str):
                             "3": MONITOR_TENSAO.get(monitor, "-"),  # Monitor
                             "4": timestamp,  # Data
                             "5": parsed.get("status", "Não resolvido"),  # Status
-                            "6": parsed.get("description", "Sem descrição"),  # Descrição
-                            "7": parsed.get("responsible", "A definir")  # Responsável
+                            "6": parsed.get(
+                                "description", "Sem descrição"
+                            ),  # Descrição
+                            "7": parsed.get("responsible", "A definir"),  # Responsável
                         }
 
                         # Mensagem texto
@@ -2153,29 +2533,35 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
 <div class="field"><span class="label">Descrição:</span> <span class="value">{parsed.get("description", "Sem descrição")}</span></div>
 <div class="field"><span class="label">Responsável:</span> <span class="value">{parsed.get("responsible", "A definir")}</span></div>
 </div></body></html>"""
-
                         try:
                             send_results = {
                                 "success": [],
                                 "failed": [],
                                 "invalid": [],
-                                "modes_used": []
+                                "modes_used": [],
                             }
 
-                            if whatsapp_enabled:
-                                contacts = {"phones": phones, "emails": emails}
+                            # Se há pessoas querendo receber mensagens de texto
+                            if msg_phones or emails:
+                                contacts = {"phones": msg_phones, "emails": emails}
                                 message_results = send_notification(
                                     msg=msg_body,
                                     contacts=contacts,
                                     template_params=template_params,
                                     email_subject=f"🚨 Alarme {equipamento_nome} ({irrigador_nome}) - {MONITOR_TENSAO.get(monitor, 'Evento')}",
                                     email_html=email_html,
-                                    irrigador_nome=equipamento_nome
+                                    irrigador_nome=equipamento_nome,
                                 )
-                                send_results["success"].extend(message_results["success"])
+                                send_results["success"].extend(
+                                    message_results["success"]
+                                )
                                 send_results["failed"].extend(message_results["failed"])
-                                send_results["invalid"].extend(message_results["invalid"])
-                                send_results["modes_used"].extend(message_results.get("modes_used", []))
+                                send_results["invalid"].extend(
+                                    message_results["invalid"]
+                                )
+                                send_results["modes_used"].extend(
+                                    message_results.get("modes_used", [])
+                                )
                                 register_message_tracking_docs(
                                     alert_doc_id=individual_id,
                                     irrigador_id=irrigador_id,
@@ -2184,22 +2570,34 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                     monitor=monitor,
                                     equipment_name=equipamento_nome,
                                 )
-                                text_message_ids_by_phone, text_zaap_ids_by_phone = build_zapi_message_tracking_maps(message_results)
+                                text_message_ids_by_phone, text_zaap_ids_by_phone = (
+                                    build_zapi_message_tracking_maps(message_results)
+                                )
                                 if text_message_ids_by_phone:
                                     log(
                                         "info",
                                         f"Tracking de mensagem Z-API preparado para {irrigador_id}: "
-                                        f"{list(text_message_ids_by_phone.items())}"
+                                        f"{list(text_message_ids_by_phone.items())}",
                                     )
                                 else:
-                                    log("info", f"Nenhum messageId Z-API disponível para tracking de mensagem em {irrigador_id}")
+                                    log(
+                                        "info",
+                                        f"Nenhum messageId Z-API disponível para tracking de mensagem em {irrigador_id}",
+                                    )
                             else:
-                                text_message_ids_by_phone, text_zaap_ids_by_phone = {}, {}
-                                log("info", f"Mensagens WhatsApp/SMS desativadas para {irrigador_id} - pulando envio de texto")
+                                text_message_ids_by_phone, text_zaap_ids_by_phone = (
+                                    {},
+                                    {},
+                                )
+                                log(
+                                    "info",
+                                    f"Nenhum assinante para mensagens em {irrigador_id} - pulando texto",
+                                )
 
-                            if whatsapp_call_enabled and phones:
+                            # Se há pessoas querendo receber ligação
+                            if call_phones:
                                 voice_results = send_voice_call_zapi(
-                                    phones,
+                                    call_phones,
                                     call_duration=VOICE_ZAPI_CALL_DURATION_SECONDS,
                                     retry_context={
                                         "alert_doc_id": individual_id,
@@ -2220,8 +2618,6 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                     or voice_results["invalid"]
                                 ):
                                     send_results["modes_used"].append("voice_zapi")
-                            elif whatsapp_call_enabled:
-                                log("info", f"Ligação WhatsApp/Z-API ativada para {irrigador_id}, mas sem telefone para ligar")
 
                             # Registra histórico no documento
                             docs[0]["notification_history"] = {
@@ -2231,12 +2627,13 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                                 "results": {
                                     "success": send_results["success"],
                                     "failed": send_results["failed"],
-                                    "invalid": send_results["invalid"]
+                                    "invalid": send_results["invalid"],
                                 },
-                                "total_contacts": len(phones) + len(emails),
+                                "total_contacts": len(set(msg_phones + call_phones))
+                                + len(emails),
                                 "success_count": len(send_results["success"]),
                                 "failed_count": len(send_results["failed"]),
-                                "invalid_count": len(send_results["invalid"])
+                                "invalid_count": len(send_results["invalid"]),
                             }
 
                             # Atualiza documento com histórico
@@ -2245,18 +2642,30 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
 
                             # Log consolidado
                             if send_results["success"]:
-                                log("ok", f"{len(send_results['success'])} notificação(ões) enviada(s) via {', '.join(send_results.get('modes_used', []))}")
+                                log(
+                                    "ok",
+                                    f"{len(send_results['success'])} notificação(ões) enviada(s) via {', '.join(send_results.get('modes_used', []))}",
+                                )
                             if send_results["failed"]:
-                                log("warn", f"{len(send_results['failed'])} falha(s) no envio")
+                                log(
+                                    "warn",
+                                    f"{len(send_results['failed'])} falha(s) no envio",
+                                )
                             if send_results["invalid"]:
-                                log("warn", f"{len(send_results['invalid'])} contato(s) inválido(s)")
+                                log(
+                                    "warn",
+                                    f"{len(send_results['invalid'])} contato(s) inválido(s)",
+                                )
 
                         except TwilioException as e:
                             log("error", f"Erro ao enviar notificações Twilio: {e}")
                         except Exception as e:
                             log("error", f"Erro inesperado ao enviar notificações: {e}")
-                    elif notify and not (whatsapp_enabled or whatsapp_call_enabled):
-                        log("info", f"Notificações e ligações DESATIVADAS para {irrigador_id} - nada será enviado")
+                    elif notify and not (msg_phones or call_phones):
+                        log(
+                            "info",
+                            f"Notificações e ligações DESATIVADAS para {irrigador_id} - nada será enviado",
+                        )
                     elif notify:
                         log("info", "Nenhum contato para notificar")
                 else:
@@ -2275,7 +2684,9 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
                     "subkind": payload_type,
                     "irrigadorId": parsed.get("irrigadorId"),
                     # ajuste se tiver companyId explícito:
-                    "companyId": (parsed.get("irrigadorId") or "").split("-")[0] if parsed.get("irrigadorId") else None,
+                    "companyId": (parsed.get("irrigadorId") or "").split("-")[0]
+                    if parsed.get("irrigadorId")
+                    else None,
                     "updated_at": fmt_ts_iso(datetime.now(BR_TZ)),
                 }
                 if payload_type == "vetor_sw":
@@ -2299,16 +2710,18 @@ body {{font-family: Arial, sans-serif; background:#f4f4f4; padding:20px;}}
     except Exception as e:
         log("error", f"Inesperado no worker: {e}")
 
+
 # =============================================================================
 # MQTT Publisher (para alertas em tempo real)
 # =============================================================================
 mqtt_publisher_client: Optional[mqtt.Client] = None
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=4),
     retry=retry_if_exception_type((Exception,)),
-    before_sleep=before_sleep_log(logger, logging.WARNING)
+    before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool:
     """
@@ -2333,9 +2746,9 @@ def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool
         severity_map = {
             "A": "critical",  # Tensão < 50V
             "E": "critical",  # Torre ausente
-            "B": "high",      # Fim-de-curso 1
-            "C": "high",      # Fim-de-curso 2
-            "D": "medium",    # Memória tensão baixa
+            "B": "high",  # Fim-de-curso 1
+            "C": "high",  # Fim-de-curso 2
+            "D": "medium",  # Memória tensão baixa
         }
         severity = severity_map.get(event_type, "medium")
 
@@ -2346,19 +2759,24 @@ def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool
             "severity": severity,
             "eventType": event_type,
             "description": get_alarm_description(event_type),
-            "timestamp": alert_data.get("timestamp", datetime.datetime.now().isoformat()),
+            "timestamp": alert_data.get(
+                "timestamp", datetime.datetime.now().isoformat()
+            ),
             "monitor": alert_data.get("monitor"),
         }
 
         # Publica no tópico de alertas
         topic = f"irrigadores/{irrigador_id}/alerta"
         mqtt_publisher_client.publish(topic, json.dumps(mqtt_message), qos=1)
-        log("info", f"Alerta publicado no MQTT: {irrigador_id} - Severidade: {severity}")
+        log(
+            "info", f"Alerta publicado no MQTT: {irrigador_id} - Severidade: {severity}"
+        )
 
         return True
     except Exception as e:
         log("error", f"Erro ao publicar alerta no MQTT: {str(e)}")
         return False
+
 
 def get_alarm_description(event_type: str) -> str:
     """Retorna descrição do tipo de alarme"""
@@ -2371,16 +2789,18 @@ def get_alarm_description(event_type: str) -> str:
     }
     return descriptions.get(event_type, f"Alerta tipo {event_type}")
 
+
 # =============================================================================
 # MQTT Publisher (para alertas em tempo real)
 # =============================================================================
 mqtt_publisher_client: Optional[mqtt.Client] = None
 
+
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=4),
     retry=retry_if_exception_type((Exception,)),
-    before_sleep=before_sleep_log(logger, logging.WARNING)
+    before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool:
     """
@@ -2405,9 +2825,9 @@ def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool
         severity_map = {
             "A": "critical",  # Tensão < 50V
             "E": "critical",  # Torre ausente
-            "B": "high",      # Fim-de-curso 1
-            "C": "high",      # Fim-de-curso 2
-            "D": "medium",    # Memória tensão baixa
+            "B": "high",  # Fim-de-curso 1
+            "C": "high",  # Fim-de-curso 2
+            "D": "medium",  # Memória tensão baixa
         }
         severity = severity_map.get(event_type, "medium")
 
@@ -2418,19 +2838,24 @@ def publish_alert_to_mqtt(irrigador_id: str, alert_data: Dict[str, Any]) -> bool
             "severity": severity,
             "eventType": event_type,
             "description": get_alarm_description(event_type),
-            "timestamp": alert_data.get("timestamp", datetime.datetime.now().isoformat()),
+            "timestamp": alert_data.get(
+                "timestamp", datetime.datetime.now().isoformat()
+            ),
             "monitor": alert_data.get("monitor"),
         }
 
         # Publica no tópico de alertas
         topic = f"irrigadores/{irrigador_id}/alerta"
         mqtt_publisher_client.publish(topic, json.dumps(mqtt_message), qos=1)
-        log("info", f"Alerta publicado no MQTT: {irrigador_id} - Severidade: {severity}")
+        log(
+            "info", f"Alerta publicado no MQTT: {irrigador_id} - Severidade: {severity}"
+        )
 
         return True
     except Exception as e:
         log("error", f"Erro ao publicar alerta no MQTT: {str(e)}")
         return False
+
 
 def get_alarm_description(event_type: str) -> str:
     """Retorna descrição do tipo de alarme"""
@@ -2442,12 +2867,14 @@ def get_alarm_description(event_type: str) -> str:
         "E": "Torre ausente - comunicação perdida",
     }
     return descriptions.get(event_type, f"Alerta tipo {event_type}")
+
 
 # =============================================================================
 # Fila + Workers
 # =============================================================================
 work_q: "Queue[Tuple[str, str]]" = Queue(maxsize=QUEUE_MAXSIZE)
 stop_event = threading.Event()
+
 
 def worker_loop(worker_id: int):
     log("info", f"Worker-{worker_id} iniciado")
@@ -2462,6 +2889,7 @@ def worker_loop(worker_id: int):
             work_q.task_done()
     log("info", f"Worker-{worker_id} finalizado")
 
+
 # =============================================================================
 # MQTT callbacks (robustez)
 # =============================================================================
@@ -2473,11 +2901,14 @@ def on_connect(client: mqtt.Client, userdata, flags, reason_code, properties=Non
     else:
         log("error", f"Falha ao conectar MQTT: {reason_code}")
 
+
 def on_disconnect(client: mqtt.Client, userdata, reason_code, properties=None):
     log("warn", f"Desconectado do MQTT: {reason_code}. Paho tentará reconectar.")
 
+
 def on_subscribe(client, userdata, mid, granted_qos, properties=None):
     log("info", f"Subscription ok: mid={mid}, qos={granted_qos}")
+
 
 def on_message(client, userdata, msg: mqtt.MQTTMessage):
     if msg.topic.startswith("$SYS/") or msg.topic.startswith("lindsay/comandos"):
@@ -2490,6 +2921,7 @@ def on_message(client, userdata, msg: mqtt.MQTTMessage):
             work_q.put_nowait((msg.topic, payload_str))
     except Full:
         log("warn", "Fila cheia - descartando mensagem (ON_QUEUE_FULL=drop)")
+
 
 # =============================================================================
 # Main
@@ -2519,12 +2951,14 @@ def main():
     # Inicia workers
     threads: List[threading.Thread] = []
     for i in range(max(1, WORKER_COUNT)):
-        t = threading.Thread(target=worker_loop, args=(i+1,), daemon=True)
+        t = threading.Thread(target=worker_loop, args=(i + 1,), daemon=True)
         t.start()
         threads.append(t)
 
     # Configura cliente MQTT
-    client = mqtt.Client(client_id=MQTT_CLIENT_ID, clean_session=True, protocol=mqtt.MQTTv311)
+    client = mqtt.Client(
+        client_id=MQTT_CLIENT_ID, clean_session=True, protocol=mqtt.MQTTv311
+    )
     if MQTT_USERNAME and MQTT_PASSWORD:
         client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
 
@@ -2569,6 +3003,7 @@ def main():
         except Exception:
             pass
         log("ok", "Encerrado com sucesso.")
+
 
 if __name__ == "__main__":
     main()

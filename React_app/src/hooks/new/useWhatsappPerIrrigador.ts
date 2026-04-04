@@ -1,58 +1,42 @@
 /**
- * Hook para gerenciar notificações WhatsApp/SMS por irrigador
- *
- * Estrutura do documento no CouchDB:
- * {
- *   "_id": "whatsapp_config:IRRIGADOR_ID",
- *   "table": "whatsapp_config",
- *   "irrigador_id": "IRRIGADOR_ID",
- *   "whatsapp_enabled": true/false,
- *   "updated_at": "ISO_DATE",
- *   "updated_by": "user@email.com"
- * }
+ * Hook para gerenciar notificações WhatsApp/SMS por irrigador usando Tabela de Assinaturas (Pub/Sub)
  */
-
 import { useState, useEffect, useCallback } from "react";
 import { getDoc, upsertDoc } from "../../api/new/couch";
 
 const DB_NAME = "lindsay-data";
 
-interface WhatsappConfig {
+interface Assinante {
+  user_id: string;
+  numero: string;
+  msg_enabled: boolean;
+  call_enabled: boolean;
+}
+
+interface NotificacoesDoc {
   _id: string;
   _rev?: string;
   table: string;
-  irrigador_id: string;
-  whatsapp_enabled: boolean;
-  whatsapp_call_enabled?: boolean; // Novo campo opcional (para retrocompatibilidade)
+  codigo: string;
+  assinantes: Assinante[];
   updated_at: string;
-  updated_by: string;
-}
-
-function normalizeNotificationState(msg: boolean, call: boolean) {
-  if (call) {
-    return { msg: true, call: true };
-  }
-  if (!msg) {
-    return { msg: false, call: false };
-  }
-  return { msg: true, call: false };
 }
 
 export function useWhatsappPerIrrigador(
   irrigadorId: string | null,
   userEmail?: string,
 ) {
-  // const [enabled, setEnabled] = useState<boolean>(true); // Default: ativado
-  const [msgEnabled, setMsgEnabled] = useState<boolean>(false); // Padrão msg: desativada
-  const [callEnabled, setCallEnabled] = useState<boolean>(false); // Padrão ligação: desativada
+  const [msgEnabled, setMsgEnabled] = useState<boolean>(false);
+  const [callEnabled, setCallEnabled] = useState<boolean>(false);
+  const [savedPhone, setSavedPhone] = useState<string | null>(null); // Guardamos se ele já tem número
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Busca configuração do irrigador
   const fetchConfig = useCallback(async () => {
-    if (!irrigadorId) {
+    if (!irrigadorId || !userEmail) {
       setMsgEnabled(false);
       setCallEnabled(false);
+      setSavedPhone(null);
       return;
     }
 
@@ -60,104 +44,137 @@ export function useWhatsappPerIrrigador(
     setError(null);
 
     try {
-      const docId = `whatsapp_config:${irrigadorId}`;
-      const doc = await getDoc<WhatsappConfig>(DB_NAME, docId);
+      const docId = `notificacoes:${irrigadorId}`;
+      const doc = await getDoc<NotificacoesDoc>(DB_NAME, docId);
 
-      if (doc) {
-        const normalized = normalizeNotificationState(
-          doc.whatsapp_enabled ?? false,
-          doc.whatsapp_call_enabled ?? false,
-        );
-        setMsgEnabled(normalized.msg);
-        setCallEnabled(normalized.call);
-      } else {
-        setMsgEnabled(false);
-        setCallEnabled(false);
+      if (doc && doc.assinantes) {
+        const myConfig = doc.assinantes.find((a) => a.user_id === userEmail);
+        if (myConfig) {
+          setMsgEnabled(myConfig.msg_enabled);
+          setCallEnabled(myConfig.call_enabled);
+          setSavedPhone(myConfig.numero);
+        } else {
+          setMsgEnabled(false);
+          setCallEnabled(false);
+          setSavedPhone(null);
+        }
       }
     } catch (err: any) {
-      // 404 significa que não existe configuração - usa padrão (desativado)
       if (err?.response?.status === 404 || err?.status === 404) {
         setMsgEnabled(false);
         setCallEnabled(false);
+        setSavedPhone(null);
       } else {
-        console.error("[useWhatsappPerIrrigador] Error fetching config:", err);
-        setError(err?.message || "Erro ao buscar configuração");
-        setMsgEnabled(false);
-        setCallEnabled(false);
+        console.error("[useWhatsappPerIrrigador] Erro ao buscar:", err);
+        setError("Erro ao buscar configuração");
       }
     } finally {
       setLoading(false);
     }
-  }, [irrigadorId]);
+  }, [irrigadorId, userEmail]);
 
-  // Atualiza configuração
+  // Função central de atualização com Retry-on-Conflict (Erro 409)
   const updateConfig = useCallback(
-    async (updates: { msg?: boolean; call?: boolean }) => {
-      if (!irrigadorId) return;
+    async (updates: { msg?: boolean; call?: boolean; phone?: string }) => {
+      if (!irrigadorId || !userEmail) return;
 
       setLoading(true);
       setError(null);
 
-      const normalizedState = normalizeNotificationState(
-        updates.msg !== undefined ? updates.msg : msgEnabled,
-        updates.call !== undefined ? updates.call : callEnabled,
-      );
-      const newMsgState = normalizedState.msg;
-      const newCallState = normalizedState.call;
+      const newMsgState = updates.msg !== undefined ? updates.msg : msgEnabled;
+      const newCallState =
+        updates.call !== undefined ? updates.call : callEnabled;
+      // Se não passar telefone novo, usa o que já estava salvo
+      const activePhone = updates.phone || savedPhone || "";
 
-      try {
-        const docId = `whatsapp_config:${irrigadorId}`;
-        const now = new Date().toISOString();
+      const docId = `notificacoes:${irrigadorId}`;
+      let success = false;
+      let retries = 0;
+      const MAX_RETRIES = 3;
 
-        // Busca documento existente
-        let existingDoc: WhatsappConfig | null = null;
+      while (!success && retries < MAX_RETRIES) {
         try {
-          existingDoc = await getDoc<WhatsappConfig>(DB_NAME, docId);
+          const now = new Date().toISOString();
+          let docToSave: NotificacoesDoc;
+
+          try {
+            // Puxa a versão mais recente para evitar 409
+            const existingDoc = await getDoc<NotificacoesDoc>(DB_NAME, docId);
+            let assinantes = [...(existingDoc.assinantes || [])];
+            const userIndex = assinantes.findIndex(
+              (a) => a.user_id === userEmail,
+            );
+
+            if (userIndex >= 0) {
+              assinantes[userIndex] = {
+                ...assinantes[userIndex],
+                numero: activePhone,
+                msg_enabled: newMsgState,
+                call_enabled: newCallState,
+              };
+            } else {
+              assinantes.push({
+                user_id: userEmail,
+                numero: activePhone,
+                msg_enabled: newMsgState,
+                call_enabled: newCallState,
+              });
+            }
+
+            docToSave = { ...existingDoc, assinantes, updated_at: now };
+          } catch (fetchErr: any) {
+            if (
+              fetchErr?.response?.status === 404 ||
+              fetchErr?.status === 404
+            ) {
+              // Cria a tabela do zero se for o primeiro usuário
+              docToSave = {
+                _id: docId,
+                table: "notificacoes",
+                codigo: irrigadorId,
+                assinantes: [
+                  {
+                    user_id: userEmail,
+                    numero: activePhone,
+                    msg_enabled: newMsgState,
+                    call_enabled: newCallState,
+                  },
+                ],
+                updated_at: now,
+              };
+            } else {
+              throw fetchErr;
+            }
+          }
+
+          await upsertDoc(DB_NAME, docToSave);
+          success = true;
+          setMsgEnabled(newMsgState);
+          setCallEnabled(newCallState);
+          setSavedPhone(activePhone); // Atualiza o telefone localmente
         } catch (err: any) {
-          // 404 é esperado se não existir
-          if (err?.response?.status !== 404 && err?.status !== 404) {
-            throw err;
+          if (err?.response?.status === 409 || err?.status === 409) {
+            retries++;
+            console.warn(`Conflito 409. Retentativa ${retries}...`);
+          } else {
+            console.error("Erro no updateConfig:", err);
+            setError("Erro ao atualizar configuração");
+            await fetchConfig();
+            break;
           }
         }
-
-        const docToSave: WhatsappConfig = {
-          _id: docId,
-          table: "whatsapp_config",
-          irrigador_id: irrigadorId,
-          whatsapp_enabled: newMsgState,
-          whatsapp_call_enabled: newCallState,
-          updated_at: now,
-          updated_by: userEmail || "Desconhecido",
-          ...(existingDoc?._rev ? { _rev: existingDoc._rev } : {}),
-        };
-
-        await upsertDoc(DB_NAME, docToSave);
-        setMsgEnabled(newMsgState);
-        setCallEnabled(newCallState);
-
-        //console.log(`[useWhatsappPerIrrigador] WhatsApp ${newEnabled ? 'ativado' : 'desativado'} para ${irrigadorId}`);
-      } catch (err: any) {
-        console.error("[useWhatsappPerIrrigador] Error updating config:", err);
-        setError(err?.message || "Erro ao atualizar configuração");
-        // Reverte estado em caso de erro
-        await fetchConfig();
-      } finally {
-        setLoading(false);
       }
+
+      if (!success) {
+        setError("O sistema está ocupado. Tente novamente.");
+        await fetchConfig();
+      }
+
+      setLoading(false);
     },
-    [irrigadorId, userEmail, msgEnabled, callEnabled, fetchConfig],
+    [irrigadorId, userEmail, savedPhone, msgEnabled, callEnabled, fetchConfig],
   );
 
-  const toggleMsg = useCallback(
-    () => updateConfig({ msg: !msgEnabled }),
-    [msgEnabled, updateConfig],
-  );
-  const toggleCall = useCallback(
-    () => updateConfig(callEnabled ? { call: false } : { msg: true, call: true }),
-    [callEnabled, updateConfig],
-  );
-
-  // Carrega configuração ao montar ou quando irrigadorId muda
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
@@ -165,10 +182,10 @@ export function useWhatsappPerIrrigador(
   return {
     msgEnabled,
     callEnabled,
+    savedPhone,
     loading,
     error,
-    toggleMsg,
-    toggleCall,
+    updateConfig,
     refresh: fetchConfig,
   };
 }
