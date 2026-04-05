@@ -17,8 +17,8 @@ Uso:
         pass
 """
 
-from typing import Dict, Optional, Literal
 from enum import Enum
+from typing import Dict, Literal, Optional
 
 # =============================================================================
 # Enums
@@ -373,14 +373,12 @@ class PermissionChecker:
         return self.has_permission(Permission.VIEW_CLIENTE_PIVOS) and self.is_active()
 
     def can_create_pivo(self) -> bool:
-        """Apenas admin pode criar novos pivôs (hierarquia associada ao cliente)"""
-        return self.is_admin() and self.is_active()
+        """Admin e Revenda podem criar novos pivôs"""
+        return (self.is_admin() or self.is_revenda()) and self.is_active()
 
     def can_create_cliente(self) -> bool:
         """Revenda (gerente) pode criar novos clientes"""
         return self.has_permission(Permission.CREATE_CLIENTE) and self.is_active()
-
-
 
     # =====================================================================
     # Cliente Sub-Role Checks

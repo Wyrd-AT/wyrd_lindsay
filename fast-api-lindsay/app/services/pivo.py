@@ -20,11 +20,13 @@ Uso:
 """
 
 import uuid
-from datetime import datetime
-from zoneinfo import ZoneInfo
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, List, Optional
+from zoneinfo import ZoneInfo
+
 from pydantic import BaseModel, ValidationError
+
 from app.services.permissions import PermissionChecker, Role
 
 BR_TZ = ZoneInfo("America/Sao_Paulo")
@@ -107,7 +109,9 @@ class PivoService:
             Pivô criado ou None se erro/sem permissão
         """
         if not checker.can_create_pivo():
-            raise PermissionError("Apenas administradores podem criar pivôs")
+            raise PermissionError(
+                "Seu perfil não possui os privilégios necessários para criar pivôs."
+            )
 
         # Validar dados
         try:
@@ -129,7 +133,8 @@ class PivoService:
             "nome": pivo_model.nome,
             "ativo": True,
             "type": "pivo",
-            "equipamentos": ["Painel 1", "Painel 2"] + [e for e in pivo_model.equipamentos if e not in ("Painel 1", "Painel 2")],
+            "equipamentos": ["Painel 1", "Painel 2"]
+            + [e for e in pivo_model.equipamentos if e not in ("Painel 1", "Painel 2")],
             "contacts": {
                 "whatsapp": pivo_data.get("contacts", {}).get("whatsapp"),
                 "sms": pivo_data.get("contacts", {}).get("sms"),

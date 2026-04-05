@@ -1,20 +1,23 @@
 """Rotas de pivôs (FASE 2)"""
 
 import logging
-from fastapi import APIRouter, HTTPException, status, Depends
-from app.core.database import get_db, get_users_db
+from tabnanny import check
+
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.core.config import settings
+from app.core.database import get_db, get_users_db
 
 logger = logging.getLogger(__name__)
+from app.api.routes.auth import get_current_user
 from app.models.schemas import (
     CreatePivoRequest,
-    UpdatePivoRequest,
     PivosListResponse,
     PivosStatsResponse,
+    UpdatePivoRequest,
 )
-from app.services.pivo import PivoService
 from app.services.permissions import PermissionChecker
-from app.api.routes.auth import get_current_user
+from app.services.pivo import PivoService
 
 router = APIRouter(prefix="/pivos")
 
@@ -43,9 +46,10 @@ async def create_pivo(
     - Se cliente_id vazio: cria pivô próprio do admin/superadmin (sem cliente).
     """
     checker = PermissionChecker(user)
-    if not checker.is_admin():
+    if not checker.can_create_pivo():
         raise HTTPException(
-            status_code=403, detail="Apenas admin/superadmin podem criar pivôs"
+            status_code=403,
+            detail="Seu perfil não possui os privilégios necessários para criar pivôs.",
         )
 
     if not request.cliente_id:
