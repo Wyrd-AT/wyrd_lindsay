@@ -53,13 +53,18 @@ async def create_pivo(
         )
 
     if not request.cliente_id:
-        # Criar pivô próprio do admin/superadmin (sem cliente)
-        cnpj_admin = user.get("cnpj")
-        if not cnpj_admin:
+        # Criar pivô próprio (sem cliente associado)
+        user_cnpj = user.get("cnpj")
+
+        if not user_cnpj:
             raise HTTPException(
                 status_code=400,
-                detail="cnpj_admin é obrigatório para criar pivô próprio do admin",
+                detail="O CNPJ do utilizador é obrigatório para criar um pivô próprio.",
             )
+
+        # Identificar o perfil para preencher as chaves corretas
+        is_admin = checker.is_admin()
+        is_revenda = checker.is_revenda()
 
         pivo = PivoService(get_db()).create_pivo(
             user=user,
@@ -69,11 +74,13 @@ async def create_pivo(
                 "owner_id": user.get("email"),
                 "cnpj_cliente": None,
                 "nome_cliente": None,
-                "cnpj_revenda": None,
-                "nome_revenda": None,
-                "cnpj_admin": cnpj_admin,
-                "nome_admin": user.get("name"),
-                "revenda_id": None,
+                # Preenche apenas se for revenda
+                "cnpj_revenda": user_cnpj if is_revenda else None,
+                "nome_revenda": user.get("name") if is_revenda else None,
+                "revenda_id": user.get("doc_id") if is_revenda else None,
+                # Preenche apenas se for admin
+                "cnpj_admin": user_cnpj if is_admin else None,
+                "nome_admin": user.get("name") if is_admin else None,
                 "equipamentos": request.equipamentos,
                 "ativo": True,
                 "location": request.location,

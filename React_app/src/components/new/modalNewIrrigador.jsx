@@ -1,5 +1,4 @@
 // src/components/ModalIrrigador.jsx
-// Apenas admin pode criar pivô; associação feita via seleção do cliente (API POST /pivos).
 import React, { useRef, useState, useEffect } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +22,8 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const isAdmin = user?.type === "admin" || user?.type === "superadmin";
+  // Alterado para incluir a revenda
+  const isManager = ["admin", "superadmin", "revenda"].includes(user?.type);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -31,9 +31,9 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Carregar clientes ao abrir (admin pode associar a cliente ou criar próprio)
+  // Carregar clientes ao abrir
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isManager) return;
     let cancelled = false;
     (async () => {
       setLoadingClientes(true);
@@ -44,7 +44,8 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         if (!cancelled) {
           setClientes(list);
           const firstCnpj = list[0]?.cnpj_cliente ?? "";
-          if (list.length > 0 && !clienteId && !isOwnPivo) setClienteId(firstCnpj);
+          if (list.length > 0 && !clienteId && !isOwnPivo)
+            setClienteId(firstCnpj);
         }
       } catch (err) {
         if (!cancelled)
@@ -56,7 +57,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, isOwnPivo]);
+  }, [isManager, isOwnPivo, clienteId]);
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(14);
 
@@ -84,7 +85,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       setError("Por favor, informe o nome do irrigador.");
       return;
     }
-    if (isAdmin && !isOwnPivo && !clienteId) {
+    if (isManager && !isOwnPivo && !clienteId) {
       setError("Selecione o cliente ao qual o pivô será associado.");
       return;
     }
@@ -98,7 +99,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         nome,
         whatsapp,
         sms,
-        cliente_id: isAdmin && !isOwnPivo ? clienteId : undefined, // cnpj_cliente do cliente selecionado
+        cliente_id: isManager && !isOwnPivo ? clienteId : undefined,
         equipamentos: equipamentos.filter(Boolean),
       });
       onSuccess?.();
@@ -142,7 +143,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
         {error && <div className="mb-4 text-red-400 text-sm">{error}</div>}
 
-        {isAdmin && (
+        {isManager && (
           <label className="block text-white mb-4">
             <div className="flex items-center justify-between mb-2">
               <span>Cliente</span>
@@ -158,7 +159,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
                   }}
                   disabled={isSaving}
                 />
-                Pivô próprio do admin
+                Pivô próprio (sem cliente)
               </label>
             </div>
             <select
@@ -168,7 +169,9 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
               disabled={isSaving || loadingClientes || isOwnPivo}
               required={!isOwnPivo}
             >
-              <option value="">{isOwnPivo ? "Pivô próprio do admin" : "Selecione o cliente"}</option>
+              <option value="">
+                {isOwnPivo ? "Pivô próprio" : "Selecione o cliente"}
+              </option>
               {clientes.map((c) => (
                 <option
                   key={c._id ?? c.cnpj_cliente}
@@ -291,7 +294,9 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
             type="submit"
             disabled={
               isSaving ||
-              (isAdmin && !isOwnPivo && (loadingClientes || clientes.length === 0))
+              (isManager &&
+                !isOwnPivo &&
+                (loadingClientes || clientes.length === 0))
             }
             className={`px-4 py-2 rounded-md text-white ${isSaving ? "bg-gray-500 cursor-not-allowed" : "bg-[#08cb7c] hover:bg-green-600"}`}
           >
