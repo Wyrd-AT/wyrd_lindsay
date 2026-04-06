@@ -123,6 +123,7 @@ class RevendaService:
         cognito_sub: Optional[str] = None,
         initial_status: str = "pending",
         cnpj_admin: Optional[str] = None,  # CNPJ do admin que cria (para hierarquia)
+        phone_number: Optional[str] = None,
     ) -> Tuple[bool, str, Optional[str]]:
         """
         Criar documento de revenda no CouchDB (permite múltiplos cadastros)
@@ -153,6 +154,7 @@ class RevendaService:
                 "type": "revenda",
                 "email": email,
                 "name": name,
+                "phone_number": phone_number,
                 "domain": name,  # domain = name (padrão do DB)
                 "cnpj_revenda": cnpj_revenda,  # Armazenado mas não é chave
                 "cnpj_admin": cnpj_admin,  # CNPJ do admin para hierarquia
@@ -212,6 +214,7 @@ class RevendaService:
         cnpj: str,
         cognito_sub: Optional[str] = None,
         cnpj_admin: Optional[str] = None,
+        phone_number: Optional[str] = None,
     ) -> Tuple[bool, str, Optional[Dict]]:
         """
         Registrar revenda completo (CouchDB + Cognito)
@@ -250,6 +253,7 @@ class RevendaService:
             cnpj_revenda=cnpj_formatted,
             cognito_sub=cognito_sub,
             cnpj_admin=cnpj_admin,
+            phone_number=phone_number,
         )
 
         if not success:
@@ -342,4 +346,3 @@ class RevendaService:
         except Exception as e:
             print(f"Erro ao obter revenda por email: {e}")
             return []
-

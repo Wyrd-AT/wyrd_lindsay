@@ -59,7 +59,9 @@ async def create_admin(
 
     # Superadmin pode escolher o tipo; admin regular sempre cria admin da mesma equipe
     if checker.is_superadmin():
-        new_type = body.new_type if body.new_type in ("superadmin", "admin") else "superadmin"
+        new_type = (
+            body.new_type if body.new_type in ("superadmin", "admin") else "superadmin"
+        )
         # Superadmin criando admin externo: usa cnpj_admin do body
         # Superadmin criando superadmin (mesma equipe): herda o próprio cnpj
         if new_type == "admin" and body.cnpj_admin:
@@ -81,6 +83,7 @@ async def create_admin(
             cnpj_admin=cnpj_admin,
             created_by=user.get("email"),
             user_type=new_type,
+            phone_number=body.phone_number,
         )
 
         if result.status == "error":
@@ -97,6 +100,7 @@ async def create_admin(
                     {"Name": "email", "Value": body.email},
                     {"Name": "email_verified", "Value": "true"},
                     {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
                     {"Name": "custom:type", "Value": new_type},
                     {"Name": "custom:status", "Value": "active"},
                     {"Name": "custom:cnpj", "Value": cnpj_admin},
@@ -206,8 +210,19 @@ async def update_admin(
         cognito_attrs.append({"Name": "custom:cnpj", "Value": body.cnpj_admin})
         changed = True
 
+    if body.phone_number is not None and body.phone_number != target.get(
+        "phone_number"
+    ):
+        target["phone_number"] = body.phone_number
+        cognito_attrs.append({"Name": "phone_number", "Value": body.phone_number})
+        changed = True
+
     if not changed:
-        return {"status": "success", "message": "Nenhuma alteração aplicada", "admin": target}
+        return {
+            "status": "success",
+            "message": "Nenhuma alteração aplicada",
+            "admin": target,
+        }
 
     db.save(target)
 
@@ -221,7 +236,11 @@ async def update_admin(
     except Exception as e:
         print(f"⚠️ Aviso ao atualizar Cognito (admin): {e}")
 
-    return {"status": "success", "message": "Admin atualizado com sucesso", "admin": target}
+    return {
+        "status": "success",
+        "message": "Admin atualizado com sucesso",
+        "admin": target,
+    }
 
 
 @router.delete("/{admin_id}")
@@ -254,7 +273,9 @@ async def delete_admin(
 
     # Evita auto-exclusão acidental
     if target.get("email") == user.get("email"):
-        raise HTTPException(status_code=400, detail="Não é permitido deletar o próprio usuário")
+        raise HTTPException(
+            status_code=400, detail="Não é permitido deletar o próprio usuário"
+        )
 
     try:
         if target.get("email"):

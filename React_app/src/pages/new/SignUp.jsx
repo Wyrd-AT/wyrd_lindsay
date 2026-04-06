@@ -63,6 +63,7 @@ const SignUp = () => {
             name,
             domain || email.split("@")[1],
             cnpj,
+            phoneNumber,
           );
 
           //console.log("✅ Revenda registrada com sucesso:", response);
@@ -88,7 +89,10 @@ const SignUp = () => {
       const customAttributes = {
         name: name,
         type: userType,
-        status: userType === "admin" || userType === "superadmin" ? "active" : "pending",
+        status:
+          userType === "admin" || userType === "superadmin"
+            ? "active"
+            : "pending",
       };
 
       // Adicionar telefone se fornecido

@@ -7,7 +7,7 @@ import apiClient from "./apiClient";
 
 /**
  * Create a revenda via admin
- * @param {Object} data - { email, password, name, cnpj_revenda, cnpj_admin }
+ * @param {Object} data - { email, password, name, cnpj_revenda, cnpj_admin, phone_number }
  * @returns {Promise<Object>} Response with revenda_id and status
  */
 export const createRevenda = async (data) => {
@@ -16,8 +16,9 @@ export const createRevenda = async (data) => {
       email: data.email,
       password: data.password,
       name: data.name,
-      cnpj_revenda: data.cnpj_revenda, // ← CNPJ da revenda
-      cnpj_admin: data.cnpj_admin, // ← CNPJ do admin para associação
+      phone_number: data.phone_number, // ← [NOVO] Adicionado telefone
+      cnpj_revenda: data.cnpj_revenda,
+      cnpj_admin: data.cnpj_admin,
     });
     return response.data;
   } catch (error) {
@@ -28,7 +29,7 @@ export const createRevenda = async (data) => {
 
 /**
  * Create a cliente via admin
- * @param {Object} data - { email, password, name, revenda_id? }
+ * @param {Object} data - { email, password, name, cnpj_cliente, revenda_id?, sub_role?, phone_number }
  * @returns {Promise<Object>} Response with cliente_id and status
  */
 export const createCliente = async (data) => {
@@ -37,6 +38,7 @@ export const createCliente = async (data) => {
       email: data.email,
       password: data.password,
       name: data.name,
+      phone_number: data.phone_number, // ← [NOVO] Adicionado telefone
       cnpj_cliente: data.cnpj_cliente,
       revenda_id: data.revenda_id || null,
       sub_role: data.sub_role || null,
@@ -94,7 +96,7 @@ export const fetchAdmins = async () => {
 
 /**
  * Create a new admin (admin only)
- * @param {Object} data - { email, password, name, new_type?, cnpj_admin? }
+ * @param {Object} data - { email, password, name, new_type?, cnpj_admin?, phone_number }
  * @returns {Promise<Object>} Response with admin_id and status
  */
 export const createAdmin = async (data) => {
@@ -103,6 +105,7 @@ export const createAdmin = async (data) => {
       email: data.email,
       password: data.password,
       name: data.name,
+      phone_number: data.phone_number, // ← Ajustado para data.phone_number
     };
     if (data.new_type) payload.new_type = data.new_type;
     if (data.cnpj_admin) payload.cnpj_admin = data.cnpj_admin;
@@ -117,7 +120,10 @@ export const createAdmin = async (data) => {
 
 export const updateAdmin = async (adminId, data) => {
   try {
-    const response = await apiClient.put(`/admins/${encodeURIComponent(adminId)}`, data);
+    const response = await apiClient.put(
+      `/admins/${encodeURIComponent(adminId)}`,
+      data,
+    );
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -127,7 +133,9 @@ export const updateAdmin = async (adminId, data) => {
 
 export const deleteAdmin = async (adminId) => {
   try {
-    const response = await apiClient.delete(`/admins/${encodeURIComponent(adminId)}`);
+    const response = await apiClient.delete(
+      `/admins/${encodeURIComponent(adminId)}`,
+    );
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -150,7 +158,9 @@ export const updateRevenda = async (revendaId, data) => {
 
 export const deleteRevenda = async (revendaId) => {
   try {
-    const response = await apiClient.delete(`/revendas/${encodeURIComponent(revendaId)}`);
+    const response = await apiClient.delete(
+      `/revendas/${encodeURIComponent(revendaId)}`,
+    );
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -173,7 +183,9 @@ export const updateCliente = async (clienteId, data) => {
 
 export const deleteCliente = async (clienteId) => {
   try {
-    const response = await apiClient.delete(`/clientes/${encodeURIComponent(clienteId)}`);
+    const response = await apiClient.delete(
+      `/clientes/${encodeURIComponent(clienteId)}`,
+    );
     return response.data;
   } catch (error) {
     const errorMsg = error.response?.data?.detail || error.message;
@@ -197,7 +209,7 @@ export const fetchCompanyUsers = async () => {
 
 /**
  * Create a company user (gerente or comum) - superusuário only
- * @param {Object} data - { email, password, name, sub_role }
+ * @param {Object} data - { email, password, name, sub_role, phone_number }
  * @returns {Promise<Object>} Response with user_id and status
  */
 export const createCompanyUser = async (data) => {
@@ -207,6 +219,7 @@ export const createCompanyUser = async (data) => {
       password: data.password,
       name: data.name,
       sub_role: data.sub_role,
+      phone_number: data.phone_number, // ← [NOVO] Adicionado telefone
     });
     return response.data;
   } catch (error) {

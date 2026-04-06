@@ -1,4 +1,9 @@
 import { useRef, useState, useEffect } from "react";
+import {
+  formatPhoneMask,
+  getRawPhone,
+  isPhoneValid,
+} from "../../utils/phoneUtils"; // [NOVO] Import
 
 export const CreateClienteModal = ({
   closeModal,
@@ -19,8 +24,9 @@ export const CreateClienteModal = ({
   const [revendasList, setRevendasList] = useState(revendas);
   const [documento, setDocumento] = useState("");
   const [subRole, setSubRole] = useState("superusuario");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
-  // Formata CPF (XXX.XXX.XXX-XX) ou CNPJ (XX.XXX.XXX/XXXX-XX) conforme a digitação
+  // Formata CPF (XXX.XXX.XXX-XX) ou CNPJ (XX.XXX.XXX/XXXX-XX)
   const formatDocumento = (value) => {
     const digits = value.replace(/\D/g, "").slice(0, 14);
     if (digits.length <= 11) {
@@ -41,7 +47,6 @@ export const CreateClienteModal = ({
     return digits.length === 11 || digits.length === 14;
   })();
 
-  // Password criteria states
   const [passwordCriteria, setPasswordCriteria] = useState({
     minLength: false,
     hasUppercase: false,
@@ -50,7 +55,6 @@ export const CreateClienteModal = ({
     hasSpecialChar: false,
   });
 
-  // Load revendas on mount — apenas quando showRevendaField=true
   useEffect(() => {
     if (!showRevendaField) return;
 
@@ -71,9 +75,8 @@ export const CreateClienteModal = ({
       }
     };
     loadRevendas();
-  }, [showRevendaField]);
+  }, [showRevendaField, revendasList.length]);
 
-  // Update password criteria on change
   const handlePasswordChange = (e) => {
     const pwd = e.target.value;
     setPassword(pwd);
@@ -91,7 +94,6 @@ export const CreateClienteModal = ({
     (v) => v === true,
   );
 
-  // Close on ESC
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "Escape") {
@@ -102,7 +104,6 @@ export const CreateClienteModal = ({
     return () => window.removeEventListener("keydown", onKey);
   }, [closeModal]);
 
-  // Close on backdrop click
   const onBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       closeModal();
@@ -157,6 +158,7 @@ export const CreateClienteModal = ({
         cnpj_cliente: documento.replace(/\D/g, ""),
         revenda_id: revendaId,
         sub_role: subRole,
+        phone_number: getRawPhone(phoneNumber), // [NOVO] Limpa máscara antes de enviar
       });
 
       if (response && response.cliente_id) {
@@ -240,6 +242,27 @@ export const CreateClienteModal = ({
           />
         </label>
 
+        {/* [NOVO] CAMPO COM MÁSCARA */}
+        <label className="block text-white mb-4">
+          Celular / WhatsApp *
+          <input
+            type="tel"
+            required
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(formatPhoneMask(e.target.value))}
+            className={`w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none focus:ring-2 focus:ring-green-500 ${
+              phoneNumber && !isPhoneValid(phoneNumber) ? "border-red-500" : ""
+            }`}
+            placeholder="+55 (11) 99999-9999"
+            disabled={isSaving}
+          />
+          {phoneNumber && !isPhoneValid(phoneNumber) && (
+            <span className="text-xs text-red-400 block mt-1">
+              Número incompleto.
+            </span>
+          )}
+        </label>
+
         <label className="block text-white mb-4">
           CNPJ ou CPF do Cliente *
           <input
@@ -306,7 +329,8 @@ export const CreateClienteModal = ({
             <option value="comum">Comum</option>
           </select>
           <span className="text-xs text-gray-400">
-            Superusuário: acesso total · Gerente: gerencia pivôs · Comum: apenas visualiza
+            Superusuário: acesso total · Gerente: gerencia pivôs · Comum: apenas
+            visualiza
           </span>
         </label>
 
@@ -374,11 +398,19 @@ export const CreateClienteModal = ({
           </button>
           <button
             type="submit"
-            disabled={isSaving || !isPasswordValid || !isDocumentoValid}
+            disabled={
+              isSaving ||
+              !isPasswordValid ||
+              !isDocumentoValid ||
+              !isPhoneValid(phoneNumber)
+            } // [NOVO] Trava o botão
             className={`
               px-4 py-2 rounded-md text-black font-medium
               ${
-                isSaving || !isPasswordValid || !isDocumentoValid
+                isSaving ||
+                !isPasswordValid ||
+                !isDocumentoValid ||
+                !isPhoneValid(phoneNumber)
                   ? "bg-gray-500 cursor-not-allowed"
                   : "bg-[#08cb7c] hover:bg-green-600"
               }

@@ -3,7 +3,6 @@ import api, { COGNITO_CLIENT_ID } from "./api";
 import { getDoc, COUCH_USERS_DB } from "./couch";
 import apiClient from "./apiClient"; // 👈 Ajuste o caminho para o seu arquivo apiClient.js
 
-
 // Função auxiliar para decodificar JWT
 const decodeToken = (token) => {
   try {
@@ -122,9 +121,17 @@ export const signUp = async (email, password, customAttributes = {}) => {
  * @param {string} name - Nome da revenda
  * @param {string} domain - Domínio (ex: wyrd.com.br)
  * @param {string} cnpj - CNPJ (formato: XX.XXX.XXX/0001-XX)
+ * @param {string} phoneNumber - CNPJ (formato: +5511999999999)
  * @returns {Promise<Object>} Resposta do backend
  */
-export const registerRevenda = async (email, password, name, domain, cnpj) => {
+export const registerRevenda = async (
+  email,
+  password,
+  name,
+  domain,
+  cnpj,
+  phoneNumber,
+) => {
   try {
     // O apiClient já utiliza a VITE_API_BASE_URL e inclui o prefixo /api
     // O endpoint final será: http://seu-ip/api/auth/register
@@ -135,6 +142,7 @@ export const registerRevenda = async (email, password, name, domain, cnpj) => {
       user_type: "revenda",
       domain,
       cnpj,
+      phone_number: phoneNumber,
     });
 
     // No Axios, os dados retornados pelo servidor ficam em .data
@@ -266,7 +274,10 @@ export const signIn = async (email, password) => {
           const adminDocId = `admin:${userEmail}`;
           try {
             const adminDoc = await getDoc(COUCH_USERS_DB, adminDocId);
-            if (adminDoc && (adminDoc.type === "admin" || adminDoc.type === "superadmin")) {
+            if (
+              adminDoc &&
+              (adminDoc.type === "admin" || adminDoc.type === "superadmin")
+            ) {
               userType = "admin";
               //console.log('✅ Admin identificado no CouchDB:', adminDocId);
             }
@@ -308,7 +319,9 @@ export const signIn = async (email, password) => {
     // Extrair doc_id do Cognito (formato: admin:admin@company.com)
     const docId =
       tokenPayload["custom:doc_id"] ||
-      (userType === "admin" || userType === "superadmin" ? `admin:${userEmail}` : null) ||
+      (userType === "admin" || userType === "superadmin"
+        ? `admin:${userEmail}`
+        : null) ||
       (userType === "revenda"
         ? `revenda:${tokenPayload["custom:domain"] || userEmail.split("@")[1]}`
         : null) ||
@@ -336,7 +349,11 @@ export const signIn = async (email, password) => {
             //console.log('✅ Sub-role do cliente:', userSubRole);
           }
           // CNPJ: admin/revenda/cliente têm no documento; Cognito pode não ter custom:cnpj
-          if (!userCnpj && (userType === "admin" || userType === "superadmin") && userDoc.cnpj_admin) {
+          if (
+            !userCnpj &&
+            (userType === "admin" || userType === "superadmin") &&
+            userDoc.cnpj_admin
+          ) {
             userCnpj = userDoc.cnpj_admin;
             //console.log('✅ CNPJ do admin obtido do CouchDB:', userCnpj);
           } else if (
@@ -378,9 +395,10 @@ export const signIn = async (email, password) => {
       try {
         const verifyDoc = await getDoc(COUCH_USERS_DB, docId);
         if (verifyDoc) {
-          emailVerified = verifyDoc.email_verified !== undefined
-            ? verifyDoc.email_verified
-            : true; // backward compat
+          emailVerified =
+            verifyDoc.email_verified !== undefined
+              ? verifyDoc.email_verified
+              : true; // backward compat
           termsAccepted = verifyDoc.terms_accepted || false;
           termsVersion = verifyDoc.terms_version || null;
         }

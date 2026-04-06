@@ -11,6 +11,11 @@
 import React, { useState, useEffect } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
 import { createAdmin, fetchAdmins } from "../../api/new/fastapi-admin";
+import {
+  formatPhoneMask,
+  getRawPhone,
+  isPhoneValid,
+} from "../../utils/phoneUtils";
 
 interface CreateAdminModalProps {
   closeModal: () => void;
@@ -45,7 +50,12 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
   const user = useAuthStore((state) => state.user);
   const isSuperadmin = user?.type === "superadmin";
 
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone_number: "",
+  });
   const [selectedTeam, setSelectedTeam] = useState<string>(user?.cnpj || "");
   const [newCnpj, setNewCnpj] = useState("");
   const [teams, setTeams] = useState<TeamOption[]>([]);
@@ -79,7 +89,7 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
           }
           // Minha equipe primeiro
           const sorted = Array.from(teamsMap.values()).sort((a, b) =>
-            a.isSuperadminTeam ? -1 : b.isSuperadminTeam ? 1 : 0
+            a.isSuperadminTeam ? -1 : b.isSuperadminTeam ? 1 : 0,
           );
           setTeams(sorted);
         }
@@ -119,7 +129,11 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
 
     try {
       const newType = resolveType();
-      const cnpj = isNewTeam ? newCnpj : selectedTeam !== user?.cnpj ? selectedTeam : undefined;
+      const cnpj = isNewTeam
+        ? newCnpj
+        : selectedTeam !== user?.cnpj
+          ? selectedTeam
+          : undefined;
 
       await createAdmin({
         email: form.email,
@@ -127,6 +141,7 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
         name: form.name,
         new_type: isSuperadmin ? newType : undefined,
         cnpj_admin: cnpj,
+        phone_number: getRawPhone(form.phone_number),
       });
       onSuccess();
     } catch (err) {
@@ -178,7 +193,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
                         {t.label}
                       </option>
                     ))}
-                    <option value="__new__">+ Criar equipe nova (informar CNPJ)</option>
+                    <option value="__new__">
+                      + Criar equipe nova (informar CNPJ)
+                    </option>
                   </>
                 )}
               </select>
@@ -221,6 +238,34 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
           </div>
 
           <div>
+            <label className="block text-sm text-dashboard-text-secondary mb-1 text-white">
+              Celular / WhatsApp
+            </label>
+            <input
+              type="tel"
+              required
+              value={form.phone_number} // ou `phoneNumber` se não for objeto
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  phone_number: formatPhoneMask(e.target.value),
+                })
+              }
+              className={`w-full bg-dashboard-bg-tertiary border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none ${
+                form.phone_number && !isPhoneValid(form.phone_number)
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-dashboard-border focus:border-dashboard-accent"
+              }`}
+              placeholder="+55 (11) 99999-9999"
+            />
+            {form.phone_number && !isPhoneValid(form.phone_number) && (
+              <span className="text-xs text-red-400 block mt-1">
+                Número incompleto.
+              </span>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm text-dashboard-text-secondary mb-1">
               Senha
             </label>
@@ -254,7 +299,8 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
               />
               {newCnpj && !isCnpjValid && (
                 <span className="text-xs text-red-400 block mt-1">
-                  Documento incompleto ({newCnpj.replace(/\D/g, "").length} dígitos)
+                  Documento incompleto ({newCnpj.replace(/\D/g, "").length}{" "}
+                  dígitos)
                 </span>
               )}
             </div>
@@ -270,7 +316,9 @@ export const CreateAdminModal: React.FC<CreateAdminModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || !isCnpjValid}
+              disabled={
+                loading || !isCnpjValid || !isPhoneValid(form.phone_number)
+              }
               className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 disabled:text-gray-400 text-black font-bold rounded transition"
             >
               {loading ? "Criando..." : "Criar"}

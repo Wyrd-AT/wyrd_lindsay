@@ -5,6 +5,11 @@
 
 import React, { useState } from "react";
 import { createCompanyUser } from "../../api/new/fastapi-admin";
+import {
+  formatPhoneMask,
+  getRawPhone,
+  isPhoneValid,
+} from "../../utils/phoneUtils"; // [NOVO] Import das funções
 
 interface CreateCompanyUserModalProps {
   closeModal: () => void;
@@ -20,6 +25,7 @@ export const CreateCompanyUserModal: React.FC<CreateCompanyUserModalProps> = ({
     email: "",
     password: "",
     sub_role: "gerente",
+    phone_number: "", // [NOVO] Inicia vazio
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +41,7 @@ export const CreateCompanyUserModal: React.FC<CreateCompanyUserModalProps> = ({
         password: form.password,
         name: form.name,
         sub_role: form.sub_role,
+        phone_number: getRawPhone(form.phone_number), // [NOVO] Envia o número limpo
       });
       onSuccess();
     } catch (err) {
@@ -94,6 +101,35 @@ export const CreateCompanyUserModal: React.FC<CreateCompanyUserModalProps> = ({
             />
           </div>
 
+          {/* [NOVO] CAMPO COM MÁSCARA */}
+          <div>
+            <label className="block text-sm text-dashboard-text-secondary mb-1">
+              Celular / WhatsApp *
+            </label>
+            <input
+              type="tel"
+              required
+              value={form.phone_number}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  phone_number: formatPhoneMask(e.target.value),
+                })
+              }
+              className={`w-full bg-dashboard-bg-tertiary border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none ${
+                form.phone_number && !isPhoneValid(form.phone_number)
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-dashboard-border focus:border-dashboard-accent"
+              }`}
+              placeholder="+55 (11) 99999-9999"
+            />
+            {form.phone_number && !isPhoneValid(form.phone_number) && (
+              <span className="text-xs text-red-400 block mt-1">
+                Número incompleto.
+              </span>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm text-dashboard-text-secondary mb-1">
               Senha
@@ -138,8 +174,8 @@ export const CreateCompanyUserModal: React.FC<CreateCompanyUserModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 text-black font-bold rounded transition"
+              disabled={loading || !isPhoneValid(form.phone_number)} // [NOVO] Trava botão se telefone for inválido
+              className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 disabled:text-gray-400 text-black font-bold rounded transition"
             >
               {loading ? "Criando..." : "Criar Usuário"}
             </button>

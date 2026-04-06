@@ -104,6 +104,7 @@ async def create_revenda_admin(
             cognito_sub=None,  # Será preenchido depois
             initial_status="active",
             cnpj_admin=body.cnpj_admin,
+            phone_number=body.phone_number,
         )
 
         if not success:
@@ -121,6 +122,7 @@ async def create_revenda_admin(
                     {"Name": "email", "Value": body.email},
                     {"Name": "email_verified", "Value": "true"},
                     {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
                     {"Name": "custom:type", "Value": "revenda"},
                     {"Name": "custom:status", "Value": "active"},
                     {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
@@ -243,7 +245,9 @@ async def update_revenda(
         cognito_attrs.append({"Name": "custom:status", "Value": body.status})
         changed = True
 
-    if body.cnpj_revenda is not None and body.cnpj_revenda != revenda.get("cnpj_revenda"):
+    if body.cnpj_revenda is not None and body.cnpj_revenda != revenda.get(
+        "cnpj_revenda"
+    ):
         revenda["cnpj_revenda"] = body.cnpj_revenda
         cognito_attrs.append({"Name": "custom:cnpj", "Value": body.cnpj_revenda})
         changed = True
@@ -254,6 +258,13 @@ async def update_revenda(
                 status_code=403, detail="Apenas superadmin pode alterar cnpj_admin"
             )
         revenda["cnpj_admin"] = body.cnpj_admin
+        changed = True
+
+    if body.phone_number is not None and body.phone_number != revenda.get(
+        "phone_number"
+    ):
+        revenda["phone_number"] = body.phone_number
+        cognito_attrs.append({"Name": "phone_number", "Value": body.phone_number})
         changed = True
 
     if not changed:
@@ -275,7 +286,11 @@ async def update_revenda(
     except Exception as e:
         print(f"⚠️ Aviso ao atualizar Cognito (revenda): {e}")
 
-    return {"status": "success", "message": "Revenda atualizada com sucesso", "revenda": revenda}
+    return {
+        "status": "success",
+        "message": "Revenda atualizada com sucesso",
+        "revenda": revenda,
+    }
 
 
 @router.delete("/{revenda_id}")

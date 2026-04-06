@@ -21,7 +21,9 @@ from app.api.routes.auth import get_current_user
 router = APIRouter(prefix="/clientes")
 
 
-def _can_manage_cliente_target(checker: PermissionChecker, user: dict, cliente_doc: dict) -> bool:
+def _can_manage_cliente_target(
+    checker: PermissionChecker, user: dict, cliente_doc: dict
+) -> bool:
     """Regra de escopo para editar/deletar clientes."""
     if checker.is_superadmin():
         return True
@@ -38,7 +40,11 @@ def _raise_cognito_http_error(exc: ClientError) -> None:
     code = error.get("Code", "CognitoError")
     message = error.get("Message", str(exc))
 
-    if code in {"UnrecognizedClientException", "InvalidClientTokenId", "ExpiredTokenException"}:
+    if code in {
+        "UnrecognizedClientException",
+        "InvalidClientTokenId",
+        "ExpiredTokenException",
+    }:
         raise HTTPException(
             status_code=502,
             detail="Falha de autenticação com AWS Cognito (credenciais/token inválidos no backend).",
@@ -70,7 +76,12 @@ async def list_clientes(user: dict = Depends(get_current_user)):
         elif checker.is_admin_only():
             # Admin regular: Busca clientes vinculados ao seu cnpj_admin
             clientes_raw = list(
-                db_conn.find({"selector": {"type": "cliente", "cnpj_admin": user["cnpj"]}, "limit": 2000})
+                db_conn.find(
+                    {
+                        "selector": {"type": "cliente", "cnpj_admin": user["cnpj"]},
+                        "limit": 2000,
+                    }
+                )
             )
         else:
             # Revenda: busca clientes cujo revenda_id == doc_id da revenda
@@ -112,7 +123,6 @@ async def list_clientes(user: dict = Depends(get_current_user)):
         return ClientesListResponse(total=len(clientes), clientes=clientes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post("", status_code=201)
@@ -191,6 +201,7 @@ async def create_cliente_admin(
                 {"Name": "email", "Value": body.email},
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "name", "Value": body.name},
+                {"Name": "phone_number", "Value": body.phone_number},
                 {"Name": "custom:type", "Value": "cliente"},
                 {"Name": "custom:status", "Value": "active"},
                 {"Name": "custom:cnpj", "Value": body.cnpj_cliente or ""},
@@ -223,6 +234,7 @@ async def create_cliente_admin(
                 "type": "cliente",
                 "email": body.email,
                 "name": body.name,
+                "phone_number": body.phone_number,
                 "status": "active",  # Admin/revenda cria direto como ativo
                 "created_at": now,
                 "approved_at": now,  # Criado por admin/revenda = aprovado imediatamente
@@ -365,7 +377,9 @@ async def update_cliente(
         cliente["revenda_id"] = body.revenda_id
         changed = True
 
-    if body.cnpj_cliente is not None and body.cnpj_cliente != cliente.get("cnpj_cliente"):
+    if body.cnpj_cliente is not None and body.cnpj_cliente != cliente.get(
+        "cnpj_cliente"
+    ):
         cliente["cnpj_cliente"] = body.cnpj_cliente
         cognito_attrs.append({"Name": "custom:cnpj", "Value": body.cnpj_cliente})
         changed = True
@@ -378,12 +392,21 @@ async def update_cliente(
         cliente["cnpj_admin"] = body.cnpj_admin
         changed = True
 
-    if body.cnpj_revenda is not None and body.cnpj_revenda != cliente.get("cnpj_revenda"):
+    if body.cnpj_revenda is not None and body.cnpj_revenda != cliente.get(
+        "cnpj_revenda"
+    ):
         if checker.is_revenda():
             raise HTTPException(
                 status_code=403, detail="Revenda não pode alterar cnpj_revenda"
             )
         cliente["cnpj_revenda"] = body.cnpj_revenda
+        changed = True
+
+    if body.phone_number is not None and body.phone_number != cliente.get(
+        "phone_number"
+    ):
+        cliente["phone_number"] = body.phone_number
+        cognito_attrs.append({"Name": "phone_number", "Value": body.phone_number})
         changed = True
 
     if not changed:
@@ -405,7 +428,11 @@ async def update_cliente(
     except Exception as e:
         print(f"⚠️ Aviso ao atualizar Cognito (cliente): {e}")
 
-    return {"status": "success", "message": "Cliente atualizado com sucesso", "cliente": cliente}
+    return {
+        "status": "success",
+        "message": "Cliente atualizado com sucesso",
+        "cliente": cliente,
+    }
 
 
 @router.delete("/{cliente_id}")
@@ -442,7 +469,6 @@ async def delete_cliente(
 
     db.delete(cliente)
     return {"status": "success", "message": "Cliente deletado com sucesso"}
-
 
 
 # ============================================================================
@@ -545,6 +571,7 @@ async def create_company_user(
                 {"Name": "email", "Value": body.email},
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "name", "Value": body.name},
+                {"Name": "phone_number", "Value": body.phone_number},
                 {"Name": "custom:type", "Value": "cliente"},
                 {"Name": "custom:status", "Value": "active"},
                 {"Name": "custom:cnpj", "Value": cnpj_cliente},
@@ -571,6 +598,7 @@ async def create_company_user(
             "type": "cliente",
             "email": body.email,
             "name": body.name,
+            "phone_number": body.phone_number,
             "status": "active",
             "sub_role": body.sub_role,
             "created_at": now,

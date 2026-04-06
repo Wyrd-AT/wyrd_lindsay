@@ -140,6 +140,7 @@ class AuthService:
         cnpj_admin: Optional[str] = None,
         created_by: Optional[str] = None,
         user_type: str = "admin",
+        phone_number: Optional[str] = None,
     ) -> ApprovalResult:
         """
         Registrar novo ADMIN ou SUPERADMIN
@@ -162,6 +163,7 @@ class AuthService:
                 "type": user_type,
                 "email": email,
                 "name": name,
+                "phone_number": phone_number,
                 "password_hash": self.hash_password(password),
                 "cnpj_admin": cnpj_admin,
                 "revendas": [],
@@ -340,13 +342,18 @@ class AuthService:
                 doc_id = f"admin:{email}"
                 doc = self.db.get(doc_id)
 
-                if not doc or doc.get("type") != "superadmin" or doc.get("status") != "active":
+                if (
+                    not doc
+                    or doc.get("type") != "superadmin"
+                    or doc.get("status") != "active"
+                ):
                     return None
 
                 if self.verify_password(password, doc.get("password_hash", "")):
                     return {
                         "email": doc["email"],
                         "name": doc["name"],
+                        "phone_number": doc.get("phone_number"),
                         "type": "superadmin",
                         "status": doc["status"],
                         "doc_id": doc_id,
@@ -357,13 +364,18 @@ class AuthService:
                 doc_id = f"admin:{email}"
                 doc = self.db.get(doc_id)
 
-                if not doc or doc.get("type") != "admin" or doc.get("status") != "active":
+                if (
+                    not doc
+                    or doc.get("type") != "admin"
+                    or doc.get("status") != "active"
+                ):
                     return None
 
                 if self.verify_password(password, doc.get("password_hash", "")):
                     return {
                         "email": doc["email"],
                         "name": doc["name"],
+                        "phone_number": doc.get("phone_number"),
                         "type": "admin",
                         "status": doc["status"],
                         "doc_id": doc_id,
@@ -382,6 +394,7 @@ class AuthService:
                         return {
                             "email": doc["email"],
                             "name": doc["name"],
+                            "phone_number": doc.get("phone_number"),
                             "type": "revenda",
                             "status": doc["status"],
                             "domain": doc["domain"],
@@ -399,6 +412,7 @@ class AuthService:
                     return {
                         "email": doc["email"],
                         "name": doc["name"],
+                        "phone_number": doc.get("phone_number"),
                         "type": "cliente",
                         "status": doc["status"],
                         "doc_id": doc_id,

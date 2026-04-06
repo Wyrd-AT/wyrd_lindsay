@@ -1,5 +1,10 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useAuthStore } from "../../stores/new/authStore";
+import {
+  formatPhoneMask,
+  getRawPhone,
+  isPhoneValid,
+} from "../../utils/phoneUtils"; // [NOVO] Import das funções
 
 export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
   const adminUser = useAuthStore((state) => state.user);
@@ -15,7 +20,10 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [documento, setDocumento] = useState("");
-  const [selectedAdminCnpj, setSelectedAdminCnpj] = useState(adminUser?.cnpj || "");
+  const [phoneNumber, setPhoneNumber] = useState(""); // [NOVO] Estado do telemóvel
+  const [selectedAdminCnpj, setSelectedAdminCnpj] = useState(
+    adminUser?.cnpj || "",
+  );
   const [adminsList, setAdminsList] = useState([]);
   const [loadingAdmins, setLoadingAdmins] = useState(false);
 
@@ -163,6 +171,7 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
         name,
         cnpj_revenda: documento,
         cnpj_admin: selectedAdminCnpj || adminUser?.cnpj,
+        phone_number: getRawPhone(phoneNumber), // [NOVO] Limpa a máscara antes de enviar
       });
 
       if (response && response.revenda_id) {
@@ -298,6 +307,27 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
           </span>
         </label>
 
+        {/* [NOVO] CAMPO DE TELEMÓVEL COM MÁSCARA */}
+        <label className="block text-white mb-4">
+          Celular / WhatsApp *
+          <input
+            type="tel"
+            required
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(formatPhoneMask(e.target.value))}
+            className={`w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none focus:ring-2 focus:ring-green-500 ${
+              phoneNumber && !isPhoneValid(phoneNumber) ? "border-red-500" : ""
+            }`}
+            placeholder="+55 (11) 99999-9999"
+            disabled={isSaving}
+          />
+          {phoneNumber && !isPhoneValid(phoneNumber) && (
+            <span className="text-xs text-red-400 block mt-1">
+              Número incompleto.
+            </span>
+          )}
+        </label>
+
         <label className="block text-white mb-4">
           CNPJ ou CPF da Revenda *
           <input
@@ -414,12 +444,20 @@ export const CreateRevendaModal = ({ closeModal, onSuccess }) => {
           <button
             type="submit"
             disabled={
-              isSaving || !isPasswordValid || !isDocumentoValid || !documento
+              isSaving ||
+              !isPasswordValid ||
+              !isDocumentoValid ||
+              !documento ||
+              !isPhoneValid(phoneNumber)
             }
             className={`
               px-4 py-2 rounded-md text-black font-medium
               ${
-                isSaving || !isPasswordValid || !isDocumentoValid || !documento
+                isSaving ||
+                !isPasswordValid ||
+                !isDocumentoValid ||
+                !documento ||
+                !isPhoneValid(phoneNumber)
                   ? "bg-gray-500 cursor-not-allowed"
                   : "bg-[#08cb7c] hover:bg-green-600"
               }

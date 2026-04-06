@@ -45,6 +45,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     type: str
+    phone_number: Optional[str] = None
     status: str
     doc_id: Optional[str] = None
     sub_role: Optional[str] = None
@@ -69,11 +70,11 @@ class RevendaResponse(BaseModel):
     _id: Optional[str] = None
     _rev: Optional[str] = None
     email: str
+    phone_number: Optional[str] = None
     name: str
     cnpj_revenda: Optional[str] = None
     status: str
     created_at: str
-
 
 
 class RevendasListResponse(BaseModel):
@@ -89,14 +90,20 @@ class AdminCreateAdminRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
+    phone_number: str = Field(
+        ..., description="Telefone formatado (ex: +5511999999999)"
+    )
     new_type: Optional[str] = None  # "superadmin" ou "admin" (superadmin escolhe)
-    cnpj_admin: Optional[str] = None  # CNPJ do novo admin (quando superadmin cria admin externo)
+    cnpj_admin: Optional[str] = (
+        None  # CNPJ do novo admin (quando superadmin cria admin externo)
+    )
 
 
 class AdminUpdateRequest(BaseModel):
     """Requisição para atualizar admin/superadmin"""
 
     name: Optional[str] = None
+    phone_number: Optional[str] = None
     status: Optional[Literal["active", "pending", "rejected"]] = None
     cnpj_admin: Optional[str] = None
 
@@ -107,6 +114,9 @@ class AdminCreateRevendaRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     name: str
+    phone_number: str = Field(
+        ..., description="Telefone formatado (ex: +5511999999999)"
+    )
     cnpj_revenda: str  # CNPJ da revenda a ser criada
     cnpj_admin: Optional[str] = None  # CNPJ do admin que cria (para hierarquia)
 
@@ -115,6 +125,7 @@ class RevendaUpdateRequest(BaseModel):
     """Requisição para atualizar revenda"""
 
     name: Optional[str] = None
+    phone_number: Optional[str] = None
     status: Optional[Literal["active", "pending", "rejected"]] = None
     cnpj_revenda: Optional[str] = None
     cnpj_admin: Optional[str] = None
@@ -131,6 +142,7 @@ class ClienteResponse(BaseModel):
     _id: Optional[str] = None
     _rev: Optional[str] = None
     email: str
+    phone_number: Optional[str] = None
     name: str
     status: str
     revenda_id: Optional[str] = None
@@ -153,6 +165,9 @@ class AdminCreateClienteRequest(BaseModel):
     """Requisição para admin/revenda criar cliente"""
 
     email: EmailStr
+    phone_number: str = Field(
+        ..., description="Telefone formatado (ex: +5511999999999)"
+    )
     password: str = Field(..., min_length=6)
     name: str
     cnpj_cliente: str  # CNPJ do cliente
@@ -164,6 +179,7 @@ class ClienteUpdateRequest(BaseModel):
     """Requisição para atualizar cliente"""
 
     name: Optional[str] = None
+    phone_number: Optional[str] = None
     status: Optional[Literal["active", "pending", "rejected"]] = None
     sub_role: Optional[Literal["superusuario", "gerente", "comum"]] = None
     revenda_id: Optional[str] = None
@@ -176,6 +192,9 @@ class SuperusuarioCreateUserRequest(BaseModel):
     """Requisição para superusuário criar gerente ou comum dentro da empresa"""
 
     email: EmailStr
+    phone_number: str = Field(
+        ..., description="Telefone formatado (ex: +5511999999999)"
+    )
     password: str = Field(..., min_length=6)
     name: str
     sub_role: Literal["gerente", "comum"]

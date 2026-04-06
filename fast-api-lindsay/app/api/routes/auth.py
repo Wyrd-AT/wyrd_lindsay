@@ -274,7 +274,12 @@ async def login(request: UserLoginRequest):
     try:
         # Tentar autenticar em todos os tipos de usuário
         user = None
-        for utype in [UserType.SUPERADMIN, UserType.ADMIN, UserType.REVENDA, UserType.CLIENTE]:
+        for utype in [
+            UserType.SUPERADMIN,
+            UserType.ADMIN,
+            UserType.REVENDA,
+            UserType.CLIENTE,
+        ]:
             user = auth_service.authenticate(request.email, request.password, utype)
             if user:
                 break
@@ -481,7 +486,8 @@ async def accept_terms(
 
     # Obter IP real (considerar proxy)
     ip_address = http_request.headers.get(
-        "X-Forwarded-For", http_request.client.host if http_request.client else "unknown"
+        "X-Forwarded-For",
+        http_request.client.host if http_request.client else "unknown",
     )
     # X-Forwarded-For pode ter múltiplos IPs, pegar o primeiro
     if "," in ip_address:
@@ -539,9 +545,7 @@ async def activate_invitation(
                 status_code=400,
                 detail="Senha não atende aos requisitos de segurança",
             )
-        raise HTTPException(
-            status_code=400, detail=f"Erro ao definir senha: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Erro ao definir senha: {str(e)}")
 
     # Marcar email como verificado (clicou no link = email válido)
     from datetime import datetime
@@ -567,11 +571,13 @@ async def activate_invitation(
         user_doc["terms_accepted_ip"] = ip_address
 
         acceptance_history = user_doc.get("terms_acceptance_history", [])
-        acceptance_history.append({
-            "version": settings.CURRENT_TERMS_VERSION,
-            "accepted_at": now,
-            "ip_address": ip_address,
-        })
+        acceptance_history.append(
+            {
+                "version": settings.CURRENT_TERMS_VERSION,
+                "accepted_at": now,
+                "ip_address": ip_address,
+            }
+        )
         user_doc["terms_acceptance_history"] = acceptance_history
 
     db.save(user_doc)
@@ -626,6 +632,7 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
         name = request.get("name", "").strip()
         user_type = request.get("user_type", "").lower()
         cnpj = request.get("cnpj", "").strip()
+        phone_number = request.get("phone_number", "").strip()
 
         if user_type != "revenda":
             raise HTTPException(
@@ -646,6 +653,7 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
                 "UserAttributes": [
                     {"Name": "email", "Value": email},
                     {"Name": "name", "Value": name},
+                    {"Name": "phone_number", "Value": phone_number},
                     {"Name": "custom:type", "Value": "revenda"},
                     {"Name": "custom:status", "Value": "pending"},
                     {"Name": "custom:cnpj", "Value": cnpj},
@@ -680,7 +688,11 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
         )
 
         success, message, revenda_data = revenda_service.register_revenda_complete(
-            email=email, name=name, cnpj=cnpj, cognito_sub=cognito_sub
+            email=email,
+            name=name,
+            cnpj=cnpj,
+            cognito_sub=cognito_sub,
+            phone_number=phone_number,
         )
 
         if not success:
@@ -714,6 +726,7 @@ async def register_revenda(request: dict, cognito_client=Depends(get_cognito_cli
         raise
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"Erro ao registrar revenda: {str(e)}"
