@@ -110,7 +110,7 @@ class TermsService:
 
     def _get_user_doc(self, email: str) -> Optional[dict]:
         """Buscar documento do usuário por email"""
-        for prefix in ["user:", "admin:", "revenda:"]:
+        for prefix in ["user:", "cliente:", "admin:", "revenda:"]:
             doc_id = f"{prefix}{email}"
             try:
                 doc = self.db.get(doc_id)

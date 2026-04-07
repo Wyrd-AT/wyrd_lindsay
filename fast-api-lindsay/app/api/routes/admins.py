@@ -128,6 +128,17 @@ async def create_admin(
             except Exception as e:
                 print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
 
+        except cognito_client.exceptions.UsernameExistsException:
+            # Rollback CouchDB
+            try:
+                db = get_users_db()
+                db.delete(db.get(doc_id))
+            except Exception:
+                pass
+            raise HTTPException(
+                status_code=400,
+                detail="Este e-mail já está cadastrado no sistema de autenticação. Remova o usuário do Cognito antes de recriá-lo.",
+            )
         except Exception as cognito_error:
             print(f"❌ Erro ao criar admin no Cognito: {cognito_error}")
             # Rollback CouchDB
