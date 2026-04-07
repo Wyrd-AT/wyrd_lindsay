@@ -14,7 +14,11 @@ import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import { CreateAdminModal } from "../../components/new/CreateAdminModal";
 import EditEntityModal from "../../components/new/EditEntityModal";
-import { fetchAdmins, updateAdmin, deleteAdmin } from "../../api/new/fastapi-admin";
+import {
+  fetchAdmins,
+  updateAdmin,
+  deleteAdmin,
+} from "../../api/new/fastapi-admin";
 import { matchesSearchTerm } from "../../utils/search";
 
 export function GerenciarAdminsPage() {
@@ -104,9 +108,10 @@ export function GerenciarAdminsPage() {
             <h1 className="text-3xl font-bold">Administradores</h1>
             <button
               onClick={loadAdmins}
-              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
+              disabled={loading}
+              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
             >
-              Atualizar
+              {loading ? "Carregando..." : "Atualizar"}
             </button>
           </div>
 
@@ -120,17 +125,25 @@ export function GerenciarAdminsPage() {
           {/* Stats */}
           <div className="px-4 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors">
-                <p className="text-sm text-dashboard-text-secondary font-medium">
-                  Total de Admins
-                </p>
-                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
-                  {admins.length}
-                </p>
-                <p className="text-xs text-dashboard-text-tertiary mt-1">
-                  {admins.filter((a) => a.status === "active").length} ativos
-                </p>
-              </div>
+              {loading ? (
+                <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
+                  <div className="space-y-3">
+                    <div className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors">
+                  <p className="text-sm text-dashboard-text-secondary font-medium">
+                    Total de Admins
+                  </p>
+                  <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+                    {admins.length}
+                  </p>
+                  <p className="text-xs text-dashboard-text-tertiary mt-1">
+                    {admins.filter((a) => a.status === "active").length} ativos
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -147,13 +160,6 @@ export function GerenciarAdminsPage() {
                     className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover rounded transition text-black font-bold"
                   >
                     + Criar Admin
-                  </button>
-                  <button
-                    onClick={loadAdmins}
-                    disabled={loading}
-                    className="px-3 py-1 text-sm bg-dashboard-bg-tertiary hover:bg-dashboard-border disabled:opacity-50 rounded transition text-white"
-                  >
-                    {loading ? "Carregando..." : "Atualizar"}
                   </button>
                 </div>
               </div>
@@ -191,11 +197,13 @@ export function GerenciarAdminsPage() {
                             </p>
                           )}
                         </div>
-                        <span className={`text-xs px-2 py-1 rounded font-bold ${
-                          admin.type === "superadmin"
-                            ? "bg-yellow-700 text-yellow-100"
-                            : "bg-purple-900 text-purple-100"
-                        }`}>
+                        <span
+                          className={`text-xs px-2 py-1 rounded font-bold ${
+                            admin.type === "superadmin"
+                              ? "bg-yellow-700 text-yellow-100"
+                              : "bg-purple-900 text-purple-100"
+                          }`}
+                        >
                           {admin.type === "superadmin" ? "Superadmin" : "Admin"}
                         </span>
                       </div>
