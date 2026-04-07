@@ -143,7 +143,7 @@ export function GerenciarUsuariosEmpresaPage() {
               <button
                 onClick={loadUsers}
                 disabled={loading}
-                className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition text-black text-sm px-3"
+                className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition text-black text-sm px-3 disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
               >
                 {loading ? "Carregando..." : "Atualizar"}
               </button>
@@ -160,30 +160,41 @@ export function GerenciarUsuariosEmpresaPage() {
           {/* Stats */}
           <div className="px-4 mb-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-                <p className="text-sm text-dashboard-text-secondary font-medium">
-                  Total
-                </p>
-                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
-                  {users.length}
-                </p>
-              </div>
-              <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-                <p className="text-sm text-dashboard-text-secondary font-medium">
-                  Gerentes
-                </p>
-                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
-                  {users.filter((u) => u.sub_role === "gerente").length}
-                </p>
-              </div>
-              <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-                <p className="text-sm text-dashboard-text-secondary font-medium">
-                  Comuns
-                </p>
-                <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
-                  {users.filter((u) => u.sub_role === "comum").length}
-                </p>
-              </div>
+              {loading ? (
+                [0, 1, 2].map((i) => (
+                  <div
+                    key={`skeleton-${i}`}
+                    className="h-24 bg-dashboard-bg-secondary animate-pulse rounded-lg"
+                  />
+                ))
+              ) : (
+                <>
+                  <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors">
+                    <p className="text-sm text-dashboard-text-secondary font-medium">
+                      Total
+                    </p>
+                    <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+                      {users.length}
+                    </p>
+                  </div>
+                  <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors">
+                    <p className="text-sm text-dashboard-text-secondary font-medium">
+                      Gerentes
+                    </p>
+                    <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+                      {users.filter((u) => u.sub_role === "gerente").length}
+                    </p>
+                  </div>
+                  <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border hover:border-dashboard-accent transition-colors">
+                    <p className="text-sm text-dashboard-text-secondary font-medium">
+                      Comuns
+                    </p>
+                    <p className="text-4xl font-bold text-dashboard-text-primary mt-2">
+                      {users.filter((u) => u.sub_role === "comum").length}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
