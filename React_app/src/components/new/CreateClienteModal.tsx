@@ -71,6 +71,12 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
       return;
     }
 
+    // Validar revenda_id obrigatório para admin
+    if (revendas !== undefined && !form.revenda_id) {
+      setError("A seleção de uma revenda é obrigatória.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -81,7 +87,7 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
       cnpj_cliente: form.cnpj_cliente,
     };
     if (revendas !== undefined) {
-      payload.revenda_id = form.revenda_id || null;
+      payload.revenda_id = form.revenda_id;
     }
 
     try {
@@ -196,7 +202,8 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
           {revendas && revendas.length > 0 && (
             <div>
               <label className="block text-sm text-dashboard-text-secondary mb-1">
-                Revenda (opcional)
+                Revenda
+                <span className="text-red-400 ml-1">*</span>
               </label>
               <select
                 value={form.revenda_id}
@@ -205,7 +212,7 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
                 }
                 className="w-full bg-dashboard-bg-tertiary border border-dashboard-border rounded px-3 py-2 text-dashboard-text-primary focus:outline-none focus:border-dashboard-accent"
               >
-                <option value="">Sem revenda</option>
+                <option value="">Selecione uma revenda</option>
                 {revendas.map((r) => (
                   <option key={r._id} value={r._id}>
                     {r.name} ({r.email})
@@ -225,7 +232,11 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || !isDocumentoValid}
+              disabled={
+                loading ||
+                !isDocumentoValid ||
+                (revendas !== undefined && !form.revenda_id)
+              }
               className="flex-1 px-4 py-2 bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 disabled:text-gray-400 text-black font-bold rounded transition"
             >
               {loading ? "Criando..." : "Criar Cliente"}
