@@ -22,8 +22,10 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Alterado para incluir a revenda
+  // Tipos que podem criar pivôs
   const isManager = ["admin", "superadmin", "revenda"].includes(user?.type);
+  const isAdminOrSuper = ["admin", "superadmin"].includes(user?.type);
+  const isRevenda = user?.type === "revenda";
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -40,12 +42,33 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       try {
         const res = await apiClient.get("/clientes");
         const all = res.data?.clientes || [];
-        const list = all.filter((c) => c.sub_role === "superusuario");
+        // Filtrar apenas superusuários que pertencem à hierarquia do usuário
+        const list = all.filter((c) => {
+          // Deve ser superusuário
+          if (c.sub_role !== "superusuario") return false;
+
+          // Revenda: mostra apenas seus clientes
+          if (isRevenda) {
+            return c.revenda_id === user?.doc_id;
+          }
+
+          // Admin: mostra apenas clientes de suas revendas (mesmo cnpj_admin)
+          if (isAdminOrSuper) {
+            return c.cnpj_admin === user?.cnpj;
+          }
+
+          return false;
+        });
+
         if (!cancelled) {
           setClientes(list);
           const firstCnpj = list[0]?.cnpj_cliente ?? "";
-          if (list.length > 0 && !clienteId && !isOwnPivo)
+          // Revenda deve obrigatoriamente selecionar um cliente
+          if (isRevenda && list.length > 0 && !clienteId) {
             setClienteId(firstCnpj);
+          } else if (isAdminOrSuper && list.length > 0 && !clienteId && !isOwnPivo) {
+            setClienteId(firstCnpj);
+          }
         }
       } catch (err) {
         if (!cancelled)
@@ -57,7 +80,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     return () => {
       cancelled = true;
     };
-  }, [isManager, isOwnPivo, clienteId]);
+  }, [isManager, isOwnPivo, clienteId, isRevenda, isAdminOrSuper, user]);
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(14);
 
@@ -85,7 +108,14 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       setError("Por favor, informe o nome do irrigador.");
       return;
     }
-    if (isManager && !isOwnPivo && !clienteId) {
+    // Revenda deve sempre ter cliente
+    if (isRevenda && !clienteId) {
+      setError("Revenda deve sempre vincular o pivô a um cliente.");
+      return;
+    }
+
+    // Admin/Superadmin deve ter cliente a menos que seja pivô próprio
+    if (isAdminOrSuper && !isOwnPivo && !clienteId) {
       setError("Selecione o cliente ao qual o pivô será associado.");
       return;
     }
@@ -99,7 +129,12 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         nome,
         whatsapp,
         sms,
-        cliente_id: isManager && !isOwnPivo ? clienteId : undefined,
+        // Revenda sempre envia cliente_id
+        // Admin/Superadmin envia apenas se não for pivô próprio
+        cliente_id:
+          isRevenda || (isAdminOrSuper && !isOwnPivo)
+            ? clienteId
+            : undefined,
         equipamentos: equipamentos.filter(Boolean),
       });
       onSuccess?.();
@@ -146,31 +181,37 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         {isManager && (
           <label className="block text-white mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span>Cliente</span>
-              <label className="flex items-center gap-2 text-sm text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={isOwnPivo}
-                  onChange={(e) => {
-                    setIsOwnPivo(e.target.checked);
-                    if (e.target.checked) {
-                      setClienteId("");
-                    }
-                  }}
-                  disabled={isSaving}
-                />
-                Pivô próprio (sem cliente)
-              </label>
+              <span>
+                Cliente
+                {isRevenda && <span className="text-red-400 ml-1">*</span>}
+              </span>
+              {/* Apenas Admin/Superadmin podem criar pivô próprio */}
+              {isAdminOrSuper && (
+                <label className="flex items-center gap-2 text-sm text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={isOwnPivo}
+                    onChange={(e) => {
+                      setIsOwnPivo(e.target.checked);
+                      if (e.target.checked) {
+                        setClienteId("");
+                      }
+                    }}
+                    disabled={isSaving}
+                  />
+                  Pivô próprio (sem cliente)
+                </label>
+              )}
             </div>
             <select
               value={clienteId}
               onChange={(e) => setClienteId(e.target.value)}
               className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              disabled={isSaving || loadingClientes || isOwnPivo}
-              required={!isOwnPivo}
+              disabled={isSaving || loadingClientes || (isAdminOrSuper && isOwnPivo)}
+              required={isRevenda || (isAdminOrSuper && !isOwnPivo)}
             >
               <option value="">
-                {isOwnPivo ? "Pivô próprio" : "Selecione o cliente"}
+                {isAdminOrSuper && isOwnPivo ? "Pivô próprio" : "Selecione o cliente"}
               </option>
               {clientes.map((c) => (
                 <option
@@ -186,7 +227,12 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
                 Carregando clientes...
               </span>
             )}
-            {!loadingClientes && clientes.length === 0 && !isOwnPivo && (
+            {!loadingClientes && clientes.length === 0 && !isAdminOrSuper && (
+              <span className="text-amber-400 text-sm">
+                Nenhum cliente encontrado. Verifique com o administrador.
+              </span>
+            )}
+            {!loadingClientes && clientes.length === 0 && isAdminOrSuper && !isOwnPivo && (
               <span className="text-amber-400 text-sm">
                 Nenhum cliente superusuário encontrado. Apenas clientes com
                 perfil superusuário podem receber pivôs.
@@ -294,9 +340,10 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
             type="submit"
             disabled={
               isSaving ||
-              (isManager &&
-                !isOwnPivo &&
-                (loadingClientes || clientes.length === 0))
+              // Revenda sempre precisa de cliente
+              (isRevenda && (!clienteId || loadingClientes)) ||
+              // Admin/Superadmin precisa de cliente a menos que seja pivô próprio
+              (isAdminOrSuper && !isOwnPivo && (!clienteId || loadingClientes))
             }
             className={`px-4 py-2 rounded-md text-white ${isSaving ? "bg-gray-500 cursor-not-allowed" : "bg-[#08cb7c] hover:bg-green-600"}`}
           >
