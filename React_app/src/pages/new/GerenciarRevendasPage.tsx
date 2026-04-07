@@ -81,7 +81,8 @@ export function GerenciarRevendasPage() {
   };
 
   const handleDeleteRevenda = async (revenda: Revenda) => {
-    if (!window.confirm(`Deseja deletar ${revenda.name || revenda.email}?`)) return;
+    if (!window.confirm(`Deseja deletar ${revenda.name || revenda.email}?`))
+      return;
     await deleteRevenda(revenda._id);
     await fetchAllRevendas();
     await fetchStats();
@@ -106,9 +107,10 @@ export function GerenciarRevendasPage() {
                 fetchStats();
                 fetchAllRevendas();
               }}
-              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
+              disabled={loadingStats || loadingRevendas}
+              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
             >
-              Atualizar
+              {loadingStats || loadingRevendas ? "Carregando..." : "Atualizar"}
             </button>
           </div>
 
@@ -140,7 +142,6 @@ export function GerenciarRevendasPage() {
               revendas={allRevendas}
               loading={loadingRevendas}
               searchTerm={searchTerm}
-              onRefresh={fetchAllRevendas}
               onCreateClick={() => setShowCreateRevenda(true)}
               isSuperadmin={isSuperadmin}
               onEditRevenda={handleEditRevenda}
@@ -224,7 +225,6 @@ interface RevendasSectionProps {
   revendas: Revenda[];
   loading: boolean;
   searchTerm: string;
-  onRefresh: () => void;
   onCreateClick: () => void;
   isSuperadmin: boolean;
   onEditRevenda: (revenda: Revenda) => Promise<void>;
@@ -235,7 +235,6 @@ function RevendasSection({
   revendas,
   loading,
   searchTerm,
-  onRefresh,
   onCreateClick,
   isSuperadmin,
   onEditRevenda,
@@ -263,13 +262,6 @@ function RevendasSection({
             className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover rounded transition text-white font-bold"
           >
             + Criar Revenda
-          </button>
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 rounded transition text-white font-bold"
-          >
-            {loading ? "Carregando..." : "Atualizar"}
           </button>
         </div>
       </div>
