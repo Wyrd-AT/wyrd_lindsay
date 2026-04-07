@@ -183,15 +183,13 @@ export function GerenciarRevendasPage() {
 function StatsSection({ cards, loading }: StatsSectionProps) {
   if (loading) {
     return (
-      <div className="bg-dashboard-bg-secondary rounded-lg p-6 border border-dashboard-border">
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div
-              key={i}
-              className="h-20 bg-dashboard-bg-tertiary animate-pulse rounded"
-            ></div>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {cards.map((card, index) => (
+          <div
+            key={`skeleton-${index}`}
+            className="h-24 bg-dashboard-bg-secondary animate-pulse rounded-lg"
+          />
+        ))}
       </div>
     );
   }

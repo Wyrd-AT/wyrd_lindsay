@@ -80,9 +80,10 @@ export function GerenciarClientesRevendaPage() {
             <h1 className="text-3xl font-bold">Clientes</h1>
             <button
               onClick={handleRefresh}
-              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
+              disabled={loadingStats || loadingClientes}
+              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
             >
-              Atualizar
+              {loadingStats || loadingClientes ? "Carregando..." : "Atualizar"}
             </button>
           </div>
 
@@ -114,7 +115,6 @@ export function GerenciarClientesRevendaPage() {
               clientes={clientes}
               loading={loadingClientes}
               searchTerm={searchTerm}
-              onRefresh={fetchClientes}
               onCreateClick={() => setShowCreateCliente(true)}
             />
           </div>
@@ -141,9 +141,9 @@ function StatsSection({ cards, loading }: StatsSectionProps) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {[1, 2].map((i) => (
+        {cards.map((card, index) => (
           <div
-            key={i}
+            key={`skeleton-${index}`}
             className="h-24 bg-dashboard-bg-secondary animate-pulse rounded-lg"
           />
         ))}
@@ -177,7 +177,6 @@ interface ClientesSectionProps {
   clientes: Cliente[];
   loading: boolean;
   searchTerm: string;
-  onRefresh: () => void;
   onCreateClick: () => void;
 }
 
@@ -185,7 +184,6 @@ function ClientesSection({
   clientes,
   loading,
   searchTerm,
-  onRefresh,
   onCreateClick,
 }: ClientesSectionProps) {
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -196,12 +194,7 @@ function ClientesSection({
 
     return (
       matchesStatus &&
-      matchesSearchTerm(searchTerm, [
-        c.name,
-        c.email,
-        c.status,
-        c.cnpj_cliente,
-      ])
+      matchesSearchTerm(searchTerm, [c.name, c.email, c.status, c.cnpj_cliente])
     );
   });
 
@@ -217,13 +210,6 @@ function ClientesSection({
             className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover rounded transition text-black font-bold"
           >
             + Criar Cliente
-          </button>
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="px-3 py-1 text-sm bg-dashboard-bg-tertiary hover:bg-dashboard-border disabled:opacity-50 rounded transition text-white"
-          >
-            {loading ? "Carregando..." : "Atualizar"}
           </button>
         </div>
       </div>
@@ -281,9 +267,7 @@ function ClientesSection({
                     {cliente.email}
                   </p>
                 </div>
-                <span
-                  className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100"
-                >
+                <span className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100">
                   Ativo
                 </span>
               </div>
