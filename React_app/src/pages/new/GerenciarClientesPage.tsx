@@ -84,7 +84,8 @@ export function GerenciarClientesPage() {
   };
 
   const handleDeleteCliente = async (cliente: Cliente) => {
-    if (!window.confirm(`Deseja deletar ${cliente.name || cliente.email}?`)) return;
+    if (!window.confirm(`Deseja deletar ${cliente.name || cliente.email}?`))
+      return;
     await deleteCliente(cliente._id);
     await fetchClientes();
     await fetchStats();
@@ -109,9 +110,10 @@ export function GerenciarClientesPage() {
                 fetchStats();
                 fetchClientes();
               }}
-              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
+              disabled={loadingStats || loadingClientes}
+              className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition disabled:bg-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
             >
-              Atualizar
+              {loadingStats || loadingClientes ? "Carregando..." : "Atualizar"}
             </button>
           </div>
 
@@ -143,7 +145,6 @@ export function GerenciarClientesPage() {
               clientes={clientes}
               loading={loadingClientes}
               searchTerm={searchTerm}
-              onRefresh={fetchClientes}
               onCreateClick={() => setShowCreateCliente(true)}
               isSuperadmin={isSuperadmin}
               onEditCliente={handleEditCliente}
@@ -228,7 +229,6 @@ interface ClientesSectionProps {
   clientes: Cliente[];
   loading: boolean;
   searchTerm: string;
-  onRefresh: () => void;
   onCreateClick: () => void;
   isSuperadmin: boolean;
   onEditCliente: (cliente: Cliente) => Promise<void>;
@@ -239,7 +239,6 @@ function ClientesSection({
   clientes,
   loading,
   searchTerm,
-  onRefresh,
   onCreateClick,
   isSuperadmin,
   onEditCliente,
@@ -277,13 +276,6 @@ function ClientesSection({
           >
             + Criar Cliente
           </button>
-          <button
-            onClick={onRefresh}
-            disabled={loading}
-            className="px-3 py-1 text-sm bg-dashboard-accent hover:bg-dashboard-accent-hover disabled:bg-gray-600 rounded transition text-white font-bold"
-          >
-            {loading ? "Carregando..." : "Atualizar"}
-          </button>
         </div>
       </div>
 
@@ -299,8 +291,7 @@ function ClientesSection({
                 : "bg-dashboard-bg-tertiary text-white hover:bg-dashboard-border"
             }`}
           >
-            {status === "all" ? "Todos" : "Ativos"}
-            (
+            {status === "all" ? "Todos" : "Ativos"}(
             {
               clientes.filter((c) =>
                 status === "all" ? true : c.status === status,
@@ -345,9 +336,7 @@ function ClientesSection({
                     </p>
                   )}
                 </div>
-                <span
-                  className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100"
-                >
+                <span className="text-xs px-2 py-1 rounded font-bold bg-green-900 text-green-100">
                   Ativo
                 </span>
               </div>
