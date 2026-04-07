@@ -1,7 +1,7 @@
 // app/(pivo)/[pivoId]/overview.tsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
-import { FiChevronDown, FiChevronUp, FiEdit2 } from "react-icons/fi";
+import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import {
   getRecentAll,
   RecentSWDoc,
@@ -25,43 +25,6 @@ import {
   selectCanResolveAlerts,
 } from "../../stores/new/authStore";
 
-// Força o + e limita a 3 números (padrão de DDI internacional)
-const formatCountryCode = (value: string) => {
-  const numbers = value.replace(/\D/g, "");
-  if (numbers.length === 0) return "+";
-  return `+${numbers.slice(0, 3)}`;
-};
-
-// Máscara inteligente: aplica formato BR se for +55, senão deixa livre
-const formatLocalPhoneMask = (value: string, isBrazil: boolean) => {
-  const numbers = value.replace(/\D/g, "");
-  if (numbers.length === 0) return "";
-
-  if (isBrazil) {
-    let masked = "";
-    if (numbers.length > 0) masked += `(${numbers.slice(0, 2)}`;
-    if (numbers.length > 2) masked += `) ${numbers.slice(2, 7)}`;
-    if (numbers.length > 7) masked += `-${numbers.slice(7, 11)}`;
-    return masked;
-  }
-
-  return numbers; // Sem máscara para outros países
-};
-
-// Gera a máscara parcial (Ex: +55 (••) •••••-8383)
-const maskSavedPhone = (phone: string) => {
-  if (!phone || phone.length < 8) return "";
-
-  // Pega o DDI (Assume os 3 primeiros caracteres se não for +55)
-  const isBR = phone.startsWith("+55");
-  const country = isBR ? "+55" : phone.substring(0, 3);
-
-  // Pega os últimos 4 dígitos reais
-  const last4 = phone.slice(-4);
-
-  return `${country} (••) •••••-${last4}`;
-};
-
 export default function Overview({
   pivoId,
   cnpjCliente,
@@ -78,83 +41,21 @@ export default function Overview({
     null | boolean
   >(null);
   const [isSaving, setIsSaving] = useState(false);
+
   const canResolveAlerts = useAuthStore(selectCanResolveAlerts);
+  const user = useAuthStore((state) => state.user); // [NOVO] Puxando dados do usuário
 
   // FASE 1 - Performance: Adaptive polling
-  // Starts at 10s, increases to 20s, then 30s if no changes detected
-  const [pollInterval, setPollInterval] = useState(10000); // Aumentado de 5s para 10s
+  const [pollInterval, setPollInterval] = useState(10000);
   const [noChangeCount, setNoChangeCount] = useState(0);
-
-  /* ----------------- WhatsApp por irrigador ----------------- */
-  // const {
-  //   enabled: whatsappEnabled,
-  //   loading: whatsappLoading,
-  //   toggle: toggleWhatsapp,
-  // } = useWhatsappPerIrrigador(pivoId, email);
 
   /* ----------------- WhatsApp por irrigador ----------------- */
   const {
     msgEnabled,
     callEnabled,
-    savedPhone, // <- Novo estado que o hook retorna
-    updateConfig, // <- Usaremos o update direto em vez dos toggles avulsos
+    updateConfig, // Atualização direta
     loading: notificationLoading,
-  } = useWhatsappPerIrrigador(pivoId, email);
-
-  // Estados para o Modal de Telefone (Captura Contextual)
-  const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
-  const [countryCode, setCountryCode] = useState("+55");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [pendingAction, setPendingAction] = useState<{
-    msg?: boolean;
-    call?: boolean;
-  } | null>(null);
-
-  // Função que intercepta o clique nas chavinhas
-  const handleToggleIntercept = (action: { msg?: boolean; call?: boolean }) => {
-    // Se a pessoa quer LIGAR alguma notificação E não temos o telefone dela salvo...
-    const wantsToEnable = action.msg === true || action.call === true;
-    if (wantsToEnable && !savedPhone) {
-      setPendingAction(action);
-      setIsPhoneModalOpen(true);
-    } else {
-      // Se ela quer desligar ou já tem telefone, vai direto
-      updateConfig(action);
-    }
-  };
-
-  // Função para abrir o modal no modo de edição (pré-preenchendo os campos)
-  const handleEditPhone = () => {
-    if (savedPhone) {
-      const isBR = savedPhone.startsWith("+55");
-      const cCode = isBR ? "+55" : savedPhone.substring(0, 3);
-      const num = savedPhone.substring(cCode.length);
-
-      setCountryCode(cCode);
-      setPhoneNumber(formatLocalPhoneMask(num, isBR));
-
-      // Como não estamos ligando/desligando nada, a pendingAction fica nula.
-      // O handleSavePhone vai apenas atualizar o número no CouchDB.
-      setPendingAction(null);
-      setIsPhoneModalOpen(true);
-    }
-  };
-  const handleSavePhone = () => {
-    const cleanCountry = countryCode.replace(/\D/g, "");
-    const cleanNumber = phoneNumber.replace(/\D/g, "");
-
-    if (!cleanCountry || cleanNumber.length < 8) {
-      alert("Por favor, insira um código de país e telefone válidos.");
-      return;
-    }
-
-    // Junta tudo. Ex: +5511999999999
-    const finalPhone = `+${cleanCountry}${cleanNumber}`;
-
-    updateConfig({ ...pendingAction, phone: finalPhone });
-    setIsPhoneModalOpen(false);
-    setPendingAction(null);
-  };
+  } = useWhatsappPerIrrigador(pivoId, email, user?.phone_number); // [NOVO] Passa o telefone do authStore
 
   /* ----------------- Carregar snapshots via getRecentAll ----------------- */
   const [swDoc, setSwDoc] = useState<RecentSWDoc | null>(null);
@@ -181,44 +82,34 @@ export default function Overview({
   }, [loadData]);
 
   // Listener de mudanças do CouchDB para atualização automática
-  // FASE 1 - Performance: Adaptive polling (5s → 15s → 30s)
   useChangesListener({
     db: "lindsay-data",
     onChange: (changes) => {
-      // Verifica se alguma mudança é relevante para este pivoId
       const hasRelevantChange = changes.some((change) => {
-        // Verifica se o documento pertence a este pivoId
         const docId = change.id;
         return docId.includes(String(pivoId));
       });
 
       if (hasRelevantChange) {
-        //console.log('Detectada mudança relevante no CouchDB, atualizando dados...');
-        // Reset polling interval when change detected
-        setPollInterval(10000); // Aumentado de 5s para 10s
+        setPollInterval(10000);
         setNoChangeCount(0);
         loadData();
       } else {
-        // No relevant change: gradually increase polling interval
         setNoChangeCount((prev) => {
           const next = prev + 1;
           if (next === 3) {
-            // After 3 polls with no changes, increase to 20s
-            setPollInterval(20000); // Aumentado de 15s para 20s
-            //console.log('ℹ️ No changes detected, increasing poll interval to 20s');
+            setPollInterval(20000);
           } else if (next >= 6) {
-            // After 6 polls with no changes, increase to 30s
             setPollInterval(30000);
-            //console.log('ℹ️ No changes detected, increasing poll interval to 30s');
           }
           return next;
         });
       }
     },
-    includeDocs: false, // Não precisa do doc completo, só do ID para verificar
-    pollInterval: pollInterval, // Dynamic polling interval
-    useLongpoll: true, // Usa longpoll para reduzir requisições
-    pause: !pivoId, // Pausa se não tiver pivoId
+    includeDocs: false,
+    pollInterval: pollInterval,
+    useLongpoll: true,
+    pause: !pivoId,
     onError: (error) => {
       console.error("Erro no listener de mudanças:", error);
     },
@@ -227,7 +118,6 @@ export default function Overview({
   const parsed_sw = useMemo(() => parseSwVectorOverview(swDoc?.data), [swDoc]);
 
   const lastUpdate = useMemo(() => {
-    // tenta SW.updated_at, depois SW.data.timestamp (ISO ou BR)
     if (swDoc?.updated_at) {
       const d = new Date(swDoc.updated_at);
       if (!isNaN(d.getTime())) {
@@ -243,7 +133,6 @@ export default function Overview({
     }
     const ts = swDoc?.data?.timestamp;
     if (ts) {
-      // se for ISO, Date.parse funciona; se for BR, usa parseBrToMs
       const msISO = Date.parse(ts);
       const ms = Number.isNaN(msISO) ? parseBrToMs(ts) : msISO;
       if (!Number.isNaN(ms)) {
@@ -329,7 +218,6 @@ export default function Overview({
       },
     ];
 
-    // para monitores além dos 2 painéis, use os nomes extras de equipamentos
     const dynamics: DeviceCard[] = equipamentoNames.slice(2).map((name, i) => {
       const m = parsed_sw.monitores?.[i];
       const tVal = tensionValues[i];
@@ -339,7 +227,7 @@ export default function Overview({
           id: `${name}-${i}`,
           title: name,
           statuses: [{ label: "status", value: "9" }],
-        }; // Ausente
+        };
       }
 
       return {
@@ -360,7 +248,7 @@ export default function Overview({
     return [...base, ...dynamics].filter((card) => card.title !== "Ausente");
   }, [equipamentoNames, parsed_sw, tensionValues]);
 
-  /* ----------------- ações & modal (inalterado) ----------------- */
+  /* ----------------- ações & modal ----------------- */
   const handleSolicitarStatus = () => {
     try {
       sendCommand(
@@ -431,9 +319,7 @@ export default function Overview({
         <summary className="flex items-center justify-between cursor-pointer font-semibold text-lg mb-2 select-none">
           <div className="flex items-center gap-2">
             <span className="uppercase">Status de Alarmes :</span>
-            {/* BOTÃO TOGGLE: Desativar/Reativar Geral */}
             <div className="flex items-center gap-3">
-              {/* SWITCH */}
               <span
                 className={clsx(
                   "text-md font-medium uppercase",
@@ -479,7 +365,6 @@ export default function Overview({
                     )}
                   />
 
-                  {/* Tooltip */}
                   <span
                     id="tip-switch"
                     role="tooltip"
@@ -509,7 +394,6 @@ export default function Overview({
               {loading ? "..." : "Solicitar Status"}
             </button>
 
-            {/* Toggle Sirene */}
             {canResolveAlerts && (
               <div className="flex items-center gap-2 ml-2">
                 <span className="text-sm text-gray-300">Sirene:</span>
@@ -546,7 +430,6 @@ export default function Overview({
               </div>
             )}
 
-            {/* Toggle WhatsApp para este irrigador */}
             <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4 flex-nowrap text-nowrap">
               <span className="text-sm text-gray-300">WhatsApp/SMS:</span>
               <button
@@ -554,7 +437,7 @@ export default function Overview({
                 role="switch"
                 aria-checked={msgEnabled}
                 aria-label="Alternar notificações WhatsApp/SMS"
-                onClick={() => handleToggleIntercept({ msg: !msgEnabled })}
+                onClick={() => updateConfig({ msg: !msgEnabled })}
                 disabled={notificationLoading}
                 className={clsx(
                   "relative inline-flex h-6 w-12 flex-shrink-0 cursor-pointer rounded-full transition-colors",
@@ -592,7 +475,6 @@ export default function Overview({
               </span>
             </div>
 
-            {/* Toggle WhatsApp para este irrigador */}
             <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4">
               <span className="text-sm text-gray-300">Ligação WhatsApp</span>
               <button
@@ -601,7 +483,7 @@ export default function Overview({
                 aria-checked={callEnabled}
                 aria-label="Alternar notificações WhatsApp/SMS"
                 onClick={() =>
-                  handleToggleIntercept(
+                  updateConfig(
                     callEnabled ? { call: false } : { msg: true, call: true },
                   )
                 }
@@ -643,26 +525,6 @@ export default function Overview({
                     : "Inativo"}
               </span>
             </div>
-
-            {/* --- NOVO: Contato Salvo (Máscara Parcial + Editar) --- */}
-            {savedPhone && (
-              <div className="flex items-center gap-2 ml-4 border-l border-gray-600 pl-4 text-nowrap">
-                <span
-                  className="text-sm text-gray-300 font-mono tracking-wide"
-                  title="Número cadastrado"
-                >
-                  {maskSavedPhone(savedPhone)}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleEditPhone}
-                  className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-                  title="Editar telefone de notificação"
-                >
-                  <FiEdit2 size={15} />
-                </button>
-              </div>
-            )}
           </div>
         </summary>
 
@@ -710,65 +572,6 @@ export default function Overview({
           selectedMachine={pivoId}
           card={activeCard}
         />
-      )}
-
-      {/* --- MODAL CAPTURA DE TELEFONE --- */}
-      {isPhoneModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-          <div className="bg-[#313131] border border-gray-600 p-6 rounded-lg w-96 max-w-[90%] text-white shadow-xl">
-            <h3 className="text-lg font-semibold mb-2">
-              {pendingAction ? "Telefone Necessário" : "Editar Telefone"}
-            </h3>
-            <p className="text-sm text-gray-300 mb-4">
-              {pendingAction
-                ? "Para enviarmos alertas deste equipamento, precisamos do seu número de WhatsApp com DDD."
-                : "Atualize o seu número de WhatsApp para recebimento de alertas."}
-            </p>
-            <div className="flex gap-2 mb-4">
-              {/* Input DDI (País) */}
-              <input
-                type="text"
-                value={countryCode}
-                onChange={(e) =>
-                  setCountryCode(formatCountryCode(e.target.value))
-                }
-                placeholder="+55"
-                className="w-1/4 p-2 bg-[#222] border border-gray-600 rounded text-white text-center focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-
-              {/* Input Telefone Local */}
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) =>
-                  setPhoneNumber(
-                    formatLocalPhoneMask(e.target.value, countryCode === "+55"),
-                  )
-                }
-                maxLength={countryCode === "+55" ? 15 : 16}
-                placeholder="(11) 99999-9999"
-                className="w-3/4 p-2 bg-[#222] border border-gray-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setIsPhoneModalOpen(false);
-                  setPendingAction(null);
-                }}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded text-sm transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSavePhone}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-semibold transition-colors"
-              >
-                {pendingAction ? "Salvar e Ativar" : "Salvar"}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </>
   );

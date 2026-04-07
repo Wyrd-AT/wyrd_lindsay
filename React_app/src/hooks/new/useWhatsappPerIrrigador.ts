@@ -25,10 +25,11 @@ interface NotificacoesDoc {
 export function useWhatsappPerIrrigador(
   irrigadorId: string | null,
   userEmail?: string,
+  userPhone?: string,
 ) {
   const [msgEnabled, setMsgEnabled] = useState<boolean>(false);
   const [callEnabled, setCallEnabled] = useState<boolean>(false);
-  const [savedPhone, setSavedPhone] = useState<string | null>(null); // Guardamos se ele já tem número
+  // const [savedPhone, setSavedPhone] = useState<string | null>(null); // Guardamos se ele já tem número
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +37,7 @@ export function useWhatsappPerIrrigador(
     if (!irrigadorId || !userEmail) {
       setMsgEnabled(false);
       setCallEnabled(false);
-      setSavedPhone(null);
+      // setSavedPhone(null);
       return;
     }
 
@@ -52,18 +53,18 @@ export function useWhatsappPerIrrigador(
         if (myConfig) {
           setMsgEnabled(myConfig.msg_enabled);
           setCallEnabled(myConfig.call_enabled);
-          setSavedPhone(myConfig.numero);
+          // setSavedPhone(myConfig.numero);
         } else {
           setMsgEnabled(false);
           setCallEnabled(false);
-          setSavedPhone(null);
+          // setSavedPhone(null);
         }
       }
     } catch (err: any) {
       if (err?.response?.status === 404 || err?.status === 404) {
         setMsgEnabled(false);
         setCallEnabled(false);
-        setSavedPhone(null);
+        // setSavedPhone(null);
       } else {
         console.error("[useWhatsappPerIrrigador] Erro ao buscar:", err);
         setError("Erro ao buscar configuração");
@@ -85,7 +86,8 @@ export function useWhatsappPerIrrigador(
       const newCallState =
         updates.call !== undefined ? updates.call : callEnabled;
       // Se não passar telefone novo, usa o que já estava salvo
-      const activePhone = updates.phone || savedPhone || "";
+      // const activePhone = updates.phone || savedPhone || "";
+      const activePhone = userPhone || "";
 
       const docId = `notificacoes:${irrigadorId}`;
       let success = false;
@@ -151,7 +153,6 @@ export function useWhatsappPerIrrigador(
           success = true;
           setMsgEnabled(newMsgState);
           setCallEnabled(newCallState);
-          setSavedPhone(activePhone); // Atualiza o telefone localmente
         } catch (err: any) {
           if (err?.response?.status === 409 || err?.status === 409) {
             retries++;
@@ -172,7 +173,7 @@ export function useWhatsappPerIrrigador(
 
       setLoading(false);
     },
-    [irrigadorId, userEmail, savedPhone, msgEnabled, callEnabled, fetchConfig],
+    [irrigadorId, userEmail, msgEnabled, callEnabled, fetchConfig],
   );
 
   useEffect(() => {
@@ -182,7 +183,7 @@ export function useWhatsappPerIrrigador(
   return {
     msgEnabled,
     callEnabled,
-    savedPhone,
+    // savedPhone,
     loading,
     error,
     updateConfig,
