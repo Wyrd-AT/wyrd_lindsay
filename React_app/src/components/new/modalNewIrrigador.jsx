@@ -21,9 +21,14 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const [loadingClientes, setLoadingClientes] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [revendas, setRevendas] = useState([]);
+  const [loadingRevendas, setLoadingRevendas] = useState(false);
+  const [revendaId, setRevendaId] = useState("");
 
   // Tipos que podem criar pivôs
   const isManager = ["admin", "superadmin", "revenda"].includes(user?.type);
+  const isSuperAdmin = user?.type === "superadmin";
+  const isAdmin = user?.type === "admin";
   const isAdminOrSuper = ["admin", "superadmin"].includes(user?.type);
   const isRevenda = user?.type === "revenda";
 
@@ -47,13 +52,18 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
           // Deve ser superusuário
           if (c.sub_role !== "superusuario") return false;
 
+          // Superadmin: vê TODOS os clientes
+          if (isSuperAdmin) {
+            return true;
+          }
+
           // Revenda: mostra apenas seus clientes
           if (isRevenda) {
             return c.revenda_id === user?.doc_id;
           }
 
           // Admin: mostra apenas clientes de suas revendas (mesmo cnpj_admin)
-          if (isAdminOrSuper) {
+          if (isAdmin) {
             return c.cnpj_admin === user?.cnpj;
           }
 
@@ -81,6 +91,38 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
       cancelled = true;
     };
   }, [isManager, isOwnPivo, clienteId, isRevenda, isAdminOrSuper, user]);
+
+  // Carregar revendas quando for superadmin criando pivô para cliente
+  useEffect(() => {
+    if (!isSuperAdmin || !clienteId || isOwnPivo) return;
+
+    let cancelled = false;
+    (async () => {
+      setLoadingRevendas(true);
+      try {
+        const res = await apiClient.get("/revendas");
+        const allRevendas = res.data?.revendas || [];
+        if (!cancelled) {
+          setRevendas(allRevendas);
+          // Se o cliente tiver revenda_id, preseleciona
+          const clienteSelecionado = clientes.find(
+            (c) => c.cnpj_cliente === clienteId
+          );
+          if (clienteSelecionado?.revenda_id && !revendaId) {
+            setRevendaId(clienteSelecionado.revenda_id);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar revendas:", err);
+      } finally {
+        if (!cancelled) setLoadingRevendas(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin, clienteId, isOwnPivo, clientes, revendaId]);
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(14);
 
@@ -238,6 +280,31 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
                 perfil superusuário podem receber pivôs.
               </span>
             )}
+          </label>
+        )}
+
+        {/* Campo de Revenda para Superadmin */}
+        {isSuperAdmin && !isOwnPivo && clienteId && (
+          <label className="block text-white mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span>Revenda</span>
+              {loadingRevendas && (
+                <span className="text-gray-400 text-xs">Carregando...</span>
+              )}
+            </div>
+            <select
+              value={revendaId}
+              onChange={(e) => setRevendaId(e.target.value)}
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              disabled={isSaving || loadingRevendas}
+            >
+              <option value="">Selecione a revenda (se necessário)</option>
+              {revendas.map((r) => (
+                <option key={r._id} value={r._id}>
+                  {r.name} ({r.cnpj_revenda || "—"})
+                </option>
+              ))}
+            </select>
           </label>
         )}
 
