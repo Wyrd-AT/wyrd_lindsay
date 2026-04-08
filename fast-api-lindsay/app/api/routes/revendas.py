@@ -18,7 +18,7 @@ from app.api.routes.auth import get_current_user
 router = APIRouter(prefix="/revendas")
 
 
-@router.get("", response_model=RevendasListResponse)
+@router.get("")
 async def list_revendas(user: dict = Depends(get_current_user)):
     """Listar revendas (admin/superadmin)"""
     checker = PermissionChecker(user)
@@ -37,11 +37,11 @@ async def list_revendas(user: dict = Depends(get_current_user)):
 
         revendas = [
             {
-                "_id": row.get("_id"),
-                "_rev": row.get("_rev"),
+                "id": row.get("_id"),
                 "email": row.get("email"),
                 "name": row.get("name"),
                 "cnpj_revenda": row.get("cnpj_revenda"),
+                "cnpj_admin": row.get("cnpj_admin"),
                 "status": row.get("status"),
                 "created_at": row.get("created_at"),
             }

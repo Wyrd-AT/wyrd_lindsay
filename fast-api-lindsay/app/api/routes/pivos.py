@@ -54,6 +54,14 @@ async def create_pivo(
 
     if not request.cliente_id:
         # Criar pivô próprio (sem cliente associado)
+        # Revenda não pode criar pivô próprio - deve sempre vincular a cliente
+        is_revenda = checker.is_revenda()
+        if is_revenda:
+            raise HTTPException(
+                status_code=400,
+                detail="Revenda deve obrigatoriamente vincular o pivô a um cliente.",
+            )
+
         user_cnpj = user.get("cnpj")
 
         if not user_cnpj:
@@ -64,7 +72,6 @@ async def create_pivo(
 
         # Identificar o perfil para preencher as chaves corretas
         is_admin = checker.is_admin()
-        is_revenda = checker.is_revenda()
 
         pivo = PivoService(get_db()).create_pivo(
             user=user,
@@ -155,6 +162,30 @@ async def create_pivo(
 
         if not cliente_doc or cliente_doc.get("type") != "cliente":
             raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+        # Validar que admin/revenda pode criar pivô para este cliente
+        is_revenda_user = checker.is_revenda()
+        is_admin_user = checker.is_admin()
+        is_superadmin = checker.is_superadmin()
+
+        if not is_superadmin:
+            cliente_revenda_id = cliente_doc.get("revenda_id")
+            cliente_cnpj_admin = cliente_doc.get("cnpj_admin")
+
+            if is_revenda_user:
+                # Revenda: cliente deve estar em sua hierarquia
+                if cliente_revenda_id != user.get("doc_id"):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Você não tem permissão para criar pivô para este cliente.",
+                    )
+            elif is_admin_user:
+                # Admin: cliente deve estar em uma de suas revendas
+                if cliente_cnpj_admin != user.get("cnpj"):
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Você não tem permissão para criar pivô para este cliente.",
+                    )
 
         owner_id = cliente_doc.get("email")
         cnpj_cliente = cliente_doc.get("cnpj_cliente")

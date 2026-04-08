@@ -73,6 +73,7 @@ class RevendaResponse(BaseModel):
     phone_number: Optional[str] = None
     name: str
     cnpj_revenda: Optional[str] = None
+    cnpj_admin: Optional[str] = None
     status: str
     created_at: str
 

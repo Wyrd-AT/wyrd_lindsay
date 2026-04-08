@@ -118,7 +118,6 @@ export function GerenciarPivosPage() {
               loading={loadingStats}
             />
           </div>
-
           {/* Pivôs Section */}
           <div className="px-4 mb-8">
             <div className="bg-dashboard-bg-secondary rounded-lg shadow-md p-6">

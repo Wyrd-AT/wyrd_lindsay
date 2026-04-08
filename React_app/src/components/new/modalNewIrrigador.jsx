@@ -67,22 +67,26 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     };
   }, [isSuperAdmin]);
 
-  // Carregar revendas quando admin for selecionado (superadmin)
+  // Carregar revendas: para superadmin quando seleciona admin, para admin automaticamente
   useEffect(() => {
-    if (!isSuperAdmin || !adminId) {
+    // Superadmin precisa ter admin selecionado; admin carrega as próprias revendas
+    if (isSuperAdmin && !adminId) {
       setRevendas([]);
       setRevendaId("");
       return;
     }
+    if (!isSuperAdmin && !isAdmin) return;
+
     let cancelled = false;
     (async () => {
       setLoadingRevendas(true);
       try {
         const res = await apiClient.get("/revendas");
         const allRevendas = res.data?.revendas || [];
-        // Filtrar revendas do admin selecionado
+        // cnpj a comparar: superadmin usa o admin selecionado, admin usa o próprio cnpj
+        const cnpjFiltro = isSuperAdmin ? adminId : user?.cnpj;
         const filtered = allRevendas.filter(
-          (r) => r.cnpj_admin === adminId
+          (r) => r.cnpj_admin === cnpjFiltro
         );
         if (!cancelled) {
           setRevendas(filtered);
@@ -99,7 +103,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     return () => {
       cancelled = true;
     };
-  }, [isSuperAdmin, adminId]);
+  }, [isSuperAdmin, isAdmin, adminId, user]);
 
   // Carregar clientes quando revenda for selecionada
   useEffect(() => {
@@ -116,7 +120,8 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
         if (isSuperAdmin && revendaId) {
           // Superadmin com revenda selecionada: mostra clientes dessa revenda
-          list = list.filter((c) => c.revenda_id === revendaId);
+          // revendaId contém cnpj_revenda (ex: "14.309.992/0001-48")
+          list = list.filter((c) => c.cnpj_revenda === revendaId);
         } else if (isSuperAdmin) {
           // Superadmin sem revenda: mostra todos
           // (já filtrado por superusuario acima)
@@ -124,8 +129,13 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
           // Revenda: mostra apenas seus clientes
           list = list.filter((c) => c.revenda_id === user?.doc_id);
         } else if (isAdmin) {
-          // Admin: mostra clientes de suas revendas
-          list = list.filter((c) => c.cnpj_admin === user?.cnpj);
+          if (revendaId) {
+            // Admin com revenda selecionada: mostra clientes dessa revenda
+            list = list.filter((c) => c.cnpj_revenda === revendaId);
+          } else {
+            // Admin sem revenda selecionada: mostra todos os seus clientes
+            list = list.filter((c) => c.cnpj_admin === user?.cnpj);
+          }
         }
 
         if (!cancelled) {
@@ -194,28 +204,36 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     } else if (isRevenda && !clienteId) {
       setError("Revenda deve sempre vincular o pivô a um cliente.");
       return;
-    } else if (isAdmin && !isOwnPivo && !clienteId) {
-      setError("Selecione o cliente ao qual o pivô será associado.");
-      return;
+    } else if (isAdmin) {
+      if (!revendaId) {
+        setError("Selecione a revenda.");
+        return;
+      }
+      if (!isOwnPivo && !clienteId) {
+        setError("Selecione o cliente ao qual o pivô será associado.");
+        return;
+      }
     }
 
     setIsSaving(true);
     setError(null);
 
     try {
-      await createPivo({
+      const pivoPayload = {
         codigo,
         nome,
-        whatsapp,
-        sms,
-        // Revenda sempre envia cliente_id
-        // Admin/Superadmin envia apenas se não for pivô próprio
-        cliente_id:
-          isRevenda || (isAdminOrSuper && !isOwnPivo)
-            ? clienteId
-            : undefined,
         equipamentos: equipamentos.filter(Boolean),
-      });
+        ...(whatsapp && { whatsapp }),
+        ...(sms && { sms }),
+      };
+
+      // Vincular ao cliente: revenda sempre obrigatório; admin/superadmin se não for pivô próprio
+      const clienteAlvo = isRevenda || (isAdminOrSuper && !isOwnPivo) ? clienteId : undefined;
+      if (clienteAlvo) {
+        pivoPayload.cliente_id = clienteAlvo;
+      }
+
+      await createPivo(pivoPayload);
       onSuccess?.();
       closeModal();
     } catch (err) {
@@ -257,7 +275,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
         {error && <div className="mb-4 text-red-400 text-sm">{error}</div>}
 
-        {/* Fluxo em cascata para Superadmin */}
+        {/* Fluxo em cascata para Superadmin: Admin → Revenda */}
         {isSuperAdmin && (
           <>
             {/* Seleção de Admin */}
@@ -279,46 +297,46 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
               >
                 <option value="">Selecione um admin</option>
                 {admins.map((a) => (
-                  <option key={a._id} value={a.cnpj}>
-                    {a.name} ({a.cnpj})
+                  <option key={a._id} value={a.cnpj_admin}>
+                    {a.name} ({a.cnpj_admin})
                   </option>
                 ))}
               </select>
             </label>
-
-            {/* Seleção de Revenda */}
-            {adminId && (
-              <label className="block text-white mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span>
-                    Revenda <span className="text-red-400 ml-1">*</span>
-                  </span>
-                  {loadingRevendas && (
-                    <span className="text-gray-400 text-xs">Carregando...</span>
-                  )}
-                </div>
-                <select
-                  value={revendaId}
-                  onChange={(e) => setRevendaId(e.target.value)}
-                  className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-                  disabled={isSaving || loadingRevendas || revendas.length === 0}
-                  required
-                >
-                  <option value="">Selecione uma revenda</option>
-                  {revendas.map((r) => (
-                    <option key={r._id} value={r._id}>
-                      {r.name} ({r.cnpj_revenda || "—"})
-                    </option>
-                  ))}
-                </select>
-                {revendas.length === 0 && !loadingRevendas && (
-                  <span className="text-amber-400 text-xs mt-1 block">
-                    Nenhuma revenda encontrada para este admin
-                  </span>
-                )}
-              </label>
-            )}
           </>
+        )}
+
+        {/* Seleção de Revenda: superadmin (após escolher admin) ou admin regular */}
+        {(isSuperAdmin ? !!adminId : isAdmin) && (
+          <label className="block text-white mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span>
+                Revenda <span className="text-red-400 ml-1">*</span>
+              </span>
+              {loadingRevendas && (
+                <span className="text-gray-400 text-xs">Carregando...</span>
+              )}
+            </div>
+            <select
+              value={revendaId}
+              onChange={(e) => setRevendaId(e.target.value)}
+              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
+              disabled={isSaving || loadingRevendas || revendas.length === 0}
+              required
+            >
+              <option value="">Selecione uma revenda</option>
+              {revendas.map((r) => (
+                <option key={r.cnpj_revenda} value={r.cnpj_revenda}>
+                  {r.name} ({r.cnpj_revenda || "—"})
+                </option>
+              ))}
+            </select>
+            {revendas.length === 0 && !loadingRevendas && (
+              <span className="text-amber-400 text-xs mt-1 block">
+                Nenhuma revenda encontrada
+              </span>
+            )}
+          </label>
         )}
 
         {isManager && (
@@ -407,33 +425,6 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
           />
         </label>
 
-        <fieldset className="mb-4 p-4 border border-gray-600 rounded-md">
-          <legend className="text-white mb-2 px-2">
-            Contatos para Notificação (opcional)
-          </legend>
-          <label className="block text-white mb-3">
-            <span className="text-sm text-gray-300">WhatsApp:</span>
-            <input
-              ref={whatsappRef}
-              name="whatsapp"
-              type="text"
-              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              placeholder="+5511999999999"
-              disabled={isSaving}
-            />
-          </label>
-          <label className="block text-white mb-3">
-            <span className="text-sm text-gray-300">SMS:</span>
-            <input
-              ref={smsRef}
-              name="sms"
-              type="text"
-              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              placeholder="+5511988888888"
-              disabled={isSaving}
-            />
-          </label>
-        </fieldset>
 
         <fieldset className="mb-4">
           <legend className="text-white mb-2">Equipamentos</legend>
@@ -487,8 +478,8 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
               (isSuperAdmin && (!adminId || !revendaId || (!isOwnPivo && !clienteId))) ||
               // Revenda sempre precisa de cliente
               (isRevenda && (!clienteId || loadingClientes)) ||
-              // Admin precisa de cliente a menos que seja pivô próprio
-              (isAdmin && !isOwnPivo && (!clienteId || loadingClientes))
+              // Admin precisa de revenda e cliente (a menos que seja pivô próprio)
+              (isAdmin && (!revendaId || (!isOwnPivo && (!clienteId || loadingClientes))))
             }
             className={`px-4 py-2 rounded-md text-white ${isSaving ? "bg-gray-500 cursor-not-allowed" : "bg-[#08cb7c] hover:bg-green-600"}`}
           >
