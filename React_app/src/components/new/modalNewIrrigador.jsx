@@ -17,6 +17,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
 
   const [admins, setAdmins] = useState([]);
   const [adminId, setAdminId] = useState("");
+  const [selectedAdminType, setSelectedAdminType] = useState("");
   const [loadingAdmins, setLoadingAdmins] = useState(false);
 
   const [revendas, setRevendas] = useState([]);
@@ -85,9 +86,10 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
         const allRevendas = res.data?.revendas || [];
         // cnpj a comparar: superadmin usa o admin selecionado, admin usa o próprio cnpj
         const cnpjFiltro = isSuperAdmin ? adminId : user?.cnpj;
-        const filtered = allRevendas.filter(
-          (r) => r.cnpj_admin === cnpjFiltro
-        );
+        // Se o admin selecionado for superadmin, mostra todas as revendas
+        const filtered = (isSuperAdmin && selectedAdminType === "superadmin")
+          ? allRevendas
+          : allRevendas.filter((r) => r.cnpj_admin === cnpjFiltro);
         if (!cancelled) {
           setRevendas(filtered);
           setRevendaId("");
@@ -103,7 +105,7 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     return () => {
       cancelled = true;
     };
-  }, [isSuperAdmin, isAdmin, adminId, user]);
+  }, [isSuperAdmin, isAdmin, adminId, selectedAdminType, user]);
 
   // Carregar clientes quando revenda for selecionada
   useEffect(() => {
@@ -290,14 +292,18 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
               </div>
               <select
                 value={adminId}
-                onChange={(e) => setAdminId(e.target.value)}
+                onChange={(e) => {
+                  const opt = e.target.options[e.target.selectedIndex];
+                  setAdminId(e.target.value);
+                  setSelectedAdminType(opt.getAttribute("data-type") || "");
+                }}
                 className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
                 disabled={isSaving || loadingAdmins}
                 required
               >
                 <option value="">Selecione um admin</option>
                 {admins.map((a) => (
-                  <option key={a._id} value={a.cnpj_admin}>
+                  <option key={a._id} value={a.cnpj_admin} data-type={a.type}>
                     {a.name} ({a.cnpj_admin})
                   </option>
                 ))}
