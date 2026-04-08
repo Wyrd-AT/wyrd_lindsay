@@ -9,7 +9,9 @@ import { useAuthStore } from "../../stores/new/authStore";
 import apiClient from "../../api/new/apiClient"; // 👈 Ajuste o caminho se necessário
 
 interface Revenda {
-  _id: string;
+  id?: string;
+  doc_id?: string;
+  _id?: string;
   name: string;
   email: string;
 }
@@ -214,7 +216,7 @@ export const CreateClienteModal: React.FC<CreateClienteModalProps> = ({
               >
                 <option value="">Selecione uma revenda</option>
                 {revendas.map((r) => (
-                  <option key={r._id} value={r._id}>
+                  <option key={r.doc_id ?? r.id ?? r._id} value={r.doc_id ?? r.id ?? r._id}>
                     {r.name} ({r.email})
                   </option>
                 ))}

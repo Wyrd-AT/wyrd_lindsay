@@ -59,7 +59,7 @@ def _raise_cognito_http_error(exc: ClientError) -> None:
     )
 
 
-@router.get("", response_model=ClientesListResponse)
+@router.get("")
 async def list_clientes(user: dict = Depends(get_current_user)):
     """Listar clientes - Para admin, busca todos. Para revenda, busca os seus."""
     checker = PermissionChecker(user)
@@ -104,8 +104,8 @@ async def list_clientes(user: dict = Depends(get_current_user)):
         # Formatar resposta
         clientes = [
             {
-                "_id": c.get("_id"),
-                "_rev": c.get("_rev"),
+                "id": c.get("_id"),
+                "doc_id": c.get("_id"),
                 "email": c.get("email"),
                 "name": c.get("name"),
                 "status": c.get("status"),
@@ -120,7 +120,7 @@ async def list_clientes(user: dict = Depends(get_current_user)):
             for c in clientes_raw
         ]
 
-        return ClientesListResponse(total=len(clientes), clientes=clientes)
+        return {"total": len(clientes), "clientes": clientes}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

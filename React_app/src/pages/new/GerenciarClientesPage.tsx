@@ -71,10 +71,11 @@ export function GerenciarClientesPage() {
   };
 
   const handleSaveCliente = async (payload: Record<string, any>) => {
-    if (!editingCliente?._id) return;
+    const clienteDocId = editingCliente?.doc_id ?? editingCliente?.id ?? editingCliente?._id;
+    if (!clienteDocId) return;
     setSavingEdit(true);
     try {
-      await updateCliente(editingCliente._id, payload);
+      await updateCliente(clienteDocId, payload);
       setEditingCliente(null);
       await fetchClientes();
       await fetchStats();
@@ -86,7 +87,8 @@ export function GerenciarClientesPage() {
   const handleDeleteCliente = async (cliente: Cliente) => {
     if (!window.confirm(`Deseja deletar ${cliente.name || cliente.email}?`))
       return;
-    await deleteCliente(cliente._id);
+    const clienteDocId = cliente.doc_id ?? cliente.id ?? cliente._id;
+    await deleteCliente(clienteDocId!);
     await fetchClientes();
     await fetchStats();
   };

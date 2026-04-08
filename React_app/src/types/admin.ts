@@ -19,17 +19,20 @@ export interface Revenda {
 }
 
 export interface Cliente {
-  _id: string;
+  id?: string;
+  doc_id?: string;
+  _id?: string;
   _rev?: string;
   type: "cliente";
   email: string;
   name: string;
   status: "pending" | "active" | "rejected";
   created_at: string;
-  revenda_id?: string; // ID da revenda associada
-  documento?: string; // CPF ou CNPJ do cliente
-  cnpj_admin?: string; // Herdado do admin da hierarquia
-  cnpj_revenda?: string; // Herdado da revenda associada
+  revenda_id?: string;
+  documento?: string;
+  cnpj_cliente?: string;
+  cnpj_admin?: string;
+  cnpj_revenda?: string;
   sub_role?: "superusuario" | "gerente" | "comum";
 }
 
