@@ -246,11 +246,45 @@ async def register(request: UserRegisterRequest):
                 domain=request.domain or request.email.split("@")[1],
             )
         elif request.type == "cliente":
+            # Resolver revenda_id real (UUID) a partir do domain
+            db = get_users_db()
+            revenda_id = None
+            try:
+                # Buscar revenda por domain ou email
+                domain = request.domain or request.email.split("@")[1]
+                revendas = list(
+                    db.find(
+                        {"selector": {"type": "revenda", "domain": domain}, "limit": 1}
+                    )
+                )
+                if revendas:
+                    revenda_id = revendas[0].get("_id")
+                else:
+                    # Fallback: tentar buscar por email
+                    revendas = list(
+                        db.find(
+                            {
+                                "selector": {"type": "revenda", "email": domain},
+                                "limit": 1,
+                            }
+                        )
+                    )
+                    if revendas:
+                        revenda_id = revendas[0].get("_id")
+            except Exception as e:
+                logger.warning(f"Erro ao resolver revenda para domain {domain}: {e}")
+
+            if not revenda_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Nenhuma revenda encontrada para o domain: {domain}",
+                )
+
             user = auth_service.register_cliente(
                 email=request.email,
                 password=request.password,
                 name=request.name,
-                revenda_id=request.domain,
+                revenda_id=revenda_id,
             )
         else:
             raise ValueError(f"Tipo inválido: {request.type}")
