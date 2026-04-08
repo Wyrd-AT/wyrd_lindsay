@@ -3,7 +3,9 @@
  */
 
 export interface Revenda {
-  _id: string;
+  id?: string;     // retornado pela API (FastAPI ignora chaves com _)
+  doc_id?: string; // alias explícito sem underscore
+  _id?: string;    // mantido por compatibilidade
   _rev?: string;
   type: "revenda";
   email: string;
@@ -12,6 +14,8 @@ export interface Revenda {
   status: "pending" | "active" | "rejected";
   created_at: string;
   cnpj?: string;
+  cnpj_revenda?: string;
+  cnpj_admin?: string;
 }
 
 export interface Cliente {

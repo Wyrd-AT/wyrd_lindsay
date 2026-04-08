@@ -35,19 +35,21 @@ async def list_revendas(user: dict = Depends(get_current_user)):
 
         result = db.find({"selector": selector, "limit": 500})
 
-        revendas = [
-            {
-                "id": row.get("_id"),
+        revendas = []
+        for row in result:
+            doc_id = row.get("_id")
+            revendas.append({
+                "id": doc_id,
+                "doc_id": doc_id,
                 "email": row.get("email"),
                 "name": row.get("name"),
                 "cnpj_revenda": row.get("cnpj_revenda"),
                 "cnpj_admin": row.get("cnpj_admin"),
                 "status": row.get("status"),
                 "created_at": row.get("created_at"),
-            }
-            for row in result
-        ]
-        return RevendasListResponse(total=len(revendas), revendas=revendas)
+            })
+        # Retorna dict puro para evitar que Pydantic filtre campos
+        return {"total": len(revendas), "revendas": revendas}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

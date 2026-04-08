@@ -68,10 +68,11 @@ export function GerenciarRevendasPage() {
   };
 
   const handleSaveRevenda = async (payload: Record<string, any>) => {
-    if (!editingRevenda?._id) return;
+    const revendaDocId = editingRevenda?.doc_id ?? editingRevenda?.id ?? editingRevenda?._id;
+    if (!revendaDocId) return;
     setSavingEdit(true);
     try {
-      await updateRevenda(editingRevenda._id, payload);
+      await updateRevenda(revendaDocId, payload);
       setEditingRevenda(null);
       await fetchAllRevendas();
       await fetchStats();
@@ -83,7 +84,8 @@ export function GerenciarRevendasPage() {
   const handleDeleteRevenda = async (revenda: Revenda) => {
     if (!window.confirm(`Deseja deletar ${revenda.name || revenda.email}?`))
       return;
-    await deleteRevenda(revenda._id);
+    const revendaDocId = revenda.doc_id ?? revenda.id ?? revenda._id;
+    await deleteRevenda(revendaDocId!);
     await fetchAllRevendas();
     await fetchStats();
   };
@@ -244,7 +246,7 @@ function RevendasSection({
       revenda.email,
       revenda.cnpj_revenda,
       revenda.status,
-      revenda._id,
+      revenda.id ?? revenda._id,
     ]),
   );
 
@@ -281,7 +283,7 @@ function RevendasSection({
         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar scrollbar-thin scrollbar-thumb-dashboard-accent scrollbar-track-dashboard-bg-tertiary">
           {filteredRevendas.map((revenda, idx) => (
             <div
-              key={revenda._id ?? revenda.email ?? `revenda-${idx}`}
+              key={revenda.id ?? revenda._id ?? revenda.email ?? `revenda-${idx}`}
               className="border border-dashboard-border rounded-lg p-4 hover:bg-dashboard-border transition bg-dashboard-bg-tertiary"
             >
               <div className="flex items-start justify-between">
