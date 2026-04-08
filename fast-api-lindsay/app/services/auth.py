@@ -284,7 +284,7 @@ class AuthService:
             # Criar cliente
             now = datetime.utcnow().isoformat()
             cliente = {
-                "_id": f"cliente:{email}",
+                "_id": f"user:{email}",
                 "email": email,
                 "name": name,
                 "password_hash": self.hash_password(password),
@@ -309,7 +309,7 @@ class AuthService:
             return ApprovalResult(
                 status="success",
                 message=f"Cliente '{email}' registrado. Aguardando aprovação da revenda.",
-                document_id=f"cliente:{email}",
+                document_id=f"user:{email}",
             )
 
         except couchdb.http.ResourceNotFound:
@@ -402,7 +402,7 @@ class AuthService:
                         }
 
             elif user_type == UserType.CLIENTE:
-                doc_id = f"cliente:{email}"
+                doc_id = f"user:{email}"
                 doc = self.db.get(doc_id)
 
                 if not doc or doc.get("status") not in ("active", "pending"):
