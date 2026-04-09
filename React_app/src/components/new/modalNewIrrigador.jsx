@@ -4,7 +4,7 @@ import { useAuthStore } from "../../stores/new/authStore";
 import { useNavigate } from "react-router-dom";
 import useEquipamentos from "../../hooks/new/useEquipaments";
 import { usePivos } from "../../hooks/new/usePivos";
-import apiClient from "../../api/new/apiClient";
+import { useHierarchyStore } from "../../stores/new/hierarchyStore";
 
 export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const nameRef = useRef();
@@ -15,18 +15,23 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
   const navigate = useNavigate();
   const { createPivo } = usePivos();
 
-  const [admins, setAdmins] = useState([]);
+  // Dados hierárquicos do cache (sem fetch repetido a cada abertura do modal)
+  const {
+    admins,
+    revendas: allRevendas,
+    clientes: allClientes,
+    loadingAdmins,
+    loadingRevendas,
+    loadingClientes,
+    fetchAdmins,
+    fetchRevendas,
+    fetchClientes,
+  } = useHierarchyStore();
+
   const [adminId, setAdminId] = useState("");
   const [selectedAdminType, setSelectedAdminType] = useState("");
-  const [loadingAdmins, setLoadingAdmins] = useState(false);
-
-  const [revendas, setRevendas] = useState([]);
   const [revendaId, setRevendaId] = useState("");
-  const [loadingRevendas, setLoadingRevendas] = useState(false);
-
-  const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState("");
-  const [loadingClientes, setLoadingClientes] = useState(true);
 
   const [isOwnPivo, setIsOwnPivo] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,121 +50,42 @@ export const ModalIrrigador = ({ closeModal, onSuccess }) => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Carregar admins para superadmin
+  // Carrega dados do cache (sem fetch repetido se ainda frescos)
   useEffect(() => {
-    if (!isSuperAdmin) return;
-    let cancelled = false;
-    (async () => {
-      setLoadingAdmins(true);
-      try {
-        const res = await apiClient.get("/admins");
-        const allAdmins = res.data?.admins || [];
-        if (!cancelled) {
-          setAdmins(allAdmins);
-        }
-      } catch (err) {
-        console.error("Erro ao carregar admins:", err);
-      } finally {
-        if (!cancelled) setLoadingAdmins(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isSuperAdmin]);
+    if (isSuperAdmin) fetchAdmins();
+    if (isAdminOrSuper) fetchRevendas();
+    if (isManager) fetchClientes();
+  }, [isSuperAdmin, isAdminOrSuper, isManager, fetchAdmins, fetchRevendas, fetchClientes]);
 
-  // Carregar revendas: para superadmin quando seleciona admin, para admin automaticamente
-  useEffect(() => {
-    // Superadmin precisa ter admin selecionado; admin carrega as próprias revendas
-    if (isSuperAdmin && !adminId) {
-      setRevendas([]);
-      setRevendaId("");
-      return;
+  // Filtragem das revendas por admin selecionado (client-side, sem fetch)
+  const revendas = (() => {
+    if (isSuperAdmin && !adminId) return [];
+    if (!isSuperAdmin && !isAdmin) return [];
+    const cnpjFiltro = isSuperAdmin ? adminId : user?.cnpj;
+    if (isSuperAdmin && selectedAdminType === "superadmin") return allRevendas;
+    return allRevendas.filter((r) => r.cnpj_admin === cnpjFiltro);
+  })();
+
+  // Filtragem dos clientes (client-side, sem fetch)
+  const clientes = (() => {
+    let list = allClientes.filter((c) => c.sub_role === "superusuario");
+    if (isSuperAdmin && revendaId) {
+      list = list.filter((c) => c.cnpj_revenda === revendaId);
+    } else if (isRevenda) {
+      list = list.filter((c) => c.revenda_id === user?.doc_id);
+    } else if (isAdmin) {
+      list = revendaId
+        ? list.filter((c) => c.cnpj_revenda === revendaId)
+        : list.filter((c) => c.cnpj_admin === user?.cnpj);
     }
-    if (!isSuperAdmin && !isAdmin) return;
+    return list;
+  })();
 
-    let cancelled = false;
-    (async () => {
-      setLoadingRevendas(true);
-      try {
-        const res = await apiClient.get("/revendas");
-        const allRevendas = res.data?.revendas || [];
-        // cnpj a comparar: superadmin usa o admin selecionado, admin usa o próprio cnpj
-        const cnpjFiltro = isSuperAdmin ? adminId : user?.cnpj;
-        // Se o admin selecionado for superadmin, mostra todas as revendas
-        const filtered = (isSuperAdmin && selectedAdminType === "superadmin")
-          ? allRevendas
-          : allRevendas.filter((r) => r.cnpj_admin === cnpjFiltro);
-        if (!cancelled) {
-          setRevendas(filtered);
-          setRevendaId("");
-          setClientes([]);
-          setClienteId("");
-        }
-      } catch (err) {
-        console.error("Erro ao carregar revendas:", err);
-      } finally {
-        if (!cancelled) setLoadingRevendas(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isSuperAdmin, isAdmin, adminId, selectedAdminType, user]);
-
-  // Carregar clientes quando revenda for selecionada
+  // Reset de revenda/cliente ao trocar admin
   useEffect(() => {
-    if (!isManager) return;
-    let cancelled = false;
-    (async () => {
-      setLoadingClientes(true);
-      try {
-        const res = await apiClient.get("/clientes");
-        const all = res.data?.clientes || [];
-
-        // Filtrar com base no tipo de usuário
-        let list = all.filter((c) => c.sub_role === "superusuario");
-
-        if (isSuperAdmin && revendaId) {
-          // Superadmin com revenda selecionada: mostra clientes dessa revenda
-          // revendaId contém cnpj_revenda (ex: "14.309.992/0001-48")
-          list = list.filter((c) => c.cnpj_revenda === revendaId);
-        } else if (isSuperAdmin) {
-          // Superadmin sem revenda: mostra todos
-          // (já filtrado por superusuario acima)
-        } else if (isRevenda) {
-          // Revenda: mostra apenas seus clientes
-          list = list.filter((c) => c.revenda_id === user?.doc_id);
-        } else if (isAdmin) {
-          if (revendaId) {
-            // Admin com revenda selecionada: mostra clientes dessa revenda
-            list = list.filter((c) => c.cnpj_revenda === revendaId);
-          } else {
-            // Admin sem revenda selecionada: mostra todos os seus clientes
-            list = list.filter((c) => c.cnpj_admin === user?.cnpj);
-          }
-        }
-
-        if (!cancelled) {
-          setClientes(list);
-          const firstCnpj = list[0]?.cnpj_cliente ?? "";
-          if (isRevenda && list.length > 0 && !clienteId) {
-            setClienteId(firstCnpj);
-          } else if (isAdmin && list.length > 0 && !clienteId && !isOwnPivo) {
-            setClienteId(firstCnpj);
-          }
-        }
-      } catch (err) {
-        if (!cancelled)
-          setError("Não foi possível carregar a lista de clientes.");
-      } finally {
-        if (!cancelled) setLoadingClientes(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isManager, isOwnPivo, clienteId, isRevenda, isAdmin, isSuperAdmin, user, revendaId]);
+    setRevendaId("");
+    setClienteId("");
+  }, [adminId]);
 
 
   const { list: equipamentos, add, remove, update } = useEquipamentos(14);

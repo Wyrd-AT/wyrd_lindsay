@@ -8,7 +8,7 @@ import { FiAlertOctagon } from "react-icons/fi";
  * - revenda: exibe só nome do cliente
  * - admin: exibe revenda e cliente
  */
-export default function IrrigadorCard({
+const IrrigadorCard = React.memo(function IrrigadorCard({
   machineId,
   displayName,
   nomeCliente,
@@ -22,6 +22,7 @@ export default function IrrigadorCard({
   userType,
   lastAlertDate,
   alertCount,
+  loadingRecent,
 }) {
   const showCliente = userType === "revenda" || userType === "admin" || userType === "superadmin";
   const showRevenda = userType === "admin" || userType === "superadmin";
@@ -81,7 +82,9 @@ export default function IrrigadorCard({
             </p>
           )}
           <p className="text-base leading-snug text-gray-300 break-words pr-2">
-            {lastAlertDate ? `Último dado: ${lastAlertDate}` : "Sem alertas"}
+            {lastAlertDate
+              ? `Último dado: ${lastAlertDate}`
+              : "Último dado: não encontrado"}
           </p>
         </div>
 
@@ -100,8 +103,20 @@ export default function IrrigadorCard({
                   : `ATENÇÃO`}
             </p>
           </span>
+          {loadingRecent && !lastAlertDate && (
+            <span className="ml-3 text-xs px-2 py-1 rounded bg-gray-500 text-gray-200 animate-pulse">
+              Carregando...
+            </span>
+          )}
+          {!loadingRecent && !lastAlertDate && (
+            <span className="ml-3 text-xs px-2 py-1 rounded bg-gray-600 text-gray-200">
+              Sem dados
+            </span>
+          )}
         </div>
       </div>
     </Link>
   );
-}
+})
+
+export default IrrigadorCard;

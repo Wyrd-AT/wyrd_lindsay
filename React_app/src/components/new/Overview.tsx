@@ -1,37 +1,29 @@
 // app/(pivo)/[pivoId]/overview.tsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import clsx from "clsx";
-import { FiChevronDown, FiChevronUp } from "react-icons/fi";
-import {
-  getRecentAll,
-  RecentSWDoc,
-  RecentTensaoDoc,
-} from "../../hooks/new/getRecent";
+import { getRecentAll } from "../../hooks/new/getRecent";
 import { StatusCard } from "./statusCard";
-import StatusAlarmModal from "./statusAlarmModal";
 import {
   DeviceCard,
-  Irrigador,
-  monitoresToVoltageMap,
   OverviewProps,
-  parseBrToMs,
-  parseSwVectorOverview,
   sendCommand,
 } from "../../helpers/helperOverview";
 import { useWhatsappPerIrrigador } from "../../hooks/new/useWhatsappPerIrrigador";
-import { useChangesListener } from "../../hooks/new/useChangesListener";
 import {
   useAuthStore,
   selectCanResolveAlerts,
+  selectCanToggleAlarm,
 } from "../../stores/new/authStore";
 
 export default function Overview({
   pivoId,
+  irrigadorId,
   cnpjCliente,
   email,
-  equipamentoNames = [],
+  equipamentoNames,
+  externalRefreshTick,
 }: OverviewProps) {
-  const [activeCard, setActiveCard] = useState<DeviceCard | null>(null);
+  const effectiveIrrigadorId = irrigadorId ?? null;
   const [loading, setLoading] = useState(false);
   const [responseMsg, setResponseMsg] = useState("");
   const [localManOverride, setLocalManOverride] = useState<null | boolean>(
@@ -43,11 +35,8 @@ export default function Overview({
   const [isSaving, setIsSaving] = useState(false);
 
   const canResolveAlerts = useAuthStore(selectCanResolveAlerts);
-  const user = useAuthStore((state) => state.user); // [NOVO] Puxando dados do usuário
-
-  // FASE 1 - Performance: Adaptive polling
-  const [pollInterval, setPollInterval] = useState(10000);
-  const [noChangeCount, setNoChangeCount] = useState(0);
+  const canToggleAlarm = useAuthStore(selectCanToggleAlarm);
+  const user = useAuthStore((state) => state.user);
 
   /* ----------------- WhatsApp por irrigador ----------------- */
   const {
@@ -55,198 +44,113 @@ export default function Overview({
     callEnabled,
     updateConfig, // Atualização direta
     loading: notificationLoading,
-  } = useWhatsappPerIrrigador(pivoId, email, user?.phone_number); // [NOVO] Passa o telefone do authStore
+  } = useWhatsappPerIrrigador(
+    effectiveIrrigadorId,
+    email,
+    user?.phone_number,
+  ); // [NOVO] Passa o telefone do authStore
 
   /* ----------------- Carregar snapshots via getRecentAll ----------------- */
-  const [swDoc, setSwDoc] = useState<RecentSWDoc | null>(null);
-  const [tA, setTA] = useState<RecentTensaoDoc | null>(null);
-  const [tB, setTB] = useState<RecentTensaoDoc | null>(null);
+  const [overviewCards, setOverviewCards] = useState<DeviceCard[]>([]);
+  const [statusSwAt, setStatusSwAt] = useState<string | null>(null);
+  const [tensaoAt, setTensaoAt] = useState<string | null>(null);
+  const [remoteMaintenance, setRemoteMaintenance] = useState<boolean>(false);
+  const [remoteSirene, setRemoteSirene] = useState<boolean>(false);
 
   // Função para carregar dados do CouchDB
   const loadData = useCallback(async () => {
-    if (!pivoId) return;
+    if (!effectiveIrrigadorId) return;
 
     try {
-      const all = await getRecentAll("lindsay-data", String(pivoId));
-      setSwDoc(all.sw ?? null);
-      setTA(all.tensao.A ?? null);
-      setTB(all.tensao.B ?? null);
+      const all = await getRecentAll(String(effectiveIrrigadorId));
+      const ov = all.overview || {};
+      if (Array.isArray(ov.cards)) {
+        setOverviewCards(ov.cards as DeviceCard[]);
+      } else {
+        setOverviewCards([]);
+      }
+      setStatusSwAt(ov.status_sw_at || null);
+      setTensaoAt(ov.tensao_at || null);
+      setRemoteMaintenance(!!ov.is_in_maintenance);
+      setRemoteSirene(!!ov.is_sirene_active);
     } catch (e: any) {
       console.error(e?.message ?? "Falha ao carregar snapshots recentes");
     }
-  }, [pivoId]);
+  }, [effectiveIrrigadorId]);
+
+  const equipamentoByCode = useMemo(() => {
+    if (!Array.isArray(equipamentoNames) || !equipamentoNames.length) return {};
+    return Object.fromEntries(
+      Array.from({ length: 13 }, (_, i) => {
+        const code = String(i + 1).padStart(2, "0"); // "01".."13"
+        const idx = i + 2; // posições 2..14 em equipamentos[]
+        return [code, equipamentoNames[idx] || ""];
+      }),
+    );
+  }, [equipamentoNames]);
+
+  const allowedMonitorCodes = useMemo(() => {
+    return new Set(
+      Object.entries(equipamentoByCode)
+        .filter(([, nome]) => String(nome || "").trim() !== "")
+        .map(([code]) => code),
+    );
+  }, [equipamentoByCode]);
+
+  const getMonitorCode = useCallback(
+    (title: string) => {
+      const norm = (v: any) => String(v || "").trim().toLowerCase();
+      const titleNorm = norm(title);
+      if (!titleNorm) return "";
+      const entries = Object.entries(equipamentoByCode);
+      const exact = entries.find(([, nome]) => norm(nome) === titleNorm);
+      if (exact) return exact[0];
+      const fuzzy = entries.find(([, nome]) => {
+        const n = norm(nome);
+        return n && (titleNorm.includes(n) || n.includes(titleNorm));
+      });
+      return fuzzy ? fuzzy[0] : "";
+    },
+    [equipamentoByCode],
+  );
+
+  const getMonitorCodeFromId = useCallback((id: string) => {
+    const m = String(id || "").match(/(\d{2})$/);
+    return m ? m[1] : "";
+  }, []);
+
+  const isPanelCard = useCallback((c: DeviceCard) => {
+    const title = String(c?.title || "").toLowerCase();
+    const id = String(c?.id || "").toLowerCase();
+    return title.includes("painel") || id.includes("painel_1") || id.includes("painel_2");
+  }, []);
 
   // Carrega dados inicialmente
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Listener de mudanças do CouchDB para atualização automática
-  useChangesListener({
-    db: "lindsay-data",
-    onChange: (changes) => {
-      const hasRelevantChange = changes.some((change) => {
-        const docId = change.id;
-        return docId.includes(String(pivoId));
-      });
-
-      if (hasRelevantChange) {
-        setPollInterval(10000);
-        setNoChangeCount(0);
-        loadData();
-      } else {
-        setNoChangeCount((prev) => {
-          const next = prev + 1;
-          if (next === 3) {
-            setPollInterval(20000);
-          } else if (next >= 6) {
-            setPollInterval(30000);
-          }
-          return next;
-        });
-      }
-    },
-    includeDocs: false,
-    pollInterval: pollInterval,
-    useLongpoll: true,
-    pause: !pivoId,
-    onError: (error) => {
-      console.error("Erro no listener de mudanças:", error);
-    },
-  });
-
-  const parsed_sw = useMemo(() => parseSwVectorOverview(swDoc?.data), [swDoc]);
-
-  const lastUpdate = useMemo(() => {
-    if (swDoc?.updated_at) {
-      const d = new Date(swDoc.updated_at);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-      }
+  // Refresh disparado pelo listener centralizado em MachineRevenda
+  useEffect(() => {
+    if (externalRefreshTick && externalRefreshTick > 0) {
+      loadData();
     }
-    const ts = swDoc?.data?.timestamp;
-    if (ts) {
-      const msISO = Date.parse(ts);
-      const ms = Number.isNaN(msISO) ? parseBrToMs(ts) : msISO;
-      if (!Number.isNaN(ms)) {
-        return new Date(ms).toLocaleString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-        });
-      }
-    }
-    return "—";
-  }, [swDoc]);
+  }, [externalRefreshTick, loadData]);
 
-  /* ----------------- Tensão: média de A e B por monitor ----------------- */
-  const voltA = useMemo(() => monitoresToVoltageMap(tA || undefined), [tA]);
-  const voltB = useMemo(() => monitoresToVoltageMap(tB || undefined), [tB]);
-
-  const tensionValues = useMemo(() => {
-    const N = parsed_sw?.monitores?.length ?? 0;
-    const out: (number | null)[] = Array.from({ length: N }, () => null);
-
-    for (let mt = 1; mt <= N; mt++) {
-      const a = voltA.get(mt);
-      const b = voltB.get(mt);
-      const val =
-        Number.isFinite(a as number) && Number.isFinite(b as number)
-          ? ((a as number) + (b as number)) / 2
-          : Number.isFinite(a as number)
-            ? (a as number)
-            : Number.isFinite(b as number)
-              ? (b as number)
-              : null;
-
-      if (val == null) continue;
-      const idx = mt - 1;
-      if (idx >= 0 && idx < N) out[idx] = val;
-    }
-    return out;
-  }, [voltA, voltB, parsed_sw?.monitores?.length]);
-
-  /* ----------------- manutenção & nomes ----------------- */
+  /* ----------------- manutenção & sirene ----------------- */
   const isInMaintenance = useMemo(
-    () =>
-      localManOverride !== null
-        ? localManOverride
-        : parsed_sw?.status_manutencao === "1",
-    [localManOverride, parsed_sw],
+    () => (localManOverride !== null ? localManOverride : remoteMaintenance),
+    [localManOverride, remoteMaintenance],
   );
 
   const isSireneActive = useMemo(
-    () =>
-      localSireneOverride !== null
-        ? localSireneOverride
-        : parsed_sw?.sirene === "1",
-    [localSireneOverride, parsed_sw],
+    () => (localSireneOverride !== null ? localSireneOverride : remoteSirene),
+    [localSireneOverride, remoteSirene],
   );
 
   useEffect(() => {
-    if (parsed_sw) {
-      setLocalSireneOverride(null);
-    }
-  }, [parsed_sw?.sirene]);
-
-  /* ----------------- cards ----------------- */
-  const cards: DeviceCard[] = useMemo(() => {
-    if (!parsed_sw) return [];
-
-    const base: DeviceCard[] = [
-      {
-        id: "painel-1",
-        title: equipamentoNames[0] ?? "Painel 1",
-        statuses: [{ label: "status", value: parsed_sw.painel_1 }],
-      },
-      {
-        id: "painel-2",
-        title: equipamentoNames[1] ?? "Painel 2",
-        statuses: [
-          { label: "status", value: parsed_sw.painel_2 ?? parsed_sw.painel_1 },
-        ],
-      },
-    ];
-
-    const dynamics: DeviceCard[] = equipamentoNames.slice(2).map((name, i) => {
-      const m = parsed_sw.monitores?.[i];
-      const tVal = tensionValues[i];
-
-      if (!m) {
-        return {
-          id: `${name}-${i}`,
-          title: name,
-          statuses: [{ label: "status", value: "9" }],
-        };
-      }
-
-      return {
-        id: `${name}-${i}`,
-        title: name,
-        statuses: [
-          { label: "SW1", value: m.statusSw1 },
-          { label: "SW2", value: m.statusSw2 },
-          { label: "Falha por tensão", value: m.armadilha },
-          { label: "Tensão SW", value: m.statusTensao },
-          ...(Number.isFinite(tVal as number)
-            ? [{ label: "Tensão (V)", value: (tVal as number).toFixed(2) }]
-            : []),
-        ],
-      };
-    });
-
-    return [...base, ...dynamics].filter((card) => card.title !== "Ausente");
-  }, [equipamentoNames, parsed_sw, tensionValues]);
+    setLocalSireneOverride(null);
+  }, [remoteSirene]);
 
   /* ----------------- ações & modal ----------------- */
   const handleSolicitarStatus = () => {
@@ -530,49 +434,68 @@ export default function Overview({
 
         {responseMsg && <div className="mt-2 text-sm">{responseMsg}</div>}
 
-        {(swDoc || tA || tB) && (
+        {(statusSwAt || tensaoAt) && (
           <div className="mb-4 text-sm text-gray-300 flex flex-wrap gap-x-6 gap-y-1">
-            {swDoc && (
+            {statusSwAt && (
               <span>
-                <span className="text-gray-400">Status SW:</span> {lastUpdate}
+                <span className="text-gray-400">Status SW:</span>{" "}
+                {statusSwAt}
               </span>
             )}
-            {(tA || tB) && (
+            {tensaoAt && (
               <span>
-                <span className="text-gray-400">Tensão:</span>{" "}
-                {new Date((tA ?? tB)!.updated_at).toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
+                <span className="text-gray-400">Tensão:</span> {tensaoAt}
               </span>
             )}
           </div>
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-          {cards.map((c) => (
-            <StatusCard
-              key={c.title}
-              {...c}
-              onClick={() => setActiveCard(c)}
-              isInMaintenance={isInMaintenance}
-            />
-          ))}
+          {overviewCards.map((c) => {
+            const monitorCode = getMonitorCode(c.title) || getMonitorCodeFromId(c.id);
+            const panelCard = isPanelCard(c);
+            if (
+              allowedMonitorCodes.size > 0 &&
+              !panelCard &&
+              (!monitorCode || !allowedMonitorCodes.has(monitorCode))
+            ) {
+              return null;
+            }
+            return (
+              <StatusCard
+                key={c.title}
+                {...c}
+                isInMaintenance={isInMaintenance}
+                canToggleAlarm={canToggleAlarm}
+                monitorCode={monitorCode}
+                loading={loading}
+                onAlarmOn={() =>
+                  sendCommand(
+                    `AlarmeON${monitorCode}`,
+                    "Alarme ligado com sucesso!",
+                    "Falha ao ligar alarme.",
+                    pivoId,
+                    setResponseMsg,
+                    setLoading,
+                    loading,
+                  )
+                }
+                onAlarmOff={() =>
+                  sendCommand(
+                    `AlarmeOFF${monitorCode}`,
+                    "Alarme desligado com sucesso!",
+                    "Falha ao desligar alarme.",
+                    pivoId,
+                    setResponseMsg,
+                    setLoading,
+                    loading,
+                  )
+                }
+              />
+            );
+          })}
         </div>
       </div>
-
-      {activeCard && (
-        <StatusAlarmModal
-          isOpen={!!activeCard}
-          onClose={() => setActiveCard(null)}
-          selectedMachine={pivoId}
-          card={activeCard}
-        />
-      )}
     </>
   );
 }

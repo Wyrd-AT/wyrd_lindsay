@@ -115,9 +115,39 @@ async def create_revenda_admin(
 
         print(f"✅ Revenda criada no CouchDB: {doc_id}")
 
-        # ✅ PASSO 2: Criar usuário no Cognito (admin_create_user)
+        # ✅ PASSO 2: Criar/atualizar usuário no Cognito (admin_create_user)
+        created_in_cognito = False
+        cognito_sub = None
         try:
             create_response = cognito_client.admin_create_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                # Evita envio de convite (SMS/email) — necessário quando o user pool não tem SMS configurado.
+                MessageAction="SUPPRESS",
+                UserAttributes=[
+                    {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
+                    {"Name": "custom:type", "Value": "revenda"},
+                    {"Name": "custom:status", "Value": "active"},
+                    {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
+                    {"Name": "custom:doc_id", "Value": doc_id},
+                ],
+            )
+            cognito_sub = create_response["User"]["Username"]
+            created_in_cognito = True
+            print(f"✅ Usuário criado no Cognito: {cognito_sub}")
+            print(
+                f"✅ Custom attributes salvos: type=revenda, status=active, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}"
+            )
+        except cognito_client.exceptions.UsernameExistsException:
+            existing = cognito_client.admin_get_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+            )
+            cognito_sub = existing.get("Username")
+            cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
                 Username=body.email,
                 UserAttributes=[
@@ -130,48 +160,42 @@ async def create_revenda_admin(
                     {"Name": "custom:cnpj", "Value": cnpj_revenda_formatted},
                     {"Name": "custom:doc_id", "Value": doc_id},
                 ],
-                MessageAction="SUPPRESS",
-            )
-            cognito_sub = create_response["User"]["Username"]
-            print(f"✅ Usuário criado no Cognito: {cognito_sub}")
-            print(
-                f"✅ Custom attributes salvos: type=revenda, status=active, cnpj={cnpj_revenda_formatted}, doc_id={doc_id}"
             )
 
-            # Definir senha permanente
-            cognito_client.admin_set_user_password(
-                UserPoolId=settings.COGNITO_USER_POOL_ID,
-                Username=body.email,
-                Password=body.password,
-                Permanent=True,
-            )
+        # Definir senha permanente (para criado ou já existente)
+        cognito_client.admin_set_user_password(
+            UserPoolId=settings.COGNITO_USER_POOL_ID,
+            Username=body.email,
+            Password=body.password,
+            Permanent=True,
+        )
 
-            # ✅ PASSO 3: Atualizar revenda no CouchDB com cognito_sub
-            try:
-                revenda_doc = revenda_service.db.get(doc_id)
-                revenda_doc["cognito_sub"] = cognito_sub
-                revenda_doc["cognito_synced"] = True
-                revenda_service.db.save(revenda_doc)
-                print(f"✅ Cognito Sub atualizado no CouchDB")
-            except Exception as e:
-                print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
+        # ✅ PASSO 3: Atualizar revenda no CouchDB com cognito_sub
+        try:
+            revenda_doc = revenda_service.db.get(doc_id)
+            revenda_doc["cognito_sub"] = cognito_sub
+            revenda_doc["cognito_synced"] = True
+            revenda_service.db.save(revenda_doc)
+            print(f"✅ Cognito Sub atualizado no CouchDB")
+        except Exception as e:
+            print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
 
-            # ✅ PASSO 5: Atualizar admin.revendas[] com o cnpj_revenda
-            try:
-                admin_doc_id = user.get("doc_id")
-                if admin_doc_id:
-                    admin_doc = revenda_service.db.get(admin_doc_id)
-                    if admin_doc:
-                        revendas_list = admin_doc.get("revendas", [])
-                        if cnpj_revenda_formatted not in revendas_list:
-                            revendas_list.append(cnpj_revenda_formatted)
-                            admin_doc["revendas"] = revendas_list
-                            revenda_service.db.save(admin_doc)
-                            print(
-                                f"✅ Admin.revendas[] atualizado com {cnpj_revenda_formatted}"
-                            )
-            except Exception as e:
-                print(f"⚠️ Aviso ao atualizar admin.revendas[]: {e}")
+        # ✅ PASSO 5: Atualizar admin.revendas[] com o cnpj_revenda
+        try:
+            admin_doc_id = user.get("doc_id")
+            if admin_doc_id:
+                admin_doc = revenda_service.db.get(admin_doc_id)
+                if admin_doc:
+                    revendas_list = admin_doc.get("revendas", [])
+                    if cnpj_revenda_formatted not in revendas_list:
+                        revendas_list.append(cnpj_revenda_formatted)
+                        admin_doc["revendas"] = revendas_list
+                        revenda_service.db.save(admin_doc)
+                        print(
+                            f"✅ Admin.revendas[] atualizado com {cnpj_revenda_formatted}"
+                        )
+        except Exception as e:
+            print(f"⚠️ Aviso ao atualizar admin.revendas[]: {e}")
 
             return {
                 "status": "success",
@@ -188,6 +212,14 @@ async def create_revenda_admin(
             print(f"   Fazendo rollback no CouchDB...")
 
             # ❌ ROLLBACK: Deletar do CouchDB se Cognito falhar
+            if created_in_cognito:
+                try:
+                    cognito_client.admin_delete_user(
+                        UserPoolId=settings.COGNITO_USER_POOL_ID,
+                        Username=body.email,
+                    )
+                except Exception:
+                    pass
             try:
                 revenda_service.db.delete(revenda_service.db.get(doc_id))
                 print(f"✅ Revenda deletada do CouchDB (rollback)")

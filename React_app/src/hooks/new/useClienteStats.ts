@@ -31,15 +31,19 @@ export const useClienteStats = () => {
 
     try {
       // O prefixo /api já está definido na baseURL do seu apiClient
-      const response = await apiClient.get("/pivos");
+      const response = await apiClient.get("/pivos", {
+        params: { with_recent: true },
+      });
 
       // No Axios, os dados retornados pelo servidor ficam em .data
       const pivos = response.data.pivos || [];
 
       const newStats: ClienteStats = {
         totalPivos: pivos.length,
-        activePivos: pivos.filter((p: any) => p.status === "active").length,
-        alarmadoPivos: pivos.filter((p: any) => p.status === "alarmed").length,
+        activePivos: pivos.filter((p: any) => p.ativo === true).length,
+        alarmadoPivos: pivos.filter(
+          (p: any) => Number(p.alarm_count ?? 0) > 0,
+        ).length,
         maintenancePivos: pivos.filter((p: any) => p.status === "maintenance")
           .length,
       };

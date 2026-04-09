@@ -81,6 +81,8 @@ class Settings(BaseSettings):
     COGNITO_CLIENT_SECRET: str = os.getenv(
         "COGNITO_CLIENT_SECRET", "1jeh2l3f1uf4pjaqcf77i7a2rccucjlg7cnc3lu89n9hhc25qcv6"
     )  # Se vazio, cliente não tem secret
+    # Client público sem secret — usado para InitiateAuth (login via senha)
+    COGNITO_PUBLIC_CLIENT_ID: str = os.getenv("COGNITO_PUBLIC_CLIENT_ID", "")
     COGNITO_USER_POOL_ID: str = os.getenv("COGNITO_USER_POOL_ID", "sa-east-1_bm329gdfB")
 
     # AWS

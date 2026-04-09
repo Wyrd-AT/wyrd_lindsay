@@ -1,6 +1,7 @@
 // stores/authStore.ts
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useDataStoreIrrigadores } from "./dataStoreIrrigadores";
 
 export type UserRole = "superadmin" | "admin" | "revenda" | "cliente";
 export type UserStatus = "active" | "pending" | "rejected";
@@ -86,6 +87,11 @@ export const useAuthStore = create<AuthState>()(
           token: null,
           cnpjCliente: null,
         });
+        try {
+          useDataStoreIrrigadores.getState().resetIrrigadores?.();
+        } catch {
+          // Evitar quebra se o store ainda não foi carregado
+        }
       },
 
       updateUser: (updatedFields: Partial<User>) => {

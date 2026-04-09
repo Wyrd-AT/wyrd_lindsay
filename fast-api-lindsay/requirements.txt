@@ -25,6 +25,7 @@ paho-mqtt>=1.6.1
 # Utilities
 tenacity>=8.2.0
 requests>=2.31.0
+httpx>=0.27.0
 
 # Notifications
 twilio>=8.10.0

@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useAuthStore } from "../../stores/new/authStore.ts";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import {
   signIn,
   confirmSignUp,
   resendConfirmationCode,
-} from "../../api/new/auth.js";
+} from "../../api/new/auth";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -24,74 +23,35 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); // Clear previous errors
+    setError("");
 
     if (!validateForm(e.currentTarget)) {
-      console.warn("⚠️ Form validation failed");
       return;
     }
 
     try {
-      const response = await signIn(email, password);
-      //console.log("Login response:", response);
-      if (
-        response &&
-        response.AuthenticationResult &&
-        response.AuthenticationResult.AccessToken
-      ) {
-        // ✅ auth.js JÁ chamou login(user, token) com type + status
-        // Não chamar novamente aqui para não sobrescrever!
+      const { user, requires_action } = await signIn(email, password);
 
-        // ✅ Redirecionar baseado no status de verificação/termos e tipo
-        setTimeout(() => {
-          const authState = useAuthStore.getState();
-          const userType = authState.user?.type;
-          const requiresAction = authState.user?.requires_action;
-
-          // Verificar se precisa de onboarding primeiro
-          if (requiresAction === "verify_email") {
-            navigate("/verify-email");
-            return;
-          }
-          if (requiresAction === "accept_terms") {
-            navigate("/accept-terms");
-            return;
-          }
-          if (authState.user?.status === "pending") {
-            navigate("/account-pending");
-            return;
-          }
-
-          // Redirecionar para a rota apropriada
-          if (userType === "admin" || userType === "superadmin") {
-            navigate("home");
-          } else if (userType === "revenda") {
-            navigate("/home");
-          } else if (userType === "cliente") {
-            navigate("/home");
-          } else {
-            navigate("/home");
-          }
-        }, 100);
-      } else {
-        setError("Invalid response from server");
+      if (requires_action === "verify_email") {
+        navigate("/verify-email");
+        return;
       }
+      if (requires_action === "accept_terms") {
+        navigate("/accept-terms");
+        return;
+      }
+      if (user?.status === "pending") {
+        navigate("/account-pending");
+        return;
+      }
+
+      navigate("/home");
     } catch (err) {
-      console.error("Login error:", err);
-      if (err instanceof Error && err.message) {
-        if (
-          err.message.includes("não confirmada") ||
-          err.message.includes("NotConfirmed")
-        ) {
-          setNeedsConfirmation(true);
-          setError(
-            "Conta não confirmada. Digite o código enviado para seu email.",
-          );
-        } else {
-          setError(err.message);
-        }
+      if (err?.notConfirmed) {
+        setNeedsConfirmation(true);
+        setError("Conta não confirmada. Digite o código enviado para seu email.");
       } else {
-        setError("Ocorreu um erro. Tente novamente.");
+        setError(err instanceof Error ? err.message : "Ocorreu um erro. Tente novamente.");
       }
     }
   };

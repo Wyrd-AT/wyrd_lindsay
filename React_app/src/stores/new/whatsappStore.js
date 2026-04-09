@@ -1,78 +1,37 @@
+/**
+ * Store de configuração global do WhatsApp.
+ * Substitui o acesso direto ao CouchDB — passa pelo backend /api/whatsapp-config.
+ */
 import { create } from "zustand";
-import { couch } from "../../api/new/couch";
-
-const DOC_ID = "whatsapp";
+import apiClient from "../../api/new/apiClient";
 
 export const whatsappStoreConfig = create((set) => ({
   whatsappConfig: null,
   isFetchingConfig: true,
-  syncTimestamp: Date.now(),
 
   fetchWhatsappConfig: async () => {
     set({ isFetchingConfig: true });
-
     try {
-      const doc = await couch.get(DOC_ID);
-      ////console.log(doc);
-      set({
-        whatsappConfig: doc,
-        isFetchingConfig: false,
-        syncTimestamp: Date.now(),
-      });
+      const res = await apiClient.get("/whatsapp-config");
+      set({ whatsappConfig: res.data, isFetchingConfig: false });
     } catch (err) {
-      if (err.name === "not_found") {
-        ////console.log(`Documento de configuração "${DOC_ID}" ainda não existe.`);
-        set({ whatsappConfig: null, isFetchingConfig: false });
+      // 404 = doc ainda não existe — trata como desabilitado
+      if (err?.response?.status === 404) {
+        set({ whatsappConfig: { enabled: false }, isFetchingConfig: false });
       } else {
-        console.error("[whatsappStore] fetchConfiguracoes error:", err);
+        console.error("[whatsappStore] fetchWhatsappConfig error:", err);
         set({ isFetchingConfig: false });
       }
     }
   },
 
   updateWhatsappStatus: async (newStatus) => {
-    let newDoc;
-
     try {
-      const doc = await remoteDB.get(DOC_ID);
-
-      newDoc = {
-        ...doc,
-        status: newStatus,
-      };
+      const res = await apiClient.put("/whatsapp-config", { enabled: newStatus });
+      set({ whatsappConfig: res.data });
     } catch (err) {
-      if (err.name === "not_found") {
-        newDoc = {
-          _id: DOC_ID,
-          status: newStatus,
-        };
-      } else {
-        console.error(
-          "[whatsappStore] Erro ao buscar documento para atualizar:",
-          err,
-        );
-        throw err;
-      }
-    }
-
-    try {
-      const response = await remoteDB.put(newDoc);
-
-      const docUpdated = {
-        ...newDoc,
-        _rev: response.rev,
-      };
-
-      set({
-        whatsappConfig: docUpdated,
-        syncTimestamp: Date.now(),
-      });
-
-      // //console.log(
-      //   `Configurações salvas com sucesso. Nova revisão: ${response.rev}`,
-      // );
-    } catch (err) {
-      console.error("[whatsapp] Erro ao salvar (put) as configurações:", err);
+      console.error("[whatsappStore] updateWhatsappStatus error:", err);
+      throw err;
     }
   },
 }));

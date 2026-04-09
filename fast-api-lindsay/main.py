@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import get_db, close_db
-from app.api.routes import auth, admins, revendas, clientes, pivos, alerts, commands, webhooks
+from app.api.routes import auth, admins, revendas, clientes, pivos, alerts, commands, webhooks, history, recent, notifications_config, timers, whatsapp_config
 from app.services.setup_indexes import setup_indexes
 from app.services.zapi_voice_retry import (
     configure_zapi_webhook_if_enabled,
@@ -164,6 +164,11 @@ app.include_router(pivos.router, prefix=settings.API_PREFIX, tags=["pivos"])
 app.include_router(alerts.router, prefix=settings.API_PREFIX, tags=["alerts"])
 app.include_router(commands.router, prefix=settings.API_PREFIX, tags=["commands"])
 app.include_router(webhooks.router, prefix=settings.API_PREFIX)
+app.include_router(history.router, prefix=settings.API_PREFIX, tags=["history"])
+app.include_router(recent.router, prefix=settings.API_PREFIX, tags=["recent"])
+app.include_router(notifications_config.router, prefix=settings.API_PREFIX, tags=["notifications-config"])
+app.include_router(timers.router, prefix=settings.API_PREFIX, tags=["timers"])
+app.include_router(whatsapp_config.router, prefix=settings.API_PREFIX, tags=["whatsapp-config"])
 
 
 # ============================================================================

@@ -71,8 +71,14 @@
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-dashboard-bg-primary text-dashboard-text-primary;
     font-family:
       "Roboto",
       -apple-system,
@@ -80,4 +86,28 @@
       "Segoe UI",
       sans-serif;
   }
+}
+
+.loader-logo img {
+  width: 220px;
+  height: auto;
+  filter: drop-shadow(0 0 10px rgba(0, 0, 0, 0.35));
+  animation: loader-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loader-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.svg-red {
+  filter: invert(20%) sepia(88%) saturate(6844%) hue-rotate(357deg)
+    brightness(96%) contrast(112%);
 }

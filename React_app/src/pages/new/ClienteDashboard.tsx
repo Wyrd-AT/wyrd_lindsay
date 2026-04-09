@@ -163,7 +163,12 @@ export function ClienteDashboard() {
 
           {/* Full Pivôs Section */}
           <div className="px-4 mb-4">
-            <PivosSection />
+            <PivosSection
+              pivos={pivos as any}
+              loading={loadingPivos}
+              error={pivosError}
+              onRefresh={fetchPivos}
+            />
           </div>
         </BodyContent>
       </div>

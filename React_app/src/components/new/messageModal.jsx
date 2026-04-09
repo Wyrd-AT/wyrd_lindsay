@@ -1,8 +1,7 @@
 // components/MensagemModal.jsx
 import { useEffect, useState, useRef } from "react";
 import { IoClose } from "react-icons/io5";
-import { useMessageStore } from "../../stores/new/messageStore";
-import { getBrasiliaTimestamp } from "../../utils/dateUtils";
+import { postCommand } from "../../api/new/fastapi-commands";
 
 export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
   const [comando, setComando] = useState("");
@@ -10,9 +9,6 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
   const [responseMsg, setResponseMsg] = useState("");
   const [inputError, setInputError] = useState("");
   const loadingRef = useRef(false);
-
-  // Obter função postMessage do store
-  const postMessage = useMessageStore((state) => state.postMessage);
 
   // Fecha com Esc
   useEffect(() => {
@@ -39,17 +35,7 @@ export default function MensagemModal({ isOpen, onClose, selectedMachine }) {
     setInputError("");
 
     try {
-      const payload = `${machineId};${comando}`;
-      const doc = {
-        topic: `lindsay/comandos/${machineId}`,
-        payload,
-        origin: "app",
-        table: "command",
-        qos: 0,
-        timestamp: getBrasiliaTimestamp(),
-      };
-
-      await postMessage(doc);
+      await postCommand({ irrigadorId: machineId, command: comando });
       setResponseMsg("✅ Comando enviado com sucesso!");
       setComando("");
     } catch (err) {

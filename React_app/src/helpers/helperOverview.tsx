@@ -1,5 +1,5 @@
 import { RecentSWDoc, RecentTensaoDoc } from "../hooks/new/getRecent";
-import useMessageStore from "../stores/new/messageStore";
+import { postCommand } from "../api/new/fastapi-commands";
 
 export type Summary =
   | "Normal"
@@ -35,9 +35,12 @@ export interface Irrigador {
 
 export interface OverviewProps {
   pivoId: string | null;
+  irrigadorId?: string | null;
   cnpjCliente: string | null;
   email?: string;
   equipamentoNames?: string[];
+  /** Incrementado pelo pai para disparar refresh sem re-criar listeners */
+  externalRefreshTick?: number;
 }
 
 /* ----------------- helpers de data ----------------- */
@@ -99,7 +102,7 @@ export function monitoresToVoltageMap(
 }
 
 export async function sendCommand(
-  command: "update" | "sirene" | "ack" | "man",
+  command: string,
   successText: string,
   failureText: string,
   pivoId: string | null,
@@ -134,18 +137,7 @@ export async function sendCommand(
         .format(now)
         .replace(" ", "T") + "-03:00";
 
-    const payload = `${pivoId};${command}`;
-    const doc = {
-      topic: `lindsay/comandos/${pivoId}`,
-      payload,
-      origin: "app",
-      table: "command",
-      qos: 0,
-      timestamp,
-    };
-
-    const sucess = useMessageStore.getState().postMessage(doc);
-    //console.log(sucess)
+    await postCommand({ irrigadorId: pivoId, command });
     setResponseMsg(`✅ ${successText}`);
   } catch (err) {
     console.error("[Overview] erro ao enviar comando:", err);

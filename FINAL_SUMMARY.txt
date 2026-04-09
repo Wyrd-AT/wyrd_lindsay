@@ -51,7 +51,7 @@ NOVOS (8):
   React_app/src/hooks/new/useClienteStats.ts
 
 MODIFICADOS (4):
-  React_app/src/pages/new/SignIn.jsx (+ redirect logic)
+  React_app/src/pages/SignIn.jsx (+ redirect logic)
   React_app/src/pages/new/AdminDashboard.tsx (completo)
   React_app/src/pages/new/RevendaDashboard.tsx (completo)
   React_app/src/pages/new/ClienteDashboard.tsx (completo)

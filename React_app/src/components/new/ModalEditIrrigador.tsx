@@ -25,7 +25,7 @@ export default function ModalEditIrrigador({
   onSave,
   onClose,
 }: ModalEditIrrigadorProps) {
-  const [nome, setNome] = useState(pivo.irrigador || "");
+  const [nome, setNome] = useState(pivo.nome || pivo.irrigador || "");
   const [codigo, setCodigo] = useState(pivo.codigo || "");
   const [ativo, setAtivo] = useState(pivo.ativo ?? true);
   const [whatsapp, setWhatsapp] = useState(pivo.contacts?.whatsapp || "");
@@ -173,43 +173,7 @@ export default function ModalEditIrrigador({
           />
         </label>
 
-        {/* Contatos */}
-        <fieldset className="mb-4 p-4 border border-gray-600 rounded-md">
-          <legend className="text-white mb-2 px-2">Contatos para Notificação</legend>
-          <label className="block text-white mb-3">
-            <span className="text-sm text-gray-300">WhatsApp:</span>
-            <input
-              type="text"
-              value={whatsapp}
-              onChange={(e) => setWhatsapp(e.target.value)}
-              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              placeholder="+5511999999999"
-              disabled={isSaving}
-            />
-          </label>
-          <label className="block text-white mb-3">
-            <span className="text-sm text-gray-300">SMS:</span>
-            <input
-              type="text"
-              value={sms}
-              onChange={(e) => setSms(e.target.value)}
-              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              placeholder="+5511988888888"
-              disabled={isSaving}
-            />
-          </label>
-          <label className="block text-white">
-            <span className="text-sm text-gray-300">Email:</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full text-black px-3 py-2 border rounded-md mt-1 focus:outline-none"
-              placeholder="email@exemplo.com"
-              disabled={isSaving}
-            />
-          </label>
-        </fieldset>
+
 
         {/* Equipamentos */}
         <fieldset className="mb-4">

@@ -72,6 +72,21 @@ def setup_indexes(couchdb_url: str, database: str) -> Tuple[bool, str]:
                 "fields": ["table", "last_zaap_id"],
                 "desc": "Índice para tracking de ligações Z-API por zaapId",
             },
+            {
+                "name": "idx_tensao_raw_irrigador_tipo_ts",
+                "fields": ["table", "irrigadorId", "tipo", "timestamp"],
+                "desc": "Índice para histórico de tensão por irrigador",
+            },
+            {
+                "name": "idx_sw_raw_irrigador_ts",
+                "fields": ["table", "irrigadorId", "timestamp"],
+                "desc": "Índice para histórico SW por irrigador",
+            },
+            {
+                "name": "idx_events_irrigador_eventType_ts",
+                "fields": ["table", "irrigadorId", "eventType", "timestamp"],
+                "desc": "Índice para histórico de eventos por irrigador",
+            },
         ]
 
         print(f"✅ Conectado ao banco de dados: {database}")

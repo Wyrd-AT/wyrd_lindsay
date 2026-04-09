@@ -91,9 +91,36 @@ async def create_admin(
 
         doc_id = result.document_id
 
-        # PASSO 2: Criar no Cognito (admin_create_user)
+        # PASSO 2: Criar/atualizar no Cognito (admin_create_user)
+        created_in_cognito = False
+        cognito_sub = None
         try:
             create_response = cognito_client.admin_create_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                # Evita envio de convite (SMS/email) — necessário quando o user pool não tem SMS configurado.
+                MessageAction="SUPPRESS",
+                UserAttributes=[
+                    {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
+                    {"Name": "custom:type", "Value": new_type},
+                    {"Name": "custom:status", "Value": "active"},
+                    {"Name": "custom:cnpj", "Value": cnpj_admin},
+                    {"Name": "custom:doc_id", "Value": doc_id or ""},
+                ],
+            )
+            cognito_sub = create_response["User"]["Username"]
+            created_in_cognito = True
+        except cognito_client.exceptions.UsernameExistsException:
+            # Usuário já existe no Cognito: sincronizar atributos e seguir
+            existing = cognito_client.admin_get_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+            )
+            cognito_sub = existing.get("Username")
+            cognito_client.admin_update_user_attributes(
                 UserPoolId=settings.COGNITO_USER_POOL_ID,
                 Username=body.email,
                 UserAttributes=[
@@ -106,42 +133,37 @@ async def create_admin(
                     {"Name": "custom:cnpj", "Value": cnpj_admin},
                     {"Name": "custom:doc_id", "Value": doc_id or ""},
                 ],
-                MessageAction="SUPPRESS",
-            )
-            cognito_sub = create_response["User"]["Username"]
-
-            # Definir senha permanente
-            cognito_client.admin_set_user_password(
-                UserPoolId=settings.COGNITO_USER_POOL_ID,
-                Username=body.email,
-                Password=body.password,
-                Permanent=True,
             )
 
-            # Atualizar CouchDB com cognito_sub
-            try:
-                db = get_users_db()
-                admin_doc = db.get(doc_id)
-                admin_doc["cognito_sub"] = cognito_sub
-                admin_doc["cognito_synced"] = True
-                db.save(admin_doc)
-            except Exception as e:
-                print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
+        # Definir senha permanente (para criado ou já existente)
+        cognito_client.admin_set_user_password(
+            UserPoolId=settings.COGNITO_USER_POOL_ID,
+            Username=body.email,
+            Password=body.password,
+            Permanent=True,
+        )
 
-        except cognito_client.exceptions.UsernameExistsException:
-            # Rollback CouchDB
-            try:
-                db = get_users_db()
-                db.delete(db.get(doc_id))
-            except Exception:
-                pass
-            raise HTTPException(
-                status_code=400,
-                detail="Este e-mail já está cadastrado no sistema de autenticação. Remova o usuário do Cognito antes de recriá-lo.",
-            )
+        # Atualizar CouchDB com cognito_sub
+        try:
+            db = get_users_db()
+            admin_doc = db.get(doc_id)
+            admin_doc["cognito_sub"] = cognito_sub
+            admin_doc["cognito_synced"] = True
+            db.save(admin_doc)
+        except Exception as e:
+            print(f"⚠️ Aviso ao atualizar cognito_sub: {e}")
+
         except Exception as cognito_error:
             print(f"❌ Erro ao criar admin no Cognito: {cognito_error}")
             # Rollback CouchDB
+            if created_in_cognito:
+                try:
+                    cognito_client.admin_delete_user(
+                        UserPoolId=settings.COGNITO_USER_POOL_ID,
+                        Username=body.email,
+                    )
+                except Exception:
+                    pass
             try:
                 db = get_users_db()
                 db.delete(db.get(doc_id))

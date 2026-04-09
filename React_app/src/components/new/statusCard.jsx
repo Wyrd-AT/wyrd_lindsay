@@ -1,3 +1,4 @@
+import { useState } from "react";
 import clsx from "clsx";
 import { valueDescriptions } from "../../constants/alertDescriptions";
 
@@ -10,7 +11,18 @@ export const STATUS_MAP = {
   9: "Ausente",
 };
 
-export function StatusCard({ title, statuses, onClick, isInMaintenance }) {
+export function StatusCard({
+  title,
+  statuses,
+  onClick,
+  isInMaintenance,
+  canToggleAlarm,
+  monitorCode,
+  loading,
+  onAlarmOn,
+  onAlarmOff,
+}) {
+  const [showActions, setShowActions] = useState(false);
   const allOK = statuses.some((s) => s.value === "0");
   const hasAlarmado = statuses.some((s) => s.value === "1");
   const hasReconhecido = statuses.some((s) => s.value === "2");
@@ -32,8 +44,9 @@ export function StatusCard({ title, statuses, onClick, isInMaintenance }) {
               : "Desconhecido";
 
   const classes = clsx(
-    "h-full flex flex-col items-center justify-center rounded border-2 p-2 transition-colors duration-200 cursor-pointer",
+    "h-full flex flex-col items-center justify-center rounded border-2 p-2 transition-colors duration-200",
     {
+      "cursor-pointer": true,
       "animate-blink-bg border-red-500 text-white": hasAlarmado,
       "bg-red-500 border-transparent text-white":
         !hasAlarmado && hasReconhecido,
@@ -44,7 +57,13 @@ export function StatusCard({ title, statuses, onClick, isInMaintenance }) {
   );
 
   return (
-    <div className={classes} onClick={onClick}>
+    <div
+      className={classes}
+      onClick={(e) => {
+        onClick?.(e);
+        setShowActions((v) => !v);
+      }}
+    >
       <span className="font-semibold">{title}</span>
       <span className="mt-1 text-sm">{statusLabel}</span>
       <div className="mt-2 flex flex-col items-start gap-1 text-xs">
@@ -62,6 +81,32 @@ export function StatusCard({ title, statuses, onClick, isInMaintenance }) {
           );
         })}
       </div>
+      {canToggleAlarm && showActions && (
+        <div className="mt-3 flex w-full gap-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAlarmOn?.();
+            }}
+            disabled={loading || !monitorCode}
+            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 px-4 py-1 w-1/2 rounded text-[12px]"
+          >
+            {loading ? "..." : "Ligar Alarme"}
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAlarmOff?.();
+            }}
+            disabled={loading || !monitorCode}
+            className="bg-yellow-600 hover:bg-yellow-700 disabled:opacity-50 px-1 py-1 w-1/2 rounded text-[12px]"
+          >
+            {loading ? "..." : "Desligar Alarme"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

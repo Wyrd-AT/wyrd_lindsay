@@ -16,10 +16,11 @@ export default function SideBar() {
     <div
       className="
         sticky top-0 left-0
-        w-[100px] bg-[#444444]
-        h-[100vh]
+        w-[100px] bg-[#39393a]
+        min-h-screen
         flex flex-col items-center
         z-10
+        self-stretch
       "
     >
       {/* Logo */}

@@ -7,7 +7,7 @@
  * - Filtros por status
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
 import Sidebar from "../../components/new/sidebar";
 import BodyContent from "../../components/new/body";
@@ -15,9 +15,8 @@ import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import PivosSection from "../../components/new/PivosSection";
 import { ModalIrrigador } from "../../components/new/modalNewIrrigador";
-import { useAdminStats } from "../../hooks/new/useAdminStats";
-import { usePivos } from "../../hooks/new/usePivos";
 import { useDataStoreIrrigadores } from "../../stores/new/dataStoreIrrigadores";
+import apiClient from "../../api/new/apiClient";
 
 interface StatCard {
   label: string;
@@ -36,29 +35,50 @@ export function GerenciarPivosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const {
-    stats,
-    loading: loadingStats,
-    error: statsError,
-    fetchStats,
-  } = useAdminStats();
-  const { fetchPivos } = usePivos();
+  const irrigadores = useDataStoreIrrigadores((s) => s.irrigadores);
+  const loadingIrrigadores = useDataStoreIrrigadores((s) => s.isLoading);
+  const loadingRecentIrrigadores = useDataStoreIrrigadores(
+    (s) => s.isLoadingRecent,
+  );
+  const irrigadoresError = useDataStoreIrrigadores((s) => s.error);
+  const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
+  const fetchRecentIrrigadores = useDataStoreIrrigadores(
+    (s) => s.fetchRecentIrrigadores,
+  );
   const updateIrrigador = useDataStoreIrrigadores((s) => s.updateIrrigador);
   const removeIrrigador = useDataStoreIrrigadores((s) => s.removeIrrigador);
 
   useEffect(() => {
     if (isActiveUser) {
-      fetchStats();
+      fetchIrrigadores();
+      const t = setTimeout(() => {
+        fetchRecentIrrigadores();
+      }, 800);
+      return () => clearTimeout(t);
     }
-  }, [isActiveUser]);
+  }, [isActiveUser, fetchIrrigadores, fetchRecentIrrigadores]);
 
   useEffect(() => {
     if (!isActiveUser) return;
     const timer = setInterval(() => {
-      fetchStats();
+      fetchIrrigadores({ force: true });
+      fetchRecentIrrigadores({ force: true });
     }, 300000);
     return () => clearInterval(timer);
-  }, [isActiveUser, fetchStats]);
+  }, [isActiveUser, fetchIrrigadores, fetchRecentIrrigadores]);
+
+  const pivoStats = useMemo(() => {
+    const total = irrigadores.length;
+    const active = irrigadores.filter((p: any) => p.ativo === true).length;
+    const alarmado = irrigadores.filter((p: any) => {
+      const count = p.alarm_count ?? 0;
+      return Number(count) > 0;
+    }).length;
+    const maintenance = irrigadores.filter(
+      (p: any) => p.status === "maintenance",
+    ).length;
+    return { total, active, alarmado, maintenance };
+  }, [irrigadores]);
 
   return (
     <PermissionGuard allowedRoles={["admin", "superadmin", "revenda"]} requireActive>
@@ -93,10 +113,10 @@ export function GerenciarPivosPage() {
           </div>
 
           {/* Erros globais */}
-          {statsError && (
+          {irrigadoresError && (
             <div className="mx-4 mb-6 p-4 bg-red-900 border border-red-700 rounded-lg text-red-100">
               <p className="font-medium">Erro ao carregar dados:</p>
-              <p className="text-sm">{statsError}</p>
+              <p className="text-sm">{irrigadoresError}</p>
             </div>
           )}
 
@@ -106,16 +126,16 @@ export function GerenciarPivosPage() {
               cards={[
                 {
                   label: "Total de Pivôs",
-                  value: stats?.totalPivos || 0,
-                  subValue: `${stats?.activePivos || 0} ativos`,
+                  value: pivoStats.total,
+                  subValue: `${pivoStats.active} ativos`,
                 },
                 {
                   label: "Pivôs Alarmados",
-                  value: stats?.alarmadoPivos || 0,
-                  subValue: `${stats?.maintenancePivos || 0} em manutenção`,
+                  value: pivoStats.alarmado,
+                  subValue: `${pivoStats.maintenance} em manutenção`,
                 },
               ]}
-              loading={loadingStats}
+              loading={loadingIrrigadores}
             />
           </div>
           {/* Pivôs Section */}
@@ -126,15 +146,26 @@ export function GerenciarPivosPage() {
               </h2>
               <PivosSection
                 searchTerm={searchTerm}
-                fetchPivos={fetchPivos}
+                pivos={irrigadores as any}
+                loading={loadingIrrigadores}
+                loadingRecent={loadingRecentIrrigadores}
+                error={irrigadoresError}
+                onRefresh={fetchIrrigadores}
+                onLoadFullPivo={async (pivo) => {
+                  const response = await apiClient.get(`/pivos/${pivo._id}`);
+                  return response.data?.pivo ?? pivo;
+                }}
                 onUpdatePivo={async (pivoId, pivoData) => {
                   // Pivô é documento de irrigador no CouchDB; edição direta evita roundtrip no backend.
                   await updateIrrigador(pivoId, pivoData);
+                  await fetchIrrigadores({ force: true });
+                  await fetchRecentIrrigadores({ force: true });
                 }}
                 onDeletePivo={async (pivoId) => {
                   // Deleção direta do documento irrigador.
                   await removeIrrigador(pivoId);
-                  await fetchStats();
+                  await fetchIrrigadores({ force: true });
+                  await fetchRecentIrrigadores({ force: true });
                 }}
               />
             </div>
@@ -144,7 +175,7 @@ export function GerenciarPivosPage() {
               closeModal={() => setShowCreateModal(false)}
               onSuccess={() => {
                 setShowCreateModal(false);
-                fetchStats();
+                fetchIrrigadores();
               }}
             />
           )}

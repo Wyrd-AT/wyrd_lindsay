@@ -1,26 +1,33 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 // FASE 1 - Performance: Added useMemo for expensive transformations
-import { getAlertHistory, EventDoc } from "./getHistory";
+import { getAlertHistory } from "./getHistory";
 
 interface UseAlertsDataOptions {
   irrigadorId?: string;
   pageSize?: number;
   table?: "events" | "alarme" | "evento";
+  monitor?: string;
 }
 
 export interface AlertItem {
   _id: string;
-  _rev?: string;
   irrigadorId: string;
   date: string;
   time: string;
   monitor: string | number;
+  monitor_name?: string;
   alarme: string;
   status: string | number;
   estado: string;
-  timestamp: Date;
+  timestamp: string;
   description?: string;
   responsible?: string;
+  scheduled_for?: string;
+  ultimo_agendamento?: string;
+  responsavel_agendamento?: string;
+  timer_value?: number | string;
+  data_solucao?: string;
+  responsavel_solucao?: string;
 }
 
 interface UseAlertsDataResult {
@@ -36,52 +43,35 @@ interface UseAlertsDataResult {
   refresh: () => void;
 }
 
-/**
- * Converte EventDoc do CouchDB para AlertItem
- */
-export function convertEventToAlert(doc: EventDoc): AlertItem | null {
-  try {
-    const timestamp = new Date(doc.timestamp);
-    if (!Number.isFinite(timestamp.getTime())) return null;
-
-    // Extrair informações do eventType ou description
-    // Formato esperado: "A01" onde A=tipo, 01=monitor
-    const eventType = doc.eventType || "";
-    const alarme = eventType[0];
-    //console.log(" EventType:", doc);
-    const monitor = doc.monitor || "";
-
-    return {
-      _id: doc._id,
-      irrigadorId: doc.irrigadorId,
-      date: timestamp.toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }),
-      time: timestamp.toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }),
-      monitor,
-      alarme,
-      estado: doc.estado ?? "",
-      status: doc.status ?? "",
-      timestamp,
-      description: doc.description,
-      responsible: doc.responsible,
-    };
-  } catch (error) {
-    console.error("Error converting event to alert:", error);
-    return null;
-  }
-}
+const normalizeAlert = (doc: any): AlertItem | null => {
+  if (!doc) return null;
+  return {
+    _id: doc._id || doc.id || "",
+    irrigadorId: doc.irrigadorId || "",
+    date: doc.date || "",
+    time: doc.time || "",
+    monitor: doc.monitor ?? "",
+    monitor_name: doc.monitor_name,
+    alarme: doc.alarme || "",
+    estado: doc.estado ?? "",
+    status: doc.status ?? "",
+    timestamp: doc.timestamp || "",
+    description: doc.description,
+    responsible: doc.responsible,
+    scheduled_for: doc.scheduled_for,
+    ultimo_agendamento: doc.ultimo_agendamento,
+    responsavel_agendamento: doc.responsavel_agendamento,
+    timer_value: doc.timer_value,
+    data_solucao: doc.data_solucao,
+    responsavel_solucao: doc.responsavel_solucao,
+  };
+};
 
 export function useAlertsData({
   irrigadorId,
   pageSize = 50,
   table = "events",
+  monitor,
 }: UseAlertsDataOptions = {}): UseAlertsDataResult {
   const [pageCache, setPageCache] = useState<Map<number, AlertItem[]>>(
     new Map(),
@@ -97,47 +87,6 @@ export function useAlertsData({
     setRefreshCounter((c) => c + 1);
     setCurrentPage(1);
   }, []);
-
-  // Buscar contagem total uma vez
-  useEffect(() => {
-    let cancelled = false;
-
-    async function fetchTotal() {
-      try {
-        ////console.log('Fetching total alerts count for irrigadorId:', irrigadorId);
-
-        // Buscar com limite alto apenas para contar
-        const docs = await getAlertHistory("lindsay-data", {
-          irrigadorId,
-          table,
-          sort: "desc",
-          limit: 10000,
-        });
-
-        if (cancelled) return;
-
-        // Converter e filtrar para obter contagem real
-        const converted = docs
-          .map(convertEventToAlert)
-          .filter((alert): alert is AlertItem => alert !== null);
-
-        ////console.log(`Total alerts: ${converted.length}`);
-
-        if (!cancelled) {
-          setTotalAlerts(converted.length);
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          console.error("Error fetching total count:", err);
-        }
-      }
-    }
-
-    fetchTotal();
-    return () => {
-      cancelled = true;
-    };
-  }, [irrigadorId, table, refreshCounter]);
 
   // Buscar página atual sob demanda
   useEffect(() => {
@@ -157,22 +106,23 @@ export function useAlertsData({
         ////console.log(`Fetching page ${currentPage} (skip: ${(currentPage - 1) * pageSize}, limit: ${pageSize})`);
 
         // Buscar APENAS a página atual
-        const docs = await getAlertHistory("lindsay-data", {
+        const { items, total } = await getAlertHistory({
           irrigadorId,
-          table,
           sort: "desc",
           limit: pageSize,
           skip: (currentPage - 1) * pageSize,
+          ...(monitor !== undefined && { monitor }),
         });
 
         if (cancelled) return;
 
         // Converter para AlertItem
-        const converted = docs
-          .map(convertEventToAlert)
+        const converted = items
+          .map(normalizeAlert)
           .filter((alert): alert is AlertItem => alert !== null);
 
         if (!cancelled) {
+          setTotalAlerts(total);
           // Adicionar ao cache
           setPageCache((prev) => {
             const newCache = new Map(prev);
@@ -196,7 +146,7 @@ export function useAlertsData({
     return () => {
       cancelled = true;
     };
-  }, [irrigadorId, table, currentPage, pageSize, refreshCounter, pageCache]);
+  }, [irrigadorId, table, monitor, currentPage, pageSize, refreshCounter, pageCache]);
 
   // FASE 1 - Performance: Memoize cache lookup and pagination calculations
   const alerts = useMemo(

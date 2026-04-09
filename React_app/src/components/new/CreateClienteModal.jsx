@@ -303,11 +303,14 @@ export const CreateClienteModal = ({
               {loadingRevendas ? (
                 <option disabled>Carregando revendas...</option>
               ) : (
-                revendasList.map((revenda) => (
-                  <option key={revenda._id} value={revenda._id}>
-                    {revenda.name}
-                  </option>
-                ))
+                revendasList.map((revenda) => {
+                  const value = revenda.doc_id || revenda.id || revenda._id || "";
+                  return (
+                    <option key={value || revenda.name} value={value}>
+                      {revenda.name}
+                    </option>
+                  );
+                })
               )}
             </select>
             <span className="text-xs text-gray-400">

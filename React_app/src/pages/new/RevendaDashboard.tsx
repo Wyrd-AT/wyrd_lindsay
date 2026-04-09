@@ -24,6 +24,7 @@ import PermissionGuard from "../../components/new/PermissionGuard";
 import PivosSection from "../../components/new/PivosSection";
 import { useRevendaClientes } from "../../hooks/new/useRevendaClientes";
 import { useRevendaStats } from "../../hooks/new/useRevendaStats";
+import { useDataStoreIrrigadores } from "../../stores/new/dataStoreIrrigadores";
 import type { Cliente } from "../../types/admin";
 
 /**
@@ -48,11 +49,20 @@ export function RevendaDashboard() {
     fetchStats,
   } = useRevendaStats();
 
+  const irrigadores = useDataStoreIrrigadores((s) => s.irrigadores);
+  const loadingIrrigadores = useDataStoreIrrigadores((s) => s.isLoading);
+  const loadingRecentIrrigadores = useDataStoreIrrigadores(
+    (s) => s.isLoadingRecent,
+  );
+  const irrigadoresError = useDataStoreIrrigadores((s) => s.error);
+  const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
+
   // Carregar dados ao montar
   useEffect(() => {
     if (isActiveUser) {
       fetchStats();
       fetchClientes();
+      fetchIrrigadores();
     }
   }, [isActiveUser]);
 
@@ -69,6 +79,7 @@ export function RevendaDashboard() {
               onClick={() => {
                 fetchStats();
                 fetchClientes();
+                fetchIrrigadores();
               }}
               className="bg-dashboard-accent p-2 rounded-lg font-bold hover:bg-dashboard-accent-hover transition"
             >
@@ -140,7 +151,13 @@ export function RevendaDashboard() {
             <h2 className="text-xl font-bold text-dashboard-text-primary mb-4">
               💧 Acompanhar Pivôs
             </h2>
-            <PivosSection />
+            <PivosSection
+              pivos={irrigadores as any}
+              loading={loadingIrrigadores}
+              loadingRecent={loadingRecentIrrigadores}
+              error={irrigadoresError}
+              onRefresh={fetchIrrigadores}
+            />
           </div>
         </BodyContent>
       </div>

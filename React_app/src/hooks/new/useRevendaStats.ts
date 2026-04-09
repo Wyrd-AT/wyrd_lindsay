@@ -36,7 +36,7 @@ export const useRevendaStats = () => {
       // Realiza as chamadas em paralelo para melhor performance
       const [clientesRes, pivosRes] = await Promise.all([
         apiClient.get("/clientes"),
-        apiClient.get("/pivos"),
+        apiClient.get("/pivos", { params: { with_recent: true } }),
       ]);
 
       // No Axios, os dados retornados ficam em .data
@@ -50,8 +50,10 @@ export const useRevendaStats = () => {
         pendingClientes: clientes.filter((c: any) => c.status === "pending")
           .length,
         totalPivos: pivos.length,
-        activePivos: pivos.filter((p: any) => p.status === "active").length,
-        alarmadoPivos: pivos.filter((p: any) => p.status === "alarmed").length,
+        activePivos: pivos.filter((p: any) => p.ativo === true).length,
+        alarmadoPivos: pivos.filter(
+          (p: any) => Number(p.alarm_count ?? 0) > 0,
+        ).length,
       };
 
       setStats(newStats);

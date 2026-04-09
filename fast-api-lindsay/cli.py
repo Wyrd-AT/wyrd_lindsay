@@ -118,6 +118,21 @@ def setup_db():
                 "type": "json",
             },
             {
+                "index": {"fields": ["table", "cnpj_admin"]},
+                "name": "idx_table_cnpj_admin",
+                "type": "json",
+            },
+            {
+                "index": {"fields": ["table", "cnpj_revenda"]},
+                "name": "idx_table_cnpj_revenda",
+                "type": "json",
+            },
+            {
+                "index": {"fields": ["table", "cnpj_cliente"]},
+                "name": "idx_table_cnpj_cliente",
+                "type": "json",
+            },
+            {
                 "index": {"fields": ["table", "owner_id"]},
                 "name": "idx_table_owner",
                 "type": "json",

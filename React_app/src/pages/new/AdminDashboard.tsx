@@ -16,20 +16,33 @@
  * - Status dos pivôs
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense, lazy } from "react";
 import { useAuthStore, selectIsActiveUser } from "../../stores/new/authStore";
 import Sidebar from "../../components/new/sidebar";
 import BodyContent from "../../components/new/body";
 import Header from "../../components/new/header";
 import PermissionGuard from "../../components/new/PermissionGuard";
 import PivosSection from "../../components/new/PivosSection";
-import { CreateRevendaModal } from "../../components/new/CreateRevendaModal";
-import { CreateClienteModal } from "../../components/new/CreateClienteModal";
-import { CreateAdminModal } from "../../components/new/CreateAdminModal";
+const CreateRevendaModal = lazy(() =>
+  import("../../components/new/CreateRevendaModal").then((m) => ({
+    default: m.CreateRevendaModal,
+  })),
+);
+const CreateClienteModal = lazy(() =>
+  import("../../components/new/CreateClienteModal").then((m) => ({
+    default: m.CreateClienteModal,
+  })),
+);
+const CreateAdminModal = lazy(() =>
+  import("../../components/new/CreateAdminModal").then((m) => ({
+    default: m.CreateAdminModal,
+  })),
+);
 import { fetchAdmins } from "../../api/new/fastapi-admin";
 import { useAdminRevendas } from "../../hooks/new/useAdminRevendas";
 import { useAdminStats } from "../../hooks/new/useAdminStats";
 import { useAdminClientes } from "../../hooks/new/useAdminClientes";
+import { useDataStoreIrrigadores } from "../../stores/new/dataStoreIrrigadores";
 import type {
   AdminStats as AdminStatsType,
   Revenda,
@@ -85,6 +98,14 @@ export function AdminDashboard() {
     fetchClientes,
   } = useAdminClientes();
 
+  const irrigadores = useDataStoreIrrigadores((s) => s.irrigadores);
+  const loadingIrrigadores = useDataStoreIrrigadores((s) => s.isLoading);
+  const loadingRecentIrrigadores = useDataStoreIrrigadores(
+    (s) => s.isLoadingRecent,
+  );
+  const irrigadoresError = useDataStoreIrrigadores((s) => s.error);
+  const fetchIrrigadores = useDataStoreIrrigadores((s) => s.fetchIrrigadores);
+
   // Carregar dados ao montar
   useEffect(() => {
     if (isActiveUser) {
@@ -92,6 +113,7 @@ export function AdminDashboard() {
       fetchAllRevendas();
       fetchClientes();
       loadAdmins();
+      fetchIrrigadores();
     }
   }, [isActiveUser]);
 
@@ -302,42 +324,50 @@ export function AdminDashboard() {
           </div>
 
           {/* Modals */}
-          {showCreateRevenda && (
-            <CreateRevendaModal
-              closeModal={() => setShowCreateRevenda(false)}
-              onSuccess={() => {
-                setShowCreateRevenda(false);
-                fetchAllRevendas();
-                fetchStats();
-              }}
-            />
-          )}
+          <Suspense fallback={null}>
+            {showCreateRevenda && (
+              <CreateRevendaModal
+                closeModal={() => setShowCreateRevenda(false)}
+                onSuccess={() => {
+                  setShowCreateRevenda(false);
+                  fetchAllRevendas();
+                  fetchStats();
+                }}
+              />
+            )}
 
-          {showCreateCliente && (
-            <CreateClienteModal
-              closeModal={() => setShowCreateCliente(false)}
-              onSuccess={() => {
-                setShowCreateCliente(false);
-                fetchClientes();
-                fetchStats();
-              }}
-              revendas={allRevendas}
-            />
-          )}
+            {showCreateCliente && (
+              <CreateClienteModal
+                closeModal={() => setShowCreateCliente(false)}
+                onSuccess={() => {
+                  setShowCreateCliente(false);
+                  fetchClientes();
+                  fetchStats();
+                }}
+                revendas={allRevendas}
+              />
+            )}
 
-          {showCreateAdmin && (
-            <CreateAdminModal
-              closeModal={() => setShowCreateAdmin(false)}
-              onSuccess={() => {
-                setShowCreateAdmin(false);
-                loadAdmins();
-              }}
-            />
-          )}
+            {showCreateAdmin && (
+              <CreateAdminModal
+                closeModal={() => setShowCreateAdmin(false)}
+                onSuccess={() => {
+                  setShowCreateAdmin(false);
+                  loadAdmins();
+                }}
+              />
+            )}
+          </Suspense>
 
           {/* Pivôs Section */}
           <div className="px-4 mb-4">
-            <PivosSection />
+            <PivosSection
+              pivos={irrigadores as any}
+              loading={loadingIrrigadores}
+              loadingRecent={loadingRecentIrrigadores}
+              error={irrigadoresError}
+              onRefresh={fetchIrrigadores}
+            />
           </div>
         </BodyContent>
       </div>

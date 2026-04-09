@@ -44,7 +44,12 @@ export interface Pivo {
   status: "active" | "inactive" | "maintenance" | "alarmed";
   owner_id: string; // cliente_id
   created_at: string;
-  last_data?: string;
+  alarm_count?: number;
+  last_alert_date?: string | null;
+  last_sw_at?: string | null;
+  last_tensao_at?: string | null;
+  last_data_at?: string | null;
+  last_data_source?: "sw" | "tensao" | null;
 }
 
 export interface AdminStats {

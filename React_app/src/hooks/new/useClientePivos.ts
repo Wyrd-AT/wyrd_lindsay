@@ -31,7 +31,9 @@ export const useClientePivos = (): UseClientePivosReturn => {
 
     try {
       // O prefixo /api já está incluído na baseURL do seu apiClient
-      const response = await apiClient.get("/pivos");
+      const response = await apiClient.get("/pivos", {
+        params: { with_recent: true },
+      });
 
       // No Axios, os dados retornados pelo backend ficam em .data
       setPivos(response.data.pivos || []);

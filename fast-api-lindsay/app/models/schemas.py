@@ -39,6 +39,21 @@ class UserLoginRequest(BaseModel):
     password: str
 
 
+class CognitoSignUpRequest(BaseModel):
+    """Requisição de cadastro direto no Cognito"""
+
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+    name: Optional[str] = None
+    phone_number: Optional[str] = None
+    # Campos opcionais (mantidos por compatibilidade; ignorados no envio ao Cognito)
+    type: Optional[str] = None
+    status: Optional[str] = None
+    domain: Optional[str] = None
+    cnpj: Optional[str] = None
+    hierarquia: Optional[str] = None
+
+
 class UserResponse(BaseModel):
     """Resposta com dados do usuário"""
 
@@ -49,6 +64,7 @@ class UserResponse(BaseModel):
     status: str
     doc_id: Optional[str] = None
     sub_role: Optional[str] = None
+    cnpj: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -226,8 +242,15 @@ class UpdatePivoRequest(BaseModel):
     """Requisição para atualizar pivô"""
 
     nome: Optional[str] = None
+    codigo: Optional[str] = None
+    irrigador: Optional[str] = None
     ativo: Optional[bool] = None
     location: Optional[Dict[str, float]] = None
+    equipamentos: Optional[List[str]] = None
+    contacts: Optional[Dict[str, Optional[str]]] = None
+    whatsapp: Optional[str] = None
+    sms: Optional[str] = None
+    email: Optional[str] = None
 
 
 class PivoResponse(BaseModel):
@@ -236,11 +259,26 @@ class PivoResponse(BaseModel):
     id: str = Field(..., alias="_id")
     codigo: str
     nome: str
+    display_name: Optional[str] = None
     owner_id: str
     gerente_id: str
     ativo: bool
+    nome_cliente: Optional[str] = None
+    nome_revenda: Optional[str] = None
+    nome_admin: Optional[str] = None
+    cnpj_cliente: Optional[str] = None
+    cnpj_revenda: Optional[str] = None
+    cnpj_admin: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    # Campos de status recente (populados quando with_recent=true)
+    alarm_count: Optional[int] = None
+    last_alert_date: Optional[str] = None
+    last_sw_at: Optional[str] = None
+    last_tensao_at: Optional[str] = None
+    last_data_at: Optional[str] = None
+    last_data_source: Optional[str] = None
+    has_alarm: Optional[bool] = None
 
     model_config = {"populate_by_name": True, "by_alias": True}
 
@@ -251,6 +289,27 @@ class PivosListResponse(BaseModel):
     total: int
     role: str
     pivos: list[PivoResponse]
+
+
+class PivoRecentResponse(BaseModel):
+    id: str = Field(..., alias="_id")
+    alarm_count: Optional[int] = None
+    last_alert_date: Optional[str] = None
+    last_sw_at: Optional[str] = None
+    last_tensao_at: Optional[str] = None
+    last_data_at: Optional[str] = None
+    last_data_source: Optional[str] = None
+    has_alarm: Optional[bool] = None
+
+    model_config = {"populate_by_name": True, "by_alias": True}
+
+
+class PivosRecentResponse(BaseModel):
+    """Status recente de pivôs (batch leve)"""
+
+    total: int
+    recents: list[PivoRecentResponse]
+    debug: Optional[Dict[str, Any]] = None
 
 
 class PivosStatsResponse(BaseModel):
@@ -323,6 +382,28 @@ class InvitationActivateRequest(BaseModel):
     terms_accepted: bool = True
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Requisição para iniciar recuperação de senha"""
+
+    email: EmailStr
+
+
+class ConfirmForgotPasswordRequest(BaseModel):
+    """Requisição para confirmar nova senha via código"""
+
+    email: EmailStr
+    code: str
+    new_password: str = Field(..., min_length=6)
+
+
+class ChangePasswordRequest(BaseModel):
+    """Requisição para trocar senha (usuário autenticado)"""
+
+    previous_password: str
+    proposed_password: str = Field(..., min_length=6)
+    access_token: Optional[str] = None
+
+
 class LoginResponse(BaseModel):
     """Resposta de login com status de verificação/termos"""
 
@@ -333,3 +414,159 @@ class LoginResponse(BaseModel):
     terms_accepted: bool = False
     terms_version: Optional[str] = None
     requires_action: Optional[str] = None  # "verify_email", "accept_terms", None
+
+
+# ============================================================================
+# History Models
+# ============================================================================
+
+
+class MonitorVoltage(BaseModel):
+    voltage: float
+    status: int
+
+
+class TensionDataField(BaseModel):
+    monitores: Dict[str, MonitorVoltage]
+
+
+class TensionPoint(BaseModel):
+    timestamp: str
+    tipo: str
+    monitor_range: Optional[str] = None
+    data: TensionDataField
+
+
+class TensionHistoryResponse(BaseModel):
+    irrigador_id: str
+    points: List[TensionPoint]
+    total_raw: int
+    aggregated: bool
+    series: Optional[List[Dict[str, Any]]] = None
+
+
+class SWMonitorField(BaseModel):
+    fim_de_curso_1: int
+    fim_de_curso_2: int
+    armadilha: int
+    status: int
+
+
+class SWDataField(BaseModel):
+    painel_1: Optional[int] = None
+    painel_2: Optional[int] = None
+    lampada: Optional[int] = None
+    sirene: Optional[int] = None
+    manutencao: Optional[int] = None
+    monitores: Optional[Dict[str, SWMonitorField]] = None
+
+
+class SWPoint(BaseModel):
+    id: str = Field(..., alias="_id")
+    timestamp: str
+    data: SWDataField
+
+    model_config = {"populate_by_name": True}
+
+
+class SWHistoryResponse(BaseModel):
+    irrigador_id: str
+    skip: int
+    limit: int
+    items: List[SWPoint]
+
+
+class EventItem(BaseModel):
+    id: str = Field(..., alias="_id")
+    timestamp: str
+    eventType: Optional[str] = None
+    monitor: Optional[Any] = None
+    estado: Optional[str] = None
+    status: Optional[str] = None
+    description: Optional[str] = None
+    responsible: Optional[str] = None
+    armadilha: Optional[str] = None
+
+    model_config = {"populate_by_name": True}
+
+
+class EventsHistoryResponse(BaseModel):
+    irrigador_id: str
+    total: int
+    skip: int
+    limit: int
+    items: List[EventItem]
+
+
+class AlertsHistoryResponse(BaseModel):
+    irrigador_id: str
+    total: int
+    skip: int
+    limit: int
+    items: List[EventItem]
+    alerts: Optional[List[Dict[str, Any]]] = None
+
+
+class ChangeResult(BaseModel):
+    seq: Any
+    id: str
+    changes: List[Dict[str, str]]
+    deleted: Optional[bool] = None
+
+
+class ChangesResponse(BaseModel):
+    last_seq: Any
+    pending: Optional[int] = None
+    results: List[ChangeResult]
+
+
+# ============================================================================
+# Recent Models
+# ============================================================================
+
+
+class RecentTensionResponse(BaseModel):
+    id: str = Field(..., alias="_id")
+    irrigador_id: str
+    tipo: str
+    updated_at: Optional[str] = None
+    data: TensionDataField
+
+    model_config = {"populate_by_name": True}
+
+
+class RecentSWResponse(BaseModel):
+    id: str = Field(..., alias="_id")
+    irrigador_id: str
+    updated_at: Optional[str] = None
+    data: SWDataField
+
+    model_config = {"populate_by_name": True}
+
+
+class RecentAllResponse(BaseModel):
+    tensao: Optional[Dict[str, Any]] = None  # {A?, B?, C?, D?}
+    sw: Optional[Any] = None
+    overview: Optional[Dict[str, Any]] = None
+
+
+# ============================================================================
+# Notifications Config Models
+# ============================================================================
+
+
+class NotifAssinante(BaseModel):
+    email: str
+    msg_enabled: bool = False
+    call_enabled: bool = False
+
+
+class NotificationsConfigResponse(BaseModel):
+    irrigador_id: str
+    assinantes: List[NotifAssinante] = []
+
+
+class NotificationsConfigUpdateRequest(BaseModel):
+    email: str
+    msg_enabled: bool
+    call_enabled: bool

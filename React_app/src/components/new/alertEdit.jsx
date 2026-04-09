@@ -4,23 +4,16 @@ import { FiShare2 } from "react-icons/fi";
 import PizZip from "pizzip";
 
 import { valueDescriptions, alarmTypeDescriptions } from "../../constants/alertDescriptions";
-import { getBrasiliaTimestamp } from "../../utils/dateUtils";
 
 import {
   useAuthStore,
   selectCanResolveAlerts,
   selectCanExportReports,
 } from "../../stores/new/authStore";
-import useMessageStore from "../../stores/new/messageStore";
 import { whatsappStoreConfig } from "../../stores/new/whatsappStore";
-import { find, getDoc, getDocAll, upsertDoc } from "../../api/new/couch";
-import {
-  appendHistoryEvent,
-  currentId,
-  getById,
-  historyIdMonthly,
-  setCurrent,
-} from "../../hooks/new/useAgendamentos";
+import { postCommand } from "../../api/new/fastapi-commands";
+import { getTimer, upsertTimer, appendTimerEvent, getTimerHistory } from "../../api/new/fastapi-timers";
+import { getAlertHistory } from "../../hooks/new/getHistory";
 import Docxtemplater from "docxtemplater";
 import { saveAs } from "file-saver";
 
@@ -39,106 +32,6 @@ const fmtBR = (iso) => {
   return d.toLocaleString("pt-BR");
 };
 
-/** Busca eventos do histórico (modelo novo “history:YYYY-MM”). Fallback para modelo legado. */
-async function fetchTimerHistory(DB_NAME, idOrigem) {
-  // 1) Tenta ler docs de histórico particionado por mês
-  try {
-    const prefix = `timer:${idOrigem}:history:`; // prefixo para todos os meses
-    const startkey = prefix;
-    const endkey = startkey + "\ufff0";
-
-    const data = await getDocAll(DB_NAME, {
-      include_docs: true,
-      startkey,
-      endkey,
-      limit: 10000, // ajuste se precisar
-    });
-
-    const events = [];
-    for (const row of data?.rows ?? []) {
-      const evs = row?.doc?.events;
-      if (Array.isArray(evs)) {
-        for (const e of evs) {
-          const atIso = e?.at
-            ? new Date(e.at).toISOString()
-            : new Date().toISOString();
-          events.push({
-            type: e?.type === "solve" ? "solve" : "schedule",
-            at: atIso,
-            by: xmlSafe(e?.by || "—"),
-            timer_value:
-              e?.type === "solve"
-                ? (e?.related?.timer_value ?? "—")
-                : (e?.timer_value ?? "—"),
-            scheduled_for:
-              e?.type === "solve"
-                ? e?.related?.scheduled_for
-                : e?.scheduled_for,
-          });
-        }
-      }
-    }
-
-    if (events.length) {
-      events.sort(
-        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
-      );
-      return { events, source: "history-docs" };
-    }
-  } catch (_) {
-    // segue para fallback
-  }
-
-  // 2) Fallback: modelo legado — varre docs por id_origem via find
-  try {
-    const res = await find(DB_NAME, {
-      selector: { id_origem: { $eq: idOrigem } },
-      limit: 2000,
-    });
-
-    const docs = res?.docs ?? [];
-    const legacyEvents = docs.map((d) => {
-      const atBase =
-        d?.updated_at ||
-        d?.created_at ||
-        d?.data_solucao ||
-        d?.ultimo_agendamento;
-      const atIso = atBase
-        ? new Date(atBase).toISOString()
-        : new Date().toISOString();
-
-      if (d?.status === "solucionado") {
-        return {
-          type: "solve",
-          at: atIso,
-          by: xmlSafe(d?.responsavel_solucao || "—"),
-          timer_value: d?.timer_value ?? "—", // só para consistência, usamos related abaixo
-          scheduled_for: d?.scheduled_for ?? null,
-          // mantém shape compatível com quem usa related, se precisar
-          related: {
-            scheduled_for: d?.scheduled_for ?? null,
-            timer_value: d?.timer_value ?? null,
-          },
-        };
-      }
-
-      return {
-        type: "schedule",
-        at: atIso,
-        by: xmlSafe(d?.responsavel_agendamento || "—"),
-        timer_value: d?.timer_value ?? "—",
-        scheduled_for: d?.scheduled_for ?? null,
-      };
-    });
-
-    legacyEvents.sort(
-      (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
-    );
-    return { events: legacyEvents, source: "legacy-find" };
-  } catch (err) {
-    throw new Error("Falha ao buscar histórico.");
-  }
-}
 
 /** Monta um Document (docx) com os eventos */
 async function buildTimerHistoryDocx({
@@ -252,7 +145,6 @@ async function downloadDocx(doc, filename = "historico_timer.docx") {
 /** =========================
  * Utils
  * ========================= */
-const DB_NAME = "lindsay-data"; // banco de dados principal
 const MONITOR_MAP = { 17: 0, 18: 1 }; // ajustes pontuais
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
@@ -318,6 +210,7 @@ export default function AlertEdit({
   equipamentos = [],
   machineId,
   pivoName,
+  embedded = false,
 }) {
   /** ====== Stores ====== */
   const { user } = useAuthStore();
@@ -426,7 +319,7 @@ export default function AlertEdit({
       setIsTimerLoading(true);
       setErrorMsg("");
       try {
-        const curr = await getById(DB_NAME, currentId(alertData._id));
+        const curr = await getTimer(alertData._id);
         if (!cancelled) setAgendamento(curr ?? null);
       } catch (err) {
         if (!cancelled) setErrorMsg("Erro ao buscar estado atual do timer.");
@@ -519,33 +412,44 @@ export default function AlertEdit({
 
   async function handleExportHistoryPdf() {
     try {
-      if (!alertData?._id) {
-        setErrorMsg("Sem id de origem para gerar histórico.");
+      if (!alertData?.monitor || !machineId) {
+        setErrorMsg("Sem monitor para gerar histórico.");
         return;
       }
       setErrorMsg("");
 
-      // 1) Fetch data
-      let currentDoc = null;
-      try {
-        currentDoc = await getDoc(DB_NAME, currentId(alertData._id));
-      } catch (_) {}
-      const { events } = await fetchTimerHistory(DB_NAME, alertData._id);
+      // 1) Buscar histórico do equipamento (por monitor)
+      const allItems = [];
+      const batchSize = 500;
+      let skip = 0;
+      let batch;
+      do {
+        batch = await getAlertHistory({
+          irrigadorId: machineId,
+          monitor: String(alertData.monitor),
+          limit: batchSize,
+          skip,
+        });
+        allItems.push(...batch.items);
+        skip += batchSize;
+      } while (batch.items.length === batchSize);
 
-      // 2) Dados do alarme
-      const tipoDesc = alarmTypeDescriptions[alertData?.alarme] || alertData?.alarme || "—";
-      const statusDesc = valueDescriptions[alertData?.status] ?? alertData?.status ?? "—";
-      const timerDesc = currentDoc?.timer_value ? `${currentDoc.timer_value} min` : "—";
-      const agendadoDesc = currentDoc?.scheduled_for ? fmtBR(currentDoc.scheduled_for) : "—";
-      const responsavelDesc = currentDoc?.by ? xmlSafe(currentDoc.by) : "—";
+      if (allItems.length === 0) {
+        setErrorMsg("Sem histórico para exportar.");
+        return;
+      }
 
-      // 3) Normalize timer history events
-      const rows = (events || []).map((ev) => [
-        fmtBR(ev.at),
-        ev.type === "solve" ? "solucionado" : "agendado",
-        String(ev.timer_value ?? "—"),
-        fmtBR(ev.scheduled_for) || "—",
-        xmlSafe(ev.by || "—"),
+      // 2) Normalize rows
+      const rows = allItems.map((i) => [
+        i.date,
+        i.time,
+        alarmTypeDescriptions[i.alarme] || i.alarme,
+        valueDescriptions[i.estado] ?? i.estado,
+        i.scheduled_for ? fmtBR(i.scheduled_for) : "—",
+        i.responsavel_agendamento || "—",
+        i.timer_value ? `${i.timer_value} min` : "—",
+        i.data_solucao ? fmtBR(i.data_solucao) : "—",
+        i.responsavel_solucao || "—",
       ]);
 
       // 4) Generate PDF Document
@@ -561,40 +465,32 @@ export default function AlertEdit({
       // Add Metadata Header
       doc.setFontSize(10);
       doc.text(`Gerado em: ${new Date().toLocaleString()}`, 14, 40);
+      doc.text(`Pivô: ${alertData?.irrigadorId || "—"}`, 14, 46);
+      doc.text(`Equipamento: ${monitorResolved || alertData.monitor || "—"}`, 14, 52);
 
-      // Alarm info table
+      // History table
       autoTable(doc, {
-        startY: 45,
-        head: [["Pivô", "Monitor", "Data", "Hora", "Tipo", "Status", "Timer"]],
-        body: [[
-          xmlSafe(machineId || "—"),
-          xmlSafe(monitorResolved || "—"),
-          alertData?.date || "—",
-          alertData?.time || "—",
-          tipoDesc,
-          statusDesc,
-          timerDesc,
+        startY: 58,
+        head: [[
+          "Data",
+          "Hora",
+          "Tipo",
+          "Status",
+          "Agendamento",
+          "Resp. ag.",
+          "Intervalo",
+          "Data solução",
+          "Resp. solução",
         ]],
+        body: rows,
         theme: "striped",
         headStyles: { fillColor: [50, 50, 50] },
         styles: { fontSize: 8 },
       });
 
-      // Timer history (if any)
-      if (rows.length > 0) {
-        autoTable(doc, {
-          startY: doc.lastAutoTable.finalY + 8,
-          head: [["Data/Hora", "Tipo", "Timer (min)", "Agendado para", "Responsável"]],
-          body: rows,
-          theme: "striped",
-          headStyles: { fillColor: [50, 50, 50] },
-          styles: { fontSize: 8 },
-        });
-      }
-
       // 4) Download the file
-      const filenameSafe = `historico_timer_${String(
-        monitorResolved || alertData._id,
+      const filenameSafe = `historico_alertas_${String(
+        monitorResolved || alertData.monitor,
       )
         .replace(/[\\/:*?"<>|]+/g, "_")
         .replace(/\s+/g, "_")}.pdf`;
@@ -613,7 +509,7 @@ export default function AlertEdit({
     setIsTimerLoading(true);
     setErrorMsg("");
     try {
-      await setCurrent(DB_NAME, alertData._id, {
+      await upsertTimer(alertData._id, {
         status: "agendado",
         timer_value: parsedMinutes,
         scheduled_for: scheduled.toISOString(),
@@ -622,14 +518,14 @@ export default function AlertEdit({
         data_solucao: "-",
         responsavel_solucao: "-",
       });
-      await appendHistoryEvent(DB_NAME, alertData._id, {
+      await appendTimerEvent(alertData._id, {
         type: "schedule",
         at: now.toISOString(),
         by: user?.email || "Desconhecido",
         timer_value: parsedMinutes,
         scheduled_for: scheduled.toISOString(),
       });
-      const curr = await getById(DB_NAME, currentId(alertData._id));
+      const curr = await getTimer(alertData._id);
       setAgendamento(curr);
       return curr;
     } finally {
@@ -652,29 +548,13 @@ export default function AlertEdit({
           ? new Date(now.getTime() + parsedMinutes * 60_000).toISOString()
           : null;
 
-      const payload = `${id};${command}${monitor ?? ""}`;
-      const doc = {
-        topic: `lindsay/comandos/${id}`,
-        payload,
-        origin: "app",
-        table: "command",
-        qos: 0,
-
-        // Campos de agendamento
-        timer_minutes: parsedMinutes,
-        scheduled_for: scheduled_for,
-        scheduled: false, // Será marcado como true pelo Python quando agendar
-        executed: false, // Será marcado como true pelo Python quando executar
-        timer_ref: alertData?._id ? `timer:${alertData._id}:current` : null,
-
-        // Metadados
-        created_at: now.toISOString(),
-        created_by: user?.email || "Desconhecido",
-        status: parsedMinutes > 0 ? "pending" : "immediate",
-        timestamp: getBrasiliaTimestamp(),
-      };
-
-      await useMessageStore.getState().postMessage(doc);
+      await postCommand({
+        irrigadorId: id,
+        command,
+        monitor: monitor ?? undefined,
+        timerMinutes: parsedMinutes,
+        timerRef: alertData?._id ? `timer:${alertData._id}:current` : undefined,
+      });
     } catch (err) {
       setErrorMsg("Falha ao enviar comando para a máquina.");
       console.error("[AlertEdit] erro ao enviar comando:", err);
@@ -719,14 +599,14 @@ export default function AlertEdit({
       setErrorMsg("");
 
       const agora = new Date();
-      const currentBefore = await getById(DB_NAME, currentId(alertData._id));
-      await setCurrent(DB_NAME, alertData._id, {
+      const currentBefore = await getTimer(alertData._id);
+      await upsertTimer(alertData._id, {
         ...(currentBefore || {}),
         status: "solucionado",
         data_solucao: nowIsoBr(),
         responsavel_solucao: user?.email || "Desconhecido",
       });
-      await appendHistoryEvent(DB_NAME, alertData._id, {
+      await appendTimerEvent(alertData._id, {
         type: "solve",
         at: agora.toISOString(),
         by: user?.email || "Desconhecido",
@@ -735,7 +615,7 @@ export default function AlertEdit({
           timer_value: currentBefore?.timer_value ?? null,
         },
       });
-      const curr = await getById(DB_NAME, currentId(alertData._id));
+      const curr = await getTimer(alertData._id);
       setAgendamento(curr);
       // Sempre envia comando imediatamente (timer_minutes = 0), ignorando valor do input
       await handleEnviar("ack", "", machineId, 0);
@@ -749,7 +629,7 @@ export default function AlertEdit({
   }
 
   /** ====== Render ====== */
-  if (!isOpen) return null;
+  if (!isOpen && !embedded) return null;
 
   const ultimoAgendamento = agendamento?.ultimo_agendamento || "—";
   const scheduledFor = agendamento?.scheduled_for
@@ -774,25 +654,22 @@ export default function AlertEdit({
     minutes < 1 ||
     isSavingSolve;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* camada de fundo */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+  const isNormalStatus =
+    String(alertData?.estado ?? "").toLowerCase() === "normal" ||
+    String(valueDescriptions?.[alertData?.estado] ?? "").toLowerCase() === "normal";
 
-      {/* modal */}
+  const canActOnAlarm = !isNormalStatus;
+
+  const inner = (
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="alertedit-title"
-        className="relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col outline-none shadow-xl"
+        className={embedded ? "flex flex-col w-full text-white" : "relative bg-[#2f2f2f] text-white rounded-md w-full max-w-md flex flex-col outline-none shadow-xl"}
       >
         {/* Cabeçalho */}
-        <div className="flex justify-between items-center p-4 border-b border-[#444]">
+        <div className="flex justify-between items-center p-4 ">
           <h2
             id="alertedit-title"
             ref={titleRef}
@@ -853,8 +730,8 @@ export default function AlertEdit({
               {isAlertLoading ? (
                 <Dots />
               ) : (
-                (valueDescriptions?.[alertData?.status] ??
-                alertData?.status ??
+                (valueDescriptions?.[alertData?.estado] ??
+                alertData?.estado ??
                 "Sem dados")
               )}
             </div>
@@ -862,7 +739,7 @@ export default function AlertEdit({
         </div>
 
         {/* Agendar */}
-        <div className="p-4 border-t border-[#444]">
+        <div className="p-4 ">
           {canResolveAlerts && (
             <>
               <h3 className="text-sm text-gray-300">
@@ -895,11 +772,16 @@ export default function AlertEdit({
                   className="px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onClick={handleAgendamentoClick}
                   title={isSavingSchedule ? "Processando..." : "Agendar"}
-                  disabled={agendarDisabled}
+                  disabled={agendarDisabled || !canActOnAlarm}
                   aria-busy={isSavingSchedule}
                 >
                   {isSavingSchedule ? "Agendando..." : "Agendar"}
                 </button>
+                {!canActOnAlarm && (
+                  <span className="text-xs text-gray-400">
+                    Alarme em estado normal — não é possível agendar.
+                  </span>
+                )}
               </div>
 
               {/* Contagens */}
@@ -956,11 +838,16 @@ export default function AlertEdit({
               className="mt-4 px-3 py-1 text-sm rounded bg-blue-600 text-white disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
               onClick={handleSolutionClick}
               title={isSavingSolve ? "Solucionando..." : "Solucionar Alarme"}
-              disabled={isSavingSolve || isSavingSchedule}
+              disabled={isSavingSolve || isSavingSchedule || !canActOnAlarm}
               aria-busy={isSavingSolve}
             >
               {isSavingSolve ? "Solucionando..." : "Solucionar Alarme"}
             </button>
+          )}
+          {!canActOnAlarm && (
+            <div className="mt-2 text-xs text-gray-400">
+              Alarme em estado normal — não é possível resolver.
+            </div>
           )}
 
           <div className="mt-3 text-sm text-gray-400">
@@ -979,6 +866,18 @@ export default function AlertEdit({
           </div>
         </div>
       </div>
+  );
+
+  if (embedded) return inner;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/50"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {inner}
     </div>
   );
 }

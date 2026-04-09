@@ -164,16 +164,33 @@ export function TensionTimeChart({
       });
     });
 
-    // Só mantém os que estão em equipmentNames (que têm nome)
-    return Array.from(keySet)
-      .filter((key) => equipmentNames.includes(key))
-      .sort();
+    const keys = Array.from(keySet);
+    const eq = (equipmentNames || [])
+      .slice(2)
+      .filter((n) => n && n.trim() !== "")
+      .map((n) => n.trim());
+
+    if (eq.length === 0) {
+      return keys.sort((a, b) => {
+        const ma = a.match(/monitor\s*(\d+)/i);
+        const mb = b.match(/monitor\s*(\d+)/i);
+        if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+        return a.localeCompare(b);
+      });
+    }
+
+    // Restringe aos equipamentos definidos no pivô (exibe somente os existentes)
+    return eq;
   }, [chartData, equipmentNames]);
 
   // Somente equipamentos com nome
-  const visibleEquipments = equipmentNames
-    .filter((n) => n && n.trim() !== "")
-    .map((n) => n.trim());
+  const visibleEquipments = useMemo(() => {
+    const base = equipmentNames
+      .slice(0, 2)
+      .filter((n) => n && n.trim() !== "")
+      .map((n) => n.trim());
+    return [...base, ...monitorKeys];
+  }, [equipmentNames, monitorKeys]);
 
   // Domínio Y automático
   const yDomain = useMemo(() => {

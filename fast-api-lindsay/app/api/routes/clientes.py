@@ -84,20 +84,18 @@ async def list_clientes(user: dict = Depends(get_current_user)):
                 )
             )
         else:
-            # Revenda: busca clientes cujo revenda_id == doc_id da revenda
+            # Revenda: busca clientes vinculados por revenda_id (doc_id) ou cnpj_revenda
             revenda_doc_id = user.get("doc_id")
+            revenda_cnpj = user.get("cnpj")
+            selector = {"type": "cliente"}
+            or_filters = []
             if revenda_doc_id:
-                clientes_raw = list(
-                    db_conn.find(
-                        {
-                            "selector": {
-                                "type": "cliente",
-                                "revenda_id": revenda_doc_id,
-                            },
-                            "limit": 1000,
-                        }
-                    )
-                )
+                or_filters.append({"revenda_id": revenda_doc_id})
+            if revenda_cnpj:
+                or_filters.append({"cnpj_revenda": revenda_cnpj})
+            if or_filters:
+                selector["$or"] = or_filters
+                clientes_raw = list(db_conn.find({"selector": selector, "limit": 1000}))
             else:
                 clientes_raw = []
 
@@ -160,6 +158,30 @@ async def create_cliente_admin(
                     cnpj_revenda = revenda_doc.get("cnpj_revenda") or revenda_doc.get(
                         "cnpj"
                     )
+                else:
+                    # Fallback: se revenda_id não for doc_id, tentar buscar por name/email
+                    try:
+                        result = _db.find(
+                            {
+                                "selector": {
+                                    "type": "revenda",
+                                    "$or": [
+                                        {"name": body.revenda_id},
+                                        {"email": body.revenda_id},
+                                    ],
+                                },
+                                "limit": 1,
+                            }
+                        )
+                        revendas = list(result)
+                        if revendas:
+                            revenda_doc = revendas[0]
+                            body.revenda_id = revenda_doc.get("_id")
+                            cnpj_revenda = revenda_doc.get("cnpj_revenda") or revenda_doc.get(
+                                "cnpj"
+                            )
+                    except Exception:
+                        pass
         elif user.get("type") == "revenda":
             # Buscar documento da revenda pelo doc_id real (revenda:{uuid})
             revenda_doc_id = user.get("doc_id")
@@ -193,26 +215,68 @@ async def create_cliente_admin(
         raise HTTPException(status_code=400, detail=password_error)
 
     cognito_sub = None
+    created_in_cognito = False
+    created_in_cognito = False
+    doc_id = f"user:{body.email}"
+
+    # Evita criar no Cognito se já existe no CouchDB (garante consistência)
     try:
-        create_response = cognito_client.admin_create_user(
-            UserPoolId=settings.COGNITO_USER_POOL_ID,
-            Username=body.email,
-            UserAttributes=[
-                {"Name": "email", "Value": body.email},
-                {"Name": "email_verified", "Value": "true"},
-                {"Name": "name", "Value": body.name},
-                {"Name": "phone_number", "Value": body.phone_number},
-                {"Name": "custom:type", "Value": "cliente"},
-                {"Name": "custom:status", "Value": "active"},
-                {"Name": "custom:cnpj", "Value": body.cnpj_cliente or ""},
-                {"Name": "custom:doc_id", "Value": f"user:{body.email}"},
-                # sub_role fica apenas no CouchDB; Cognito não tem custom:sub_role no schema
-            ],
-        )
-        cognito_sub = create_response["User"]["Username"]
-        print(
-            f"✅ Usuário cliente criado no Cognito (admin_create_user): {cognito_sub}"
-        )
+        _db = get_users_db()
+        existing_doc = _db.get(doc_id)
+        if existing_doc:
+            raise HTTPException(status_code=409, detail="Cliente já existe no sistema.")
+    except HTTPException:
+        raise
+    except Exception:
+        # Se não encontrou, seguimos; outros erros serão tratados depois
+        pass
+
+    try:
+        try:
+            create_response = cognito_client.admin_create_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                # Evita envio de convite (SMS/email) — necessário quando o user pool não tem SMS configurado.
+                MessageAction="SUPPRESS",
+                UserAttributes=[
+                    {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
+                    {"Name": "custom:type", "Value": "cliente"},
+                    {"Name": "custom:status", "Value": "active"},
+                    {"Name": "custom:cnpj", "Value": body.cnpj_cliente or ""},
+                    {"Name": "custom:doc_id", "Value": doc_id},
+                    # sub_role fica apenas no CouchDB; Cognito não tem custom:sub_role no schema
+                ],
+            )
+            cognito_sub = create_response["User"]["Username"]
+            created_in_cognito = True
+            created_in_cognito = True
+            print(
+                f"✅ Usuário cliente criado no Cognito (admin_create_user): {cognito_sub}"
+            )
+        except cognito_client.exceptions.UsernameExistsException:
+            # Usuário já existe no Cognito: sincronizar e seguir para CouchDB
+            existing = cognito_client.admin_get_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+            )
+            cognito_sub = existing.get("Username")
+            cognito_client.admin_update_user_attributes(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                UserAttributes=[
+                    {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
+                    {"Name": "custom:type", "Value": "cliente"},
+                    {"Name": "custom:status", "Value": "active"},
+                    {"Name": "custom:cnpj", "Value": body.cnpj_cliente or ""},
+                    {"Name": "custom:doc_id", "Value": doc_id},
+                ],
+            )
 
         # Definir senha permanente (sem forçar troca no primeiro login)
         cognito_client.admin_set_user_password(
@@ -226,7 +290,6 @@ async def create_cliente_admin(
         # 2. Criar documento no CouchDB (banco de usuários)
         try:
             db = get_users_db()
-            doc_id = f"user:{body.email}"
 
             now = datetime.utcnow().isoformat()
             cliente_doc = {
@@ -261,15 +324,31 @@ async def create_cliente_admin(
             db.save(cliente_doc)
 
             # ✅ Atualizar revenda.clientes[] com o cnpj_cliente
-            if body.revenda_id and body.cnpj_cliente:
+            if body.cnpj_cliente:
                 try:
-                    revenda_doc = db.get(body.revenda_id)
-                    if revenda_doc:
-                        clientes_list = revenda_doc.get("clientes", [])
+                    target_revenda = None
+                    if body.revenda_id:
+                        target_revenda = db.get(body.revenda_id)
+                    if not target_revenda and cnpj_revenda:
+                        result = db.find(
+                            {
+                                "selector": {
+                                    "type": "revenda",
+                                    "cnpj_revenda": cnpj_revenda,
+                                },
+                                "limit": 1,
+                            }
+                        )
+                        revendas = list(result)
+                        if revendas:
+                            target_revenda = revendas[0]
+                            body.revenda_id = target_revenda.get("_id")
+                    if target_revenda:
+                        clientes_list = target_revenda.get("clientes", [])
                         if body.cnpj_cliente not in clientes_list:
                             clientes_list.append(body.cnpj_cliente)
-                            revenda_doc["clientes"] = clientes_list
-                            db.save(revenda_doc)
+                            target_revenda["clientes"] = clientes_list
+                            db.save(target_revenda)
                             print(
                                 f"✅ Revenda.clientes[] atualizado com {body.cnpj_cliente}"
                             )
@@ -282,12 +361,13 @@ async def create_cliente_admin(
             traceback.print_exc()
 
             # Rollback: deletar do Cognito se falhar no CouchDB
-            try:
-                cognito_client.admin_delete_user(
-                    UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
-                )
-            except:
-                pass
+            if created_in_cognito:
+                try:
+                    cognito_client.admin_delete_user(
+                        UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
+                    )
+                except Exception:
+                    pass
             raise HTTPException(
                 status_code=500, detail=f"Erro ao criar cliente no CouchDB: {str(e)}"
             )
@@ -307,7 +387,7 @@ async def create_cliente_admin(
         raise
     except ClientError as e:
         # Rollback se algo der errado no Cognito após criação parcial
-        if cognito_client and cognito_sub:
+        if cognito_client and cognito_sub and created_in_cognito:
             try:
                 cognito_client.admin_delete_user(
                     UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
@@ -317,7 +397,7 @@ async def create_cliente_admin(
         _raise_cognito_http_error(e)
     except Exception as e:
         # Rollback se algo der errado
-        if cognito_client and cognito_sub:
+        if cognito_client and cognito_sub and created_in_cognito:
             try:
                 cognito_client.admin_delete_user(
                     UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
@@ -563,23 +643,58 @@ async def create_company_user(
         raise HTTPException(status_code=400, detail=password_error)
 
     cognito_sub = None
+    doc_id = f"user:{body.email}"
+
+    # Evita criar no Cognito se já existe no CouchDB (garante consistência)
     try:
-        create_response = cognito_client.admin_create_user(
-            UserPoolId=settings.COGNITO_USER_POOL_ID,
-            Username=body.email,
-            UserAttributes=[
-                {"Name": "email", "Value": body.email},
-                {"Name": "email_verified", "Value": "true"},
-                {"Name": "name", "Value": body.name},
-                {"Name": "phone_number", "Value": body.phone_number},
-                {"Name": "custom:type", "Value": "cliente"},
-                {"Name": "custom:status", "Value": "active"},
-                {"Name": "custom:cnpj", "Value": cnpj_cliente},
-                {"Name": "custom:doc_id", "Value": f"user:{body.email}"},
-                # sub_role fica apenas no CouchDB; Cognito não tem custom:sub_role no schema
-            ],
-        )
-        cognito_sub = create_response["User"]["Username"]
+        existing_doc = db.get(doc_id)
+        if existing_doc:
+            raise HTTPException(status_code=409, detail="Usuário já existe no sistema.")
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+
+    try:
+        try:
+            create_response = cognito_client.admin_create_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                # Evita envio de convite (SMS/email) — necessário quando o user pool não tem SMS configurado.
+                MessageAction="SUPPRESS",
+                UserAttributes=[
+                    {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
+                    {"Name": "custom:type", "Value": "cliente"},
+                    {"Name": "custom:status", "Value": "active"},
+                    {"Name": "custom:cnpj", "Value": cnpj_cliente},
+                    {"Name": "custom:doc_id", "Value": doc_id},
+                    # sub_role fica apenas no CouchDB; Cognito não tem custom:sub_role no schema
+                ],
+            )
+            cognito_sub = create_response["User"]["Username"]
+        except cognito_client.exceptions.UsernameExistsException:
+            existing = cognito_client.admin_get_user(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+            )
+            cognito_sub = existing.get("Username")
+            cognito_client.admin_update_user_attributes(
+                UserPoolId=settings.COGNITO_USER_POOL_ID,
+                Username=body.email,
+                UserAttributes=[
+                    {"Name": "email", "Value": body.email},
+                    {"Name": "email_verified", "Value": "true"},
+                    {"Name": "name", "Value": body.name},
+                    {"Name": "phone_number", "Value": body.phone_number},
+                    {"Name": "custom:type", "Value": "cliente"},
+                    {"Name": "custom:status", "Value": "active"},
+                    {"Name": "custom:cnpj", "Value": cnpj_cliente},
+                    {"Name": "custom:doc_id", "Value": doc_id},
+                ],
+            )
 
         # Definir senha permanente
         cognito_client.admin_set_user_password(
@@ -590,7 +705,6 @@ async def create_company_user(
         )
 
         # 2. Criar documento no CouchDB
-        doc_id = f"user:{body.email}"
         now = datetime.utcnow().isoformat()
 
         cliente_doc = {
@@ -636,7 +750,7 @@ async def create_company_user(
     except HTTPException:
         raise
     except ClientError as e:
-        if cognito_client and cognito_sub:
+        if cognito_client and cognito_sub and created_in_cognito:
             try:
                 cognito_client.admin_delete_user(
                     UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email
@@ -645,7 +759,7 @@ async def create_company_user(
                 pass
         _raise_cognito_http_error(e)
     except Exception as e:
-        if cognito_client and cognito_sub:
+        if cognito_client and cognito_sub and created_in_cognito:
             try:
                 cognito_client.admin_delete_user(
                     UserPoolId=settings.COGNITO_USER_POOL_ID, Username=body.email

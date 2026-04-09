@@ -5,6 +5,9 @@ Rotas de autenticação
 from fastapi import APIRouter, HTTPException, Request, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import base64
+import hashlib
+import hmac
+import json
 from typing import Optional
 import couchdb
 import boto3
@@ -16,6 +19,7 @@ from app.core.config import settings
 from app.models.schemas import (
     UserRegisterRequest,
     UserLoginRequest,
+    CognitoSignUpRequest,
     UserResponse,
     TokenResponse,
     LoginResponse,
@@ -24,6 +28,9 @@ from app.models.schemas import (
     AcceptTermsRequest,
     TermsResponse,
     InvitationActivateRequest,
+    ForgotPasswordRequest,
+    ConfirmForgotPasswordRequest,
+    ChangePasswordRequest,
 )
 from app.services.auth import AuthService, UserType
 from app.services.verification_service import VerificationService
@@ -138,6 +145,19 @@ def _resolve_user_doc(credentials):
         )
 
     return user_doc, doc_id, user_type_resolved, cnpj_resolved, sub_role_resolved
+
+
+def _cognito_secret_hash(username: str, client_id: str) -> Optional[str]:
+    """Gera SECRET_HASH do Cognito quando client secret estiver configurado."""
+    client_secret = (settings.COGNITO_CLIENT_SECRET or "").strip()
+    if not client_secret:
+        return None
+    # Evita enviar hash para client público (sem secret).
+    if client_id != settings.COGNITO_CLIENT_ID:
+        return None
+    message = (username + client_id).encode("utf-8")
+    dig = hmac.new(client_secret.encode("utf-8"), message, hashlib.sha256).digest()
+    return base64.b64encode(dig).decode("utf-8")
 
 
 # ============================================================================
@@ -388,6 +408,340 @@ async def login(request: UserLoginRequest):
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================================================
+# Login via Cognito (frontend → FastAPI → Cognito → CouchDB)
+# ============================================================================
+
+
+@router.post("/login-cognito", response_model=LoginResponse)
+async def login_cognito(
+    request: UserLoginRequest, cognito_client=Depends(get_cognito_client)
+):
+    """Login via AWS Cognito com enriquecimento de perfil pelo CouchDB."""
+    # 1. Montar parâmetros de autenticação
+    # Usa o client público (sem secret) — mesmo utilizado pelo frontend
+    client_id = (settings.COGNITO_PUBLIC_CLIENT_ID or "").strip() or settings.COGNITO_CLIENT_ID
+
+    auth_params: dict = {
+        "USERNAME": request.email,
+        "PASSWORD": request.password,
+    }
+
+    # 2. Autenticar no Cognito
+    try:
+        cognito_response = cognito_client.initiate_auth(
+            AuthFlow="USER_PASSWORD_AUTH",
+            ClientId=client_id,
+            AuthParameters=auth_params,
+        )
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        if error_code == "NotAuthorizedException":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail='Email ou senha incorretos. Verifique os dados ou use "Esqueci minha senha".',
+            )
+        if error_code == "UserNotFoundException":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuário não encontrado. Verifique o email ou crie uma conta.",
+            )
+        if error_code == "UserNotConfirmedException":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Conta não confirmada. Verifique seu email e confirme o cadastro.",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)
+        )
+
+    # 3. Decodificar IdToken para extrair atributos do Cognito
+    id_token = cognito_response["AuthenticationResult"]["IdToken"]
+    try:
+        payload_b64 = id_token.split(".")[1]
+        # Adicionar padding se necessário
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        token_payload = json.loads(base64.b64decode(payload_b64).decode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao decodificar token Cognito: {exc}",
+        )
+
+    user_email = token_payload.get("email", request.email)
+
+    # 4. Resolver tipo de usuário (custom:type → cognito:groups → CouchDB → fallback)
+    cognito_groups = token_payload.get("cognito:groups") or []
+    user_type = token_payload.get("custom:type") or (cognito_groups[0] if cognito_groups else None)
+
+    db = get_users_db()
+
+    if not user_type:
+        try:
+            admin_doc = db.get(f"admin:{user_email}")
+            if admin_doc and admin_doc.get("type") in ("admin", "superadmin"):
+                user_type = admin_doc["type"]
+        except Exception:
+            pass
+
+    if not user_type and "@" in user_email:
+        domain = user_email.split("@")[1]
+        try:
+            revenda_doc = db.get(f"revenda:{domain}")
+            if revenda_doc and revenda_doc.get("type") == "revenda":
+                user_type = "revenda"
+        except Exception:
+            pass
+
+    if not user_type:
+        user_type = "cliente"
+
+    # 5. Montar doc_id e buscar documento no CouchDB
+    if user_type in ("admin", "superadmin"):
+        doc_id = f"admin:{user_email}"
+    elif user_type == "revenda":
+        domain = token_payload.get("custom:domain") or user_email.split("@")[1]
+        doc_id = f"revenda:{domain}"
+    else:
+        doc_id = f"user:{user_email}"
+
+    user_doc = None
+    try:
+        user_doc = db.get(doc_id)
+    except Exception:
+        pass
+
+    if not user_doc:
+        try:
+            results = list(db.find({"selector": {"email": user_email}, "limit": 1}))
+            if results:
+                user_doc = results[0]
+                doc_id = user_doc.get("_id", doc_id)
+        except Exception:
+            pass
+
+    # 6. Extrair campos do documento CouchDB
+    user_status = "active"
+    user_cnpj = token_payload.get("custom:cnpj") or ""
+    user_sub_role = None
+    email_verified = True
+    terms_accepted = False
+    terms_version = None
+
+    if user_doc:
+        if user_doc.get("type"):
+            user_type = user_doc["type"]
+        if user_doc.get("status"):
+            user_status = user_doc["status"]
+        if user_type in ("admin", "superadmin"):
+            user_cnpj = user_doc.get("cnpj_admin") or user_cnpj
+        elif user_type == "revenda":
+            user_cnpj = user_doc.get("cnpj_revenda") or user_doc.get("cnpj") or user_cnpj
+        elif user_type == "cliente":
+            user_cnpj = user_doc.get("cnpj_cliente") or user_doc.get("cnpj") or user_cnpj
+            user_sub_role = user_doc.get("sub_role") or "superusuario"
+        email_verified = user_doc.get("email_verified", True)
+        terms_accepted = user_doc.get("terms_accepted", False)
+        terms_version = user_doc.get("terms_version")
+
+    # Admin/superadmin sempre são active
+    if user_type in ("admin", "superadmin"):
+        user_status = "active"
+
+    # 7. Determinar ação necessária (onboarding)
+    requires_action = None
+    if not email_verified:
+        requires_action = "verify_email"
+    elif not terms_accepted or terms_version != settings.CURRENT_TERMS_VERSION:
+        requires_action = "accept_terms"
+
+    # 8. Gerar token base64(email:type:cnpj:sub_role)
+    sub_role_str = user_sub_role or ""
+    token = base64.b64encode(
+        f"{user_email}:{user_type}:{user_cnpj}:{sub_role_str}".encode()
+    ).decode()
+
+    # 9. Registrar timestamps de login
+    if user_doc and doc_id:
+        try:
+            from datetime import datetime
+
+            now = datetime.utcnow().isoformat()
+            fresh = db.get(doc_id)
+            if fresh:
+                if not fresh.get("first_login_at"):
+                    fresh["first_login_at"] = now
+                fresh["last_login_at"] = now
+                db.save(fresh)
+        except Exception:
+            pass
+
+    return LoginResponse(
+        access_token=token,
+        user=UserResponse(
+            email=user_email,
+            name=user_doc.get("name", "") if user_doc else "",
+            type=user_type,
+            status=user_status,
+            doc_id=doc_id,
+            sub_role=user_sub_role,
+            cnpj=user_cnpj or None,
+        ),
+        email_verified=email_verified,
+        terms_accepted=terms_accepted,
+        terms_version=terms_version,
+        requires_action=requires_action,
+    )
+
+
+# ============================================================================
+# Cadastro Cognito e Recuperação de Senha
+# ============================================================================
+
+
+@router.post("/signup")
+async def signup_cognito(
+    request: CognitoSignUpRequest, cognito_client=Depends(get_cognito_client)
+):
+    """Cadastro direto no Cognito (proxy do frontend)."""
+    client_id = (settings.COGNITO_PUBLIC_CLIENT_ID or "").strip() or settings.COGNITO_CLIENT_ID
+
+    user_attributes = [{"Name": "email", "Value": request.email}]
+    if request.name:
+        user_attributes.append({"Name": "name", "Value": request.name})
+    if request.phone_number:
+        user_attributes.append({"Name": "phone_number", "Value": request.phone_number})
+
+    params = {
+        "ClientId": client_id,
+        "Username": request.email,
+        "Password": request.password,
+        "UserAttributes": user_attributes,
+    }
+
+    secret_hash = _cognito_secret_hash(request.email, client_id)
+    if secret_hash:
+        params["SecretHash"] = secret_hash
+
+    try:
+        response = cognito_client.sign_up(**params)
+        return {
+            "status": "success",
+            "user_confirmed": response.get("UserConfirmed"),
+            "code_delivery": response.get("CodeDeliveryDetails"),
+            "user_sub": response.get("UserSub"),
+        }
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code == "UsernameExistsException":
+            raise HTTPException(
+                status_code=409, detail="Email já está registrado no sistema"
+            )
+        if error_code == "InvalidPasswordException":
+            raise HTTPException(
+                status_code=400,
+                detail="Senha não atende aos requisitos de segurança",
+            )
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest, cognito_client=Depends(get_cognito_client)
+):
+    """Inicia fluxo de recuperação de senha no Cognito."""
+    client_id = (settings.COGNITO_PUBLIC_CLIENT_ID or "").strip() or settings.COGNITO_CLIENT_ID
+
+    params = {"ClientId": client_id, "Username": request.email}
+    secret_hash = _cognito_secret_hash(request.email, client_id)
+    if secret_hash:
+        params["SecretHash"] = secret_hash
+
+    try:
+        response = cognito_client.forgot_password(**params)
+        return {
+            "status": "success",
+            "code_delivery": response.get("CodeDeliveryDetails"),
+        }
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code == "UserNotFoundException":
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/confirm-forgot-password")
+async def confirm_forgot_password(
+    request: ConfirmForgotPasswordRequest, cognito_client=Depends(get_cognito_client)
+):
+    """Confirma nova senha via código do Cognito."""
+    client_id = (settings.COGNITO_PUBLIC_CLIENT_ID or "").strip() or settings.COGNITO_CLIENT_ID
+
+    params = {
+        "ClientId": client_id,
+        "Username": request.email,
+        "ConfirmationCode": request.code,
+        "Password": request.new_password,
+    }
+    secret_hash = _cognito_secret_hash(request.email, client_id)
+    if secret_hash:
+        params["SecretHash"] = secret_hash
+
+    try:
+        cognito_client.confirm_forgot_password(**params)
+        return {"status": "success", "message": "Senha redefinida com sucesso"}
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code in ("CodeMismatchException", "ExpiredCodeException"):
+            raise HTTPException(status_code=400, detail="Código inválido ou expirado")
+        if error_code == "UserNotFoundException":
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    http_request: Request,
+    cognito_client=Depends(get_cognito_client),
+):
+    """Troca senha usando access token do Cognito."""
+    auth_header = http_request.headers.get("Authorization", "")
+    access_token = request.access_token
+
+    if auth_header:
+        if auth_header.lower().startswith("bearer "):
+            access_token = auth_header[7:].strip()
+        else:
+            access_token = auth_header.strip()
+
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token do Cognito não fornecido",
+        )
+
+    try:
+        cognito_client.change_password(
+            PreviousPassword=request.previous_password,
+            ProposedPassword=request.proposed_password,
+            AccessToken=access_token,
+        )
+        return {"status": "success", "message": "Senha alterada com sucesso"}
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "")
+        if error_code == "NotAuthorizedException":
+            raise HTTPException(status_code=401, detail="Token inválido")
+        if error_code == "InvalidPasswordException":
+            raise HTTPException(
+                status_code=400,
+                detail="Senha não atende aos requisitos de segurança",
+            )
         raise HTTPException(status_code=400, detail=str(e))
 
 

@@ -41,6 +41,7 @@ class PivoModel(BaseModel):
 
     codigo: str
     nome: str
+    irrigador: Optional[str] = None
     owner_id: str  # Email do cliente que é dono
     cnpj_cliente: Optional[str] = None
     nome_cliente: Optional[str] = (
@@ -58,6 +59,17 @@ class PivoModel(BaseModel):
     ativo: bool = True
     location: Optional[Dict] = None  # {"lat": -15.79, "lng": -48.10}
 
+    # metadados do documento
+    origin: Optional[str] = None
+    table: Optional[str] = None
+    type: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+    # contatos (formato atual do doc)
+    contacts: Optional[Dict[str, Optional[str]]] = None
+
+    # compatibilidade com payload antigo
     whatsapp: Optional[str] = None
     sms: Optional[str] = None
     email: Optional[str] = None
@@ -184,7 +196,8 @@ class PivoService:
             if checker.is_superadmin():
                 # Superadmin vê todos os irrigadores
                 pivos = self._find_pivos({"table": "irrigadores"})
-                return [self._normalize_pivo(p) for p in pivos]
+                visible = [p for p in pivos if self._can_view_pivo(user, p, checker)]
+                return [self._normalize_pivo(p) for p in visible]
 
             elif checker.is_admin_only():
                 # Admin regular: apenas pivôs da própria hierarquia (cnpj_admin)
@@ -193,7 +206,8 @@ class PivoService:
                     pivos = self._find_pivos(
                         {"table": "irrigadores", "cnpj_admin": user_cnpj}
                     )
-                return [self._normalize_pivo(p) for p in pivos]
+                visible = [p for p in pivos if self._can_view_pivo(user, p, checker)]
+                return [self._normalize_pivo(p) for p in visible]
 
             elif checker.is_revenda():
                 # Revenda: irrigadores filtrados por cnpj_revenda
@@ -202,7 +216,8 @@ class PivoService:
                     pivos = self._find_pivos(
                         {"table": "irrigadores", "cnpj_revenda": user_cnpj}
                     )
-                return [self._normalize_pivo(p) for p in pivos]
+                visible = [p for p in pivos if self._can_view_pivo(user, p, checker)]
+                return [self._normalize_pivo(p) for p in visible]
 
             elif checker.is_cliente():
                 # Cliente: irrigadores filtrados por cnpj_cliente
@@ -211,7 +226,8 @@ class PivoService:
                     pivos = self._find_pivos(
                         {"table": "irrigadores", "cnpj_cliente": user_cnpj}
                     )
-                return [self._normalize_pivo(p) for p in pivos]
+                visible = [p for p in pivos if self._can_view_pivo(user, p, checker)]
+                return [self._normalize_pivo(p) for p in visible]
 
             return []
 
@@ -281,7 +297,15 @@ class PivoService:
             raise PermissionError("Sem permissão para editar este pivô")
 
         # Atualizar campos permitidos
-        allowed_fields = {"nome", "ativo", "location"}
+        allowed_fields = {
+            "nome",
+            "codigo",
+            "irrigador",
+            "ativo",
+            "location",
+            "equipamentos",
+            "contacts",
+        }
         for field, value in pivo_data.items():
             if field in allowed_fields:
                 pivo[field] = value
@@ -325,6 +349,10 @@ class PivoService:
             print(f"✅ Pivô deletado: {pivo_id}")
             return True
         except Exception as e:
+            msg = str(e)
+            if "not_found" in msg and "deleted" in msg:
+                print(f"ℹ️ Pivô já estava deletado: {pivo_id}")
+                return True
             print(f"❌ Erro ao deletar pivô: {e}")
             return False
 
@@ -403,16 +431,26 @@ class PivoService:
         created_at = pivo.get("created_at") or ""
         updated_at = pivo.get("updated_at")
 
-        normalized = {
-            "_id": pivo.get("_id", ""),
-            "codigo": pivo.get("codigo", ""),
-            "nome": pivo.get("nome")
+
+        raw_codigo = pivo.get("codigo", "")
+        raw_nome = (
+            pivo.get("nome")
             or pivo.get("name")
             or pivo.get("irrigador")
-            or pivo.get("codigo", "Sem nome"),
-            "owner_id": pivo.get("owner_id") or pivo.get("companyId") or "",
-            "gerente_id": pivo.get("gerente_id") or "",
-            "ativo": pivo.get("ativo", True),
+            or raw_codigo
+            or "Sem nome"
+        )
+        owner_id = pivo.get("owner_id") or pivo.get("companyId") or ""
+        gerente_id = pivo.get("gerente_id") or ""
+
+        normalized = {
+            "_id": str(pivo.get("_id", "") or ""),
+            "codigo": str(raw_codigo or ""),
+            "nome": str(raw_nome or ""),
+            "display_name": str(raw_nome or ""),
+            "owner_id": str(owner_id or ""),
+            "gerente_id": str(gerente_id or ""),
+            "ativo": bool(pivo.get("ativo", True)),
             "created_at": created_at,
             "updated_at": updated_at,
             "location": pivo.get("location"),
@@ -421,6 +459,9 @@ class PivoService:
             "nome_cliente": pivo.get("nome_cliente"),
             "nome_revenda": pivo.get("nome_revenda"),
             "nome_admin": pivo.get("nome_admin"),
+            "cnpj_cliente": pivo.get("cnpj_cliente"),
+            "cnpj_revenda": pivo.get("cnpj_revenda"),
+            "cnpj_admin": pivo.get("cnpj_admin"),
         }
 
         # Preservar outros campos úteis
@@ -445,19 +486,25 @@ class PivoService:
         Returns:
             True se pode visualizar, False caso contrário
         """
-        user_cnpj = user.get("cnpj", "")
+        def _norm_cnpj(value: str) -> str:
+            return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+        user_cnpj = _norm_cnpj(user.get("cnpj", ""))
+
+        if checker.is_superadmin():
+            return True
 
         if checker.is_admin():
-            # Admin vê irrigadores do seu cnpj_admin (ou todos se root)
+            # Admin regular vê apenas irrigadores do próprio cnpj_admin
             if not user_cnpj:
-                return True
-            return pivo.get("cnpj_admin") == user_cnpj
+                return False
+            return _norm_cnpj(pivo.get("cnpj_admin")) == user_cnpj
 
         if checker.is_revenda():
-            return pivo.get("cnpj_revenda") == user_cnpj
+            return _norm_cnpj(pivo.get("cnpj_revenda")) == user_cnpj
 
         if checker.is_cliente():
-            return pivo.get("cnpj_cliente") == user_cnpj
+            return _norm_cnpj(pivo.get("cnpj_cliente")) == user_cnpj
 
         return False
 
